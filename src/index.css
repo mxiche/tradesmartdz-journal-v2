@@ -1,0 +1,220 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Tajawal:wght@300;400;500;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 7%;
+    --foreground: 220 10% 90%;
+    --card: 225 18% 12%;
+    --card-foreground: 220 10% 90%;
+    --popover: 225 18% 12%;
+    --popover-foreground: 220 10% 90%;
+    --primary: 165 100% 42%;
+    --primary-foreground: 220 20% 7%;
+    --secondary: 225 15% 16%;
+    --secondary-foreground: 220 10% 90%;
+    --muted: 225 15% 16%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 165 100% 42%;
+    --accent-foreground: 220 20% 7%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 225 15% 20%;
+    --input: 225 15% 20%;
+    --ring: 165 100% 42%;
+    --radius: 0.75rem;
+
+    --profit: 142 71% 45%;
+    --loss: 0 84% 60%;
+    --chart-line: 165 100% 42%;
+
+    --sidebar-background: 225 18% 10%;
+    --sidebar-foreground: 220 10% 80%;
+    --sidebar-primary: 165 100% 42%;
+    --sidebar-primary-foreground: 220 20% 7%;
+    --sidebar-accent: 225 15% 16%;
+    --sidebar-accent-foreground: 220 10% 90%;
+    --sidebar-border: 225 15% 18%;
+    --sidebar-ring: 165 100% 42%;
+
+    --font-ar: 'Tajawal', sans-serif;
+    --font-en: 'Inter', sans-serif;
+  }
+
+  .light {
+    --background: 0 0% 98%;
+    --foreground: 225 20% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 225 20% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 225 20% 12%;
+    --primary: 165 100% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 225 20% 12%;
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 10% 45%;
+    --accent: 165 100% 35%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 87%;
+    --input: 220 13% 87%;
+    --ring: 165 100% 35%;
+
+    --profit: 142 71% 35%;
+    --loss: 0 84% 55%;
+    --chart-line: 165 100% 35%;
+
+    --sidebar-background: 0 0% 96%;
+    --sidebar-foreground: 225 20% 20%;
+    --sidebar-primary: 165 100% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 92%;
+    --sidebar-accent-foreground: 225 20% 12%;
+    --sidebar-border: 220 13% 87%;
+    --sidebar-ring: 165 100% 35%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-en);
+  }
+  [lang="ar"] body,
+  [lang="ar"] {
+    font-family: var(--font-ar);
+  }
+}
+
+@layer utilities {
+  .text-profit {
+    color: hsl(var(--profit));
+  }
+  .text-loss {
+    color: hsl(var(--loss));
+  }
+  .bg-profit {
+    background-color: hsl(var(--profit));
+  }
+  .bg-loss {
+    background-color: hsl(var(--loss));
+  }
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(165 100% 55%));
+  }
+  .glass {
+    backdrop-filter: blur(12px);
+    background: hsl(var(--card) / 0.8);
+  }
+}
+
+/* Card & button hover polish */
+@layer components {
+  /* Cards: lift + border glow */
+  .rounded-lg[class*="bg-card"],
+  [class*="border-border"][class*="bg-card"] {
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.25s ease,
+                border-color 0.25s ease;
+  }
+  .rounded-lg[class*="bg-card"]:hover,
+  [class*="border-border"][class*="bg-card"]:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px -8px hsl(var(--primary) / 0.15);
+    border-color: hsl(var(--primary) / 0.3);
+  }
+
+  /* Buttons: subtle lift + shadow */
+  button:not([class*="ghost"]):not([class*="link"]):not([class*="outline"]) {
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.2s ease,
+                background-color 0.2s ease;
+  }
+  button:not([class*="ghost"]):not([class*="link"]):not([class*="outline"]):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px -4px hsl(var(--primary) / 0.4);
+  }
+  button:not([class*="ghost"]):not([class*="link"]):not([class*="outline"]):active {
+    transform: translateY(0px) scale(0.98);
+    box-shadow: none;
+    transition-duration: 0.1s;
+  }
+
+  /* Outline buttons: border glow */
+  button[class*="outline"] {
+    transition: border-color 0.2s ease,
+                background-color 0.2s ease,
+                transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  button[class*="outline"]:hover {
+    transform: translateY(-1px);
+    border-color: hsl(var(--primary) / 0.5);
+  }
+  button[class*="outline"]:active {
+    transform: translateY(0px) scale(0.98);
+  }
+
+  /* Badge hover */
+  [class*="badge"],
+  .inline-flex[class*="rounded-full"] {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  [class*="badge"]:hover,
+  .inline-flex[class*="rounded-full"]:hover {
+    transform: scale(1.05);
+  }
+}
+
+/* Professional icon animations */
+@layer components {
+  /* Base icon interaction - applies to all clickable icons */
+  button svg,
+  a svg,
+  [role="button"] svg {
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+                color 0.2s ease,
+                filter 0.25s ease;
+    will-change: transform;
+  }
+
+  button:hover svg,
+  a:hover svg,
+  [role="button"]:hover svg {
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.35));
+  }
+
+  button:active svg,
+  a:active svg,
+  [role="button"]:active svg {
+    transform: scale(0.9);
+    transition-duration: 0.1s;
+  }
+
+  /* Sidebar nav icons get a subtle slide */
+  nav a:hover svg {
+    transform: scale(1.12) translateX(2px);
+  }
+  [dir="rtl"] nav a:hover svg {
+    transform: scale(1.12) translateX(-2px);
+  }
+
+  /* Icon buttons (theme toggle, language, user menu) get a rotation hint */
+  button[class*="size-icon"]:hover svg,
+  button[class*="w-10"]:hover svg {
+    transform: scale(1.15) rotate(12deg);
+  }
+
+  button[class*="size-icon"]:active svg,
+  button[class*="w-10"]:active svg {
+    transform: scale(0.88) rotate(-6deg);
+  }
+}
