@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TrendingUp, TrendingDown, Percent, BarChart3, RefreshCw, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
 
@@ -19,21 +20,46 @@ const DashboardPage = () => {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  const fetchData = async () => {
+    if (!user) return;
+    const [{ data: tradesData }, { data: accountsData }] = await Promise.all([
+      supabase.from('trades').select('*').eq('user_id', user.id).order('close_time', { ascending: true }),
+      supabase.from('mt5_accounts').select('*').eq('user_id', user.id),
+    ]);
+    setTrades(tradesData ?? []);
+    setAccounts(accountsData ?? []);
+  };
 
   useEffect(() => {
     if (!user) return;
-    const fetchData = async () => {
-      setLoading(true);
-      const [{ data: tradesData }, { data: accountsData }] = await Promise.all([
-        supabase.from('trades').select('*').eq('user_id', user.id).order('close_time', { ascending: true }),
-        supabase.from('mt5_accounts').select('*').eq('user_id', user.id),
-      ]);
-      setTrades(tradesData ?? []);
-      setAccounts(accountsData ?? []);
-      setLoading(false);
-    };
-    fetchData();
+    setLoading(true);
+    fetchData().finally(() => setLoading(false));
   }, [user]);
+
+  const handleSync = async (accountId: string) => {
+    if (!user) return;
+    setSyncingId(accountId);
+    try {
+      const response = await fetch('http://127.0.0.1:8001/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId, user_id: user.id }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success(`Sync complete — ${data.trades_inserted} new trade${data.trades_inserted !== 1 ? 's' : ''} added`);
+        await fetchData();
+      } else {
+        toast.error(data.error ?? 'Sync failed');
+      }
+    } catch {
+      toast.error('Could not reach MT5 sync server. Make sure the sync service is running.');
+    } finally {
+      setSyncingId(null);
+    }
+  };
 
   // Stats
   const closedTrades = trades.filter(tr => tr.profit !== null);
@@ -134,7 +160,17 @@ const DashboardPage = () => {
                   <div className="text-end">
                     <p className="font-medium text-foreground">${(acc.balance ?? 0).toLocaleString()}</p>
                   </div>
-                  <Button variant="ghost" size="sm"><RefreshCw className="h-4 w-4" /> {t('syncNow')}</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={syncingId === acc.id}
+                    onClick={() => handleSync(acc.id)}
+                  >
+                    {syncingId === acc.id
+                      ? <Loader2 className="me-1 h-4 w-4 animate-spin" />
+                      : <RefreshCw className="me-1 h-4 w-4" />}
+                    {t('syncNow')}
+                  </Button>
                 </div>
               ))}
             </div>
