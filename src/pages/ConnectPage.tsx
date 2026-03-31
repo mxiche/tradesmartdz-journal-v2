@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +53,21 @@ const ConnectPage = () => {
       if (data.success) {
         setAccountName(data.account_name ?? '');
         setAccountBalance(data.balance ?? '');
+
+        // Upsert account directly from frontend so it's visible immediately
+        if (user?.id) {
+          await supabase.from('mt5_accounts').upsert({
+            user_id: user.id,
+            firm,
+            login: parseInt(accountNumber, 10),
+            server,
+            password_encrypted: investorPass,
+            account_name: data.account_name ?? null,
+            balance: data.balance ?? null,
+            last_sync: new Date().toISOString(),
+          }, { onConflict: 'user_id,login' });
+        }
+
         setStep(2);
       } else {
         toast.error(data.error ?? 'Connection failed. Check your credentials.');
@@ -73,7 +89,7 @@ const ConnectPage = () => {
   const firms = ['FTMO', 'FundingPips', 'Alpha Capital', 'FundedNext', 'Other'];
 
   return (
-    <div className="mx-auto max-w-lg space-y-6 animate-fade-in">
+    <div className="mx-auto w-full max-w-lg space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold text-foreground">{t('connectAccount')}</h1>
 
       {/* Steps indicator */}
@@ -120,7 +136,7 @@ const ConnectPage = () => {
               </div>
               <Input type="password" value={investorPass} onChange={e => setInvestorPass(e.target.value)} />
             </div>
-            <Button onClick={handleTest} className="w-full gradient-primary text-primary-foreground" disabled={loading}>
+            <Button onClick={handleTest} className="w-full min-h-[44px] gradient-primary text-primary-foreground" disabled={loading}>
               {loading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {t('testConnection')}
             </Button>
@@ -138,7 +154,7 @@ const ConnectPage = () => {
               {accountName && <p>Account: {accountName}</p>}
               {accountBalance !== '' && <p>{t('balance')}: ${Number(accountBalance).toLocaleString()}</p>}
             </div>
-            <Button onClick={handleStartSync} className="w-full gradient-primary text-primary-foreground" disabled={loading}>
+            <Button onClick={handleStartSync} className="w-full min-h-[44px] gradient-primary text-primary-foreground" disabled={loading}>
               {loading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {t('startSync')}
             </Button>
@@ -153,7 +169,7 @@ const ConnectPage = () => {
             <CheckCircle className="mx-auto h-16 w-16 text-profit" />
             <h3 className="text-xl font-bold text-foreground">{t('connectionSuccess')}</h3>
             <Progress value={100} className="mx-auto w-48" />
-            <Button onClick={() => window.location.href = '/dashboard'} className="gradient-primary text-primary-foreground">
+            <Button onClick={() => window.location.href = '/dashboard'} className="min-h-[44px] gradient-primary text-primary-foreground">
               {t('goToDashboard')}
             </Button>
           </CardContent>

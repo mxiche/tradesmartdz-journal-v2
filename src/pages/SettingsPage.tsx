@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,15 +11,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { mockAccounts } from '@/lib/mockData';
-import { Trash2, RefreshCw } from 'lucide-react';
+import { Trash2, RefreshCw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Language } from '@/lib/i18n';
+import { Tables } from '@/integrations/supabase/types';
+
+type Account = Tables<'mt5_accounts'>;
 
 const SettingsPage = () => {
   const { t, language, setLanguage } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchAccounts = async () => {
+      setLoadingAccounts(true);
+      const { data } = await supabase.from('mt5_accounts').select('*').eq('user_id', user.id);
+      setAccounts(data ?? []);
+      setLoadingAccounts(false);
+    };
+    fetchAccounts();
+  }, [user]);
+
+  const deleteAccount = async (id: string) => {
+    const { error } = await supabase.from('mt5_accounts').delete().eq('id', id);
+    if (error) {
+      toast.error('Failed to delete account');
+    } else {
+      setAccounts(prev => prev.filter(a => a.id !== id));
+      toast.success('Account removed');
+    }
+  };
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 animate-fade-in">
@@ -148,18 +174,26 @@ const SettingsPage = () => {
           <Card className="border-border bg-card">
             <CardHeader><CardTitle>{t('connectedAccounts')}</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {mockAccounts.map(acc => (
-                <div key={acc.id} className="flex items-center justify-between rounded-lg border border-border p-4">
-                  <div>
-                    <p className="font-medium">{acc.firm}</p>
-                    <p className="text-sm text-muted-foreground">****{String(acc.login).slice(-4)}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm"><RefreshCw className="me-1 h-3 w-3" /> {t('syncNow')}</Button>
-                    <Button variant="destructive" size="sm"><Trash2 className="h-3 w-3" /></Button>
-                  </div>
+              {loadingAccounts ? (
+                <div className="flex h-24 items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
-              ))}
+              ) : accounts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No connected accounts yet.</p>
+              ) : (
+                accounts.map(acc => (
+                  <div key={acc.id} className="flex items-center justify-between rounded-lg border border-border p-4">
+                    <div>
+                      <p className="font-medium">{acc.firm}</p>
+                      <p className="text-sm text-muted-foreground">****{String(acc.login).slice(-4)}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm"><RefreshCw className="me-1 h-3 w-3" /> {t('syncNow')}</Button>
+                      <Button variant="destructive" size="sm" onClick={() => deleteAccount(acc.id)}><Trash2 className="h-3 w-3" /></Button>
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </TabsContent>

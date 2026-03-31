@@ -5,7 +5,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Tag, Languages, Building2, BarChart3, Clock, Check, Star, Lock, ArrowRight } from 'lucide-react';
+import { RefreshCw, Tag, Languages, Building2, BarChart3, Clock, Check, Star, ArrowRight, Menu, X } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 const useParallax = (speed = 0.3) => {
@@ -33,6 +33,7 @@ const useParallax = (speed = 0.3) => {
 const LandingPage = () => {
   const { t, isRtl } = useLanguage();
   const parallaxOffset = useParallax(0.35);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const features = [
     { icon: RefreshCw, title: { ar: 'مزامنة MT5 تلقائية', fr: 'Sync MT5 auto', en: 'MT5 Auto-Sync' }, desc: { ar: 'اربط حسابك مرة واحدة وستتم المزامنة تلقائياً', fr: 'Connectez une fois, les trades se synchronisent', en: 'Connect once, trades sync automatically' } },
@@ -62,7 +63,7 @@ const LandingPage = () => {
       {/* Navbar */}
       <nav className="sticky top-0 z-50 border-b border-border glass">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-6">
             <Logo />
             <div className="hidden gap-6 md:flex">
               <a href="#features" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t('features')}</a>
@@ -70,12 +71,40 @@ const LandingPage = () => {
               <a href="#testimonials" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t('about')}</a>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <LanguageSwitcher />
-            <Link to="/login"><Button variant="outline" size="sm">{t('login')}</Button></Link>
-            <Link to="/register"><Button size="sm" className="gradient-primary text-primary-foreground">{t('getStarted')}</Button></Link>
+            <div className="hidden items-center gap-2 sm:flex">
+              <Link to="/login"><Button variant="outline" size="sm" className="min-h-[44px]">{t('login')}</Button></Link>
+              <Link to="/register"><Button size="sm" className="min-h-[44px] gradient-primary text-primary-foreground">{t('getStarted')}</Button></Link>
+            </div>
+            <button
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border sm:hidden"
+              onClick={() => setMobileMenuOpen(prev => !prev)}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile dropdown menu */}
+        {mobileMenuOpen && (
+          <div className="border-t border-border bg-card px-4 pb-4 sm:hidden">
+            <div className="flex flex-col gap-1 pt-2">
+              <a href="#features" className="min-h-[44px] flex items-center text-sm text-muted-foreground hover:text-foreground" onClick={() => setMobileMenuOpen(false)}>{t('features')}</a>
+              <a href="#pricing" className="min-h-[44px] flex items-center text-sm text-muted-foreground hover:text-foreground" onClick={() => setMobileMenuOpen(false)}>{t('pricing')}</a>
+              <a href="#testimonials" className="min-h-[44px] flex items-center text-sm text-muted-foreground hover:text-foreground" onClick={() => setMobileMenuOpen(false)}>{t('about')}</a>
+              <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
+                <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="outline" className="w-full min-h-[44px]">{t('login')}</Button>
+                </Link>
+                <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
+                  <Button className="w-full min-h-[44px] gradient-primary text-primary-foreground">{t('getStarted')}</Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Hero */}
@@ -94,34 +123,38 @@ const LandingPage = () => {
         </div>
 
         <div
-          className="container mx-auto px-4 py-20 text-center md:py-32"
+          className="container mx-auto px-4 py-12 text-center md:py-32"
           style={{
             transform: `translateY(${parallaxOffset * 0.15}px)`,
             opacity: Math.max(0, 1 - parallaxOffset * 0.003),
             willChange: 'transform, opacity',
           }}
         >
-        <Badge variant="secondary" className="mb-6">{t('tagline')}</Badge>
-        <h1 className="mx-auto max-w-4xl text-4xl font-bold leading-tight text-foreground md:text-6xl">
+        <Badge variant="secondary" className="mb-4 md:mb-6">{t('tagline')}</Badge>
+        <h1 className="mx-auto max-w-4xl text-2xl font-bold leading-tight text-foreground sm:text-4xl md:text-6xl">
           {t('heroTitle')}
         </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">{t('heroSub')}</p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-          <Link to="/register"><Button size="lg" className="gradient-primary text-primary-foreground px-8">{t('getStarted')} <ArrowRight className="ms-2 h-4 w-4" /></Button></Link>
-          <Button size="lg" variant="outline">{t('watchDemo')}</Button>
+        <p className="mx-auto mt-4 max-w-2xl text-base text-muted-foreground md:mt-6 md:text-lg">{t('heroSub')}</p>
+        <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center md:mt-8 md:gap-4">
+          <Link to="/register" className="w-full sm:w-auto">
+            <Button size="lg" className="w-full min-h-[44px] gradient-primary text-primary-foreground sm:w-auto sm:px-8">
+              {t('getStarted')} <ArrowRight className="ms-2 h-4 w-4" />
+            </Button>
+          </Link>
+          <Button size="lg" variant="outline" className="w-full min-h-[44px] sm:w-auto">{t('watchDemo')}</Button>
         </div>
-        <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-2 md:mt-12 md:gap-4">
           {firms.map(f => (
-            <Badge key={f} variant="secondary" className="px-4 py-2 text-sm">{f}</Badge>
+            <Badge key={f} variant="secondary" className="px-3 py-1.5 text-xs md:px-4 md:py-2 md:text-sm">{f}</Badge>
           ))}
         </div>
         </div>
       </section>
 
       {/* Features */}
-      <section id="features" className="container mx-auto px-4 py-20">
-        <h2 className="mb-12 text-center text-3xl font-bold text-foreground">{t('features')}</h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <section id="features" className="container mx-auto px-4 py-12 md:py-20">
+        <h2 className="mb-8 text-center text-2xl font-bold text-foreground md:mb-12 md:text-3xl">{t('features')}</h2>
+        <div className="grid gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
           {features.map((f, i) => (
             <Card key={i} className="border-border bg-card transition-all hover:border-primary/50" style={{ animationDelay: `${i * 100}ms` }}>
               <CardHeader>
@@ -139,9 +172,9 @@ const LandingPage = () => {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="container mx-auto px-4 py-20">
-        <h2 className="mb-12 text-center text-3xl font-bold text-foreground">{t('pricing')}</h2>
-        <div className="grid gap-6 md:grid-cols-3">
+      <section id="pricing" className="container mx-auto px-4 py-12 md:py-20">
+        <h2 className="mb-8 text-center text-2xl font-bold text-foreground md:mb-12 md:text-3xl">{t('pricing')}</h2>
+        <div className="mx-auto grid max-w-lg gap-4 md:max-w-none md:grid-cols-3 md:gap-6">
           {plans.map((plan, i) => (
             <Card key={i} className={`relative border-border bg-card ${plan.featured ? 'border-primary ring-1 ring-primary animate-pulse-glow' : ''}`}>
               {plan.featured && <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 gradient-primary text-primary-foreground">{t('popular')}</Badge>}
@@ -156,11 +189,11 @@ const LandingPage = () => {
                 <ul className="space-y-3">
                   {plan.features.map((feat, j) => (
                     <li key={j} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Check className="h-4 w-4 text-primary shrink-0" /> {feat}
+                      <Check className="h-4 w-4 shrink-0 text-primary" /> {feat}
                     </li>
                   ))}
                 </ul>
-                <Button className={`mt-6 w-full ${plan.featured ? 'gradient-primary text-primary-foreground' : ''}`} variant={plan.featured ? 'default' : 'outline'}>
+                <Button className={`mt-6 w-full min-h-[44px] ${plan.featured ? 'gradient-primary text-primary-foreground' : ''}`} variant={plan.featured ? 'default' : 'outline'}>
                   {t('choosePlan')}
                 </Button>
               </CardContent>
@@ -170,9 +203,9 @@ const LandingPage = () => {
       </section>
 
       {/* Testimonials */}
-      <section id="testimonials" className="container mx-auto px-4 py-20">
-        <h2 className="mb-12 text-center text-3xl font-bold text-foreground">{t('testimonials')}</h2>
-        <div className="grid gap-6 md:grid-cols-3">
+      <section id="testimonials" className="container mx-auto px-4 py-12 md:py-20">
+        <h2 className="mb-8 text-center text-2xl font-bold text-foreground md:mb-12 md:text-3xl">{t('testimonials')}</h2>
+        <div className="grid gap-4 md:grid-cols-3 md:gap-6">
           {testimonials.map((test, i) => (
             <Card key={i} className="border-border bg-card">
               <CardContent className="pt-6">
