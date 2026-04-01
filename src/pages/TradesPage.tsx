@@ -9,18 +9,44 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Search, Download, Loader2, Plus, X } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 
+const RESULT_OPTIONS = [
+  { value: 'Win', label: { ar: 'ربح', fr: 'Gain', en: 'Win' } },
+  { value: 'Loss', label: { ar: 'خسارة', fr: 'Perte', en: 'Loss' } },
+  { value: 'Breakeven', label: { ar: 'تعادل', fr: 'Neutre', en: 'Breakeven' } },
+  { value: 'Partial Win - TP1', label: { ar: 'ربح جزئي - TP1', fr: 'Gain partiel - TP1', en: 'Partial Win - TP1' } },
+  { value: 'Partial Win - TP2', label: { ar: 'ربح جزئي - TP2', fr: 'Gain partiel - TP2', en: 'Partial Win - TP2' } },
+];
+
+const SESSION_OPTIONS = [
+  { value: 'London', label: { ar: 'لندن', fr: 'Londres', en: 'London' } },
+  { value: 'New York', label: { ar: 'نيويورك', fr: 'New York', en: 'New York' } },
+  { value: 'Asia', label: { ar: 'آسيا', fr: 'Asie', en: 'Asia' } },
+];
+
+function computeDuration(open: string, close: string): string {
+  const diffMs = new Date(close).getTime() - new Date(open).getTime();
+  if (isNaN(diffMs) || diffMs < 0) return '';
+  const totalMin = Math.floor(diffMs / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
 type Trade = Tables<'trades'>;
 
 const DEFAULT_TAGS = ['FVG', 'IFVG', 'Liquidity Sweep', 'Order Block', 'BOS/CHoCH', 'MSS', 'Fair Value Gap + Sweep'];
 
 const TradesPage = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const lang = language as 'ar' | 'fr' | 'en';
   const { user } = useAuth();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +57,80 @@ const TradesPage = () => {
   const [editTags, setEditTags] = useState<string[]>([]);
   const [editNotes, setEditNotes] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Add trade dialog
+  const [addOpen, setAddOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    symbol: '',
+    direction: '' as 'BUY' | 'SELL' | '',
+    result: '',
+    profit: '',
+    risk: '',
+    open_time: '',
+    close_time: '',
+    session: '',
+    setup_tag: '',
+    notes: '',
+  });
+
+  const rr = (() => {
+    const p = parseFloat(form.profit);
+    const r = parseFloat(form.risk);
+    if (!r || r === 0 || isNaN(p) || isNaN(r)) return '';
+    return (p / r).toFixed(2);
+  })();
+
+  const resetForm = () => setForm({
+    symbol: '', direction: '', result: '', profit: '', risk: '',
+    open_time: '', close_time: '', session: '', setup_tag: '', notes: '',
+  });
+
+  const handleAddTrade = async () => {
+    if (!form.symbol.trim() || !form.direction || !form.result || form.profit === '' || !form.open_time || !form.close_time) {
+      toast.error(lang === 'ar' ? 'يرجى ملء الحقول المطلوبة' : lang === 'fr' ? 'Veuillez remplir les champs obligatoires' : 'Please fill all required fields');
+      return;
+    }
+    setSubmitting(true);
+
+    // Build setup_tag: combine result + custom setup tag
+    const tagParts = [form.result, form.session, form.setup_tag.trim()].filter(Boolean);
+    const setupTagValue = tagParts.join(', ') || null;
+
+    // Append risk/RR info to notes if provided
+    const rrStr = rr ? `R:R ${rr}` : '';
+    const riskStr = form.risk ? `Risk $${form.risk}` : '';
+    const extraInfo = [riskStr, rrStr].filter(Boolean).join(' | ');
+    const notesValue = [extraInfo, form.notes.trim()].filter(Boolean).join('\n') || null;
+
+    const duration = computeDuration(form.open_time, form.close_time);
+
+    const { error } = await supabase.from('trades').insert({
+      user_id: user!.id,
+      symbol: form.symbol.trim().toUpperCase(),
+      direction: form.direction,
+      profit: parseFloat(form.profit),
+      open_time: new Date(form.open_time).toISOString(),
+      close_time: new Date(form.close_time).toISOString(),
+      duration: duration || null,
+      setup_tag: setupTagValue,
+      notes: notesValue,
+    });
+
+    setSubmitting(false);
+    if (error) {
+      toast.error('Failed to save trade');
+      return;
+    }
+
+    toast.success(lang === 'ar' ? 'تم حفظ الصفقة' : lang === 'fr' ? 'Trade enregistré' : 'Trade saved!');
+    setAddOpen(false);
+    resetForm();
+
+    // Refresh trades list
+    const { data } = await supabase.from('trades').select('*').eq('user_id', user!.id).order('close_time', { ascending: false });
+    setTrades(data ?? []);
+  };
 
   // Tag management — allTags is the single source of truth, persisted to user_preferences.custom_tags
   const [allTags, setAllTags] = useState<string[]>(DEFAULT_TAGS);
@@ -185,9 +285,15 @@ const TradesPage = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-foreground">{t('myTrades')}</h1>
-        <Button variant="outline" size="sm" onClick={exportCsv}>
-          <Download className="me-2 h-4 w-4" /> {t('export')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" className="gradient-primary text-primary-foreground gap-1" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {lang === 'ar' ? 'إضافة صفقة' : lang === 'fr' ? 'Ajouter' : 'Add Trade'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportCsv}>
+            <Download className="me-2 h-4 w-4" /> {t('export')}
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -278,6 +384,170 @@ const TradesPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Add Trade Dialog */}
+      <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) resetForm(); }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {lang === 'ar' ? 'إضافة صفقة يدوية' : lang === 'fr' ? 'Ajouter un trade manuel' : 'Add Manual Trade'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {/* Symbol */}
+            <div className="space-y-1.5">
+              <Label>{t('symbol')} <span className="text-destructive">*</span></Label>
+              <Input
+                placeholder="NQ, XAUUSD, EURUSD..."
+                value={form.symbol}
+                onChange={e => setForm(f => ({ ...f, symbol: e.target.value }))}
+              />
+            </div>
+
+            {/* Direction */}
+            <div className="space-y-1.5">
+              <Label>{t('direction')} <span className="text-destructive">*</span></Label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, direction: 'BUY' }))}
+                  className={`flex-1 rounded-md border py-2 text-sm font-medium transition-colors ${
+                    form.direction === 'BUY'
+                      ? 'border-profit bg-profit/20 text-profit'
+                      : 'border-border bg-secondary text-muted-foreground hover:border-profit/50'
+                  }`}
+                >
+                  {t('buy')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, direction: 'SELL' }))}
+                  className={`flex-1 rounded-md border py-2 text-sm font-medium transition-colors ${
+                    form.direction === 'SELL'
+                      ? 'border-loss bg-loss/20 text-loss'
+                      : 'border-border bg-secondary text-muted-foreground hover:border-loss/50'
+                  }`}
+                >
+                  {t('sell')}
+                </button>
+              </div>
+            </div>
+
+            {/* Result */}
+            <div className="space-y-1.5">
+              <Label>{lang === 'ar' ? 'النتيجة' : lang === 'fr' ? 'Résultat' : 'Result'} <span className="text-destructive">*</span></Label>
+              <Select value={form.result} onValueChange={v => setForm(f => ({ ...f, result: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder={lang === 'ar' ? 'اختر النتيجة' : lang === 'fr' ? 'Choisir' : 'Select result'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {RESULT_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label[lang]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Profit / Risk / RR */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label>{lang === 'ar' ? 'الربح/الخسارة ($)' : lang === 'fr' ? 'P&L ($)' : 'P&L ($)'} <span className="text-destructive">*</span></Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={form.profit}
+                  onChange={e => setForm(f => ({ ...f, profit: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{lang === 'ar' ? 'المخاطرة ($)' : lang === 'fr' ? 'Risque ($)' : 'Risk ($)'}</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={form.risk}
+                  onChange={e => setForm(f => ({ ...f, risk: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>R:R</Label>
+                <Input
+                  readOnly
+                  value={rr}
+                  placeholder="—"
+                  className="cursor-default bg-secondary text-muted-foreground"
+                />
+              </div>
+            </div>
+
+            {/* Open / Close time */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>{lang === 'ar' ? 'وقت الفتح' : lang === 'fr' ? 'Ouverture' : 'Open time'} <span className="text-destructive">*</span></Label>
+                <Input
+                  type="datetime-local"
+                  value={form.open_time}
+                  onChange={e => setForm(f => ({ ...f, open_time: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{lang === 'ar' ? 'وقت الإغلاق' : lang === 'fr' ? 'Clôture' : 'Close time'} <span className="text-destructive">*</span></Label>
+                <Input
+                  type="datetime-local"
+                  value={form.close_time}
+                  onChange={e => setForm(f => ({ ...f, close_time: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Session */}
+            <div className="space-y-1.5">
+              <Label>{lang === 'ar' ? 'الجلسة' : lang === 'fr' ? 'Session' : 'Session'}</Label>
+              <Select value={form.session} onValueChange={v => setForm(f => ({ ...f, session: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder={lang === 'ar' ? 'اختر الجلسة' : lang === 'fr' ? 'Choisir' : 'Select session'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {SESSION_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label[lang]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Setup tag */}
+            <div className="space-y-1.5">
+              <Label>{t('setup')}</Label>
+              <Input
+                placeholder={lang === 'ar' ? 'FVG، Order Block، BOS...' : 'FVG, Order Block, BOS...'}
+                value={form.setup_tag}
+                onChange={e => setForm(f => ({ ...f, setup_tag: e.target.value }))}
+              />
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <Label>{t('notes')}</Label>
+              <Textarea
+                placeholder={t('notes')}
+                rows={3}
+                value={form.notes}
+                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+
+            <Button
+              className="w-full min-h-[44px] gradient-primary text-primary-foreground"
+              onClick={handleAddTrade}
+              disabled={submitting}
+            >
+              {submitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+              {lang === 'ar' ? 'حفظ الصفقة' : lang === 'fr' ? 'Enregistrer' : 'Save Trade'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Detail Panel */}
       <Sheet open={!!selectedTrade} onOpenChange={() => setSelectedTrade(null)}>
