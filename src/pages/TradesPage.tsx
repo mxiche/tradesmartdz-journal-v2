@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, KeyboardEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,12 +11,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { setupTags } from '@/lib/mockData';
-import { Search, Download, Loader2 } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 
 type Trade = Tables<'trades'>;
+
+const DEFAULT_TAGS = ['FVG', 'IFVG', 'Liquidity Sweep', 'Order Block', 'BOS/CHoCH', 'MSS', 'Fair Value Gap + Sweep'];
 
 const TradesPage = () => {
   const { t } = useLanguage();
@@ -27,44 +28,103 @@ const TradesPage = () => {
   const [dirFilter, setDirFilter] = useState('all');
   const [setupFilter, setSetupFilter] = useState('all');
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
-  const [editSetup, setEditSetup] = useState('');
+  const [editTags, setEditTags] = useState<string[]>([]);
   const [editNotes, setEditNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Tag management
+  const [allTags, setAllTags] = useState<string[]>(DEFAULT_TAGS);
+  const [customTags, setCustomTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState('');
+  const [addingTag, setAddingTag] = useState(false);
+
+  // Load trades and custom tags from Supabase
   useEffect(() => {
     if (!user) return;
-    const fetchTrades = async () => {
+    const fetchAll = async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from('trades')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('close_time', { ascending: false });
-      setTrades(data ?? []);
+      const [{ data: tradesData }, { data: prefsData }] = await Promise.all([
+        supabase.from('trades').select('*').eq('user_id', user.id).order('close_time', { ascending: false }),
+        supabase.from('user_preferences').select('*').eq('user_id', user.id).maybeSingle(),
+      ]);
+      setTrades(tradesData ?? []);
+
+      // Parse custom_tags from user_preferences (stored as JSON string)
+      const raw = (prefsData as any)?.custom_tags;
+      let parsed: string[] = [];
+      if (raw) {
+        try { parsed = JSON.parse(raw); } catch { parsed = []; }
+      }
+      setCustomTags(parsed);
+      setAllTags([...DEFAULT_TAGS, ...parsed.filter((t: string) => !DEFAULT_TAGS.includes(t))]);
       setLoading(false);
     };
-    fetchTrades();
+    fetchAll();
   }, [user]);
 
   const openTrade = (trade: Trade) => {
     setSelectedTrade(trade);
-    setEditSetup(trade.setup_tag ?? '');
+    // Parse comma-separated tags into array
+    const tags = trade.setup_tag
+      ? trade.setup_tag.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    setEditTags(tags);
     setEditNotes(trade.notes ?? '');
+  };
+
+  const toggleTag = (tag: string) => {
+    setEditTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const addCustomTag = async () => {
+    const tag = newTagInput.trim();
+    if (!tag || allTags.includes(tag)) {
+      setNewTagInput('');
+      return;
+    }
+    setAddingTag(true);
+    const newCustom = [...customTags, tag];
+    // Upsert to user_preferences
+    const { error } = await supabase
+      .from('user_preferences')
+      .upsert(
+        { user_id: user!.id, custom_tags: JSON.stringify(newCustom) } as any,
+        { onConflict: 'user_id' }
+      );
+    if (error) {
+      toast.error('Could not save tag');
+    } else {
+      setCustomTags(newCustom);
+      setAllTags(prev => [...prev, tag]);
+      setEditTags(prev => [...prev, tag]); // auto-select the new tag
+    }
+    setNewTagInput('');
+    setAddingTag(false);
+  };
+
+  const handleTagInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCustomTag();
+    }
   };
 
   const saveTrade = async () => {
     if (!selectedTrade) return;
     setSaving(true);
+    const setupTag = editTags.join(', ') || null;
     const { error } = await supabase
       .from('trades')
-      .update({ setup_tag: editSetup || null, notes: editNotes || null })
+      .update({ setup_tag: setupTag, notes: editNotes || null })
       .eq('id', selectedTrade.id);
     setSaving(false);
     if (error) {
       toast.error('Failed to save');
     } else {
       setTrades(prev => prev.map(tr => tr.id === selectedTrade.id
-        ? { ...tr, setup_tag: editSetup || null, notes: editNotes || null }
+        ? { ...tr, setup_tag: setupTag, notes: editNotes || null }
         : tr
       ));
       toast.success('Saved!');
@@ -72,10 +132,46 @@ const TradesPage = () => {
     }
   };
 
+  const exportCsv = () => {
+    const escape = (val: string | number | null | undefined) => {
+      const s = val == null ? '' : String(val);
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+    const rows = [
+      ['Date', 'Symbol', 'Direction', 'Entry', 'Exit', 'PnL', 'Volume', 'Duration', 'Setup Tags', 'Notes'],
+      ...filtered.map(tr => [
+        tr.close_time ? new Date(tr.close_time).toLocaleDateString() : '',
+        tr.symbol,
+        tr.direction,
+        tr.entry ?? '',
+        tr.exit_price ?? '',
+        tr.profit ?? '',
+        tr.volume ?? '',
+        tr.duration ?? '',
+        tr.setup_tag ?? '',
+        tr.notes ?? '',
+      ]),
+    ];
+    const csv = rows.map(r => r.map(escape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trades_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Filter: check if trade's setup_tag contains the filter tag
   const filtered = trades.filter(tr => {
     if (search && !tr.symbol.toLowerCase().includes(search.toLowerCase())) return false;
     if (dirFilter !== 'all' && tr.direction !== dirFilter) return false;
-    if (setupFilter !== 'all' && tr.setup_tag !== setupFilter) return false;
+    if (setupFilter !== 'all') {
+      const tradeTags = tr.setup_tag?.split(',').map(s => s.trim()) ?? [];
+      if (!tradeTags.includes(setupFilter)) return false;
+    }
     return true;
   });
 
@@ -83,7 +179,9 @@ const TradesPage = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-foreground">{t('myTrades')}</h1>
-        <Button variant="outline" size="sm"><Download className="me-2 h-4 w-4" /> {t('export')}</Button>
+        <Button variant="outline" size="sm" onClick={exportCsv}>
+          <Download className="me-2 h-4 w-4" /> {t('export')}
+        </Button>
       </div>
 
       {/* Filters */}
@@ -104,7 +202,7 @@ const TradesPage = () => {
           <SelectTrigger className="w-44"><SelectValue placeholder={t('setup')} /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t('all')}</SelectItem>
-            {setupTags.map(tag => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
+            {allTags.map(tag => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -154,7 +252,15 @@ const TradesPage = () => {
                         {(trade.profit ?? 0) >= 0 ? '+' : ''}${trade.profit}
                       </TableCell>
                       <TableCell className="text-muted-foreground">{trade.duration}</TableCell>
-                      <TableCell><Badge variant="secondary">{trade.setup_tag ?? '—'}</Badge></TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {trade.setup_tag
+                            ? trade.setup_tag.split(',').map(s => s.trim()).filter(Boolean).map(tag => (
+                                <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                              ))
+                            : <span className="text-muted-foreground">—</span>}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {trade.close_time ? new Date(trade.close_time).toLocaleDateString() : '—'}
                       </TableCell>
@@ -175,27 +281,87 @@ const TradesPage = () => {
               <SheetHeader>
                 <SheetTitle>{selectedTrade.symbol} — {selectedTrade.direction === 'BUY' ? t('buy') : t('sell')}</SheetTitle>
               </SheetHeader>
-              <div className="mt-6 space-y-4">
+              <div className="mt-6 space-y-5">
+                {/* Trade stats */}
                 <div className="grid grid-cols-2 gap-4">
                   <div><p className="text-sm text-muted-foreground">{t('entry')}</p><p className="font-medium">{selectedTrade.entry}</p></div>
                   <div><p className="text-sm text-muted-foreground">{t('exit')}</p><p className="font-medium">{selectedTrade.exit_price}</p></div>
                   <div><p className="text-sm text-muted-foreground">{t('pnl')}</p><p className={`font-bold ${(selectedTrade.profit ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>${selectedTrade.profit}</p></div>
                   <div><p className="text-sm text-muted-foreground">{t('duration')}</p><p className="font-medium">{selectedTrade.duration}</p></div>
                 </div>
-                <div className="space-y-2">
+
+                {/* Multi-select tag picker */}
+                <div className="space-y-3">
                   <Label>{t('setup')}</Label>
-                  <Select value={editSetup} onValueChange={setEditSetup}>
-                    <SelectTrigger><SelectValue placeholder="Select setup" /></SelectTrigger>
-                    <SelectContent>
-                      {setupTags.map(tag => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+
+                  {/* Tag pills */}
+                  <div className="flex flex-wrap gap-2">
+                    {allTags.map(tag => {
+                      const active = editTags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => toggleTag(tag)}
+                          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            active
+                              ? 'border-primary bg-primary/20 text-primary'
+                              : 'border-border bg-secondary text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Selected tags summary */}
+                  {editTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {editTags.map(tag => (
+                        <Badge key={tag} className="gap-1 bg-primary/20 text-primary">
+                          {tag}
+                          <button onClick={() => toggleTag(tag)} className="hover:text-destructive">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add new custom tag */}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add custom tag…"
+                      value={newTagInput}
+                      onChange={e => setNewTagInput(e.target.value)}
+                      onKeyDown={handleTagInputKeyDown}
+                      className="h-8 text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2"
+                      onClick={addCustomTag}
+                      disabled={addingTag || !newTagInput.trim()}
+                    >
+                      {addingTag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                    </Button>
+                  </div>
                 </div>
+
+                {/* Notes */}
                 <div className="space-y-2">
                   <Label>{t('notes')}</Label>
-                  <Textarea placeholder={t('notes')} rows={4} value={editNotes} onChange={e => setEditNotes(e.target.value)} />
+                  <Textarea
+                    placeholder={t('notes')}
+                    rows={4}
+                    value={editNotes}
+                    onChange={e => setEditNotes(e.target.value)}
+                  />
                 </div>
-                <Button className="w-full gradient-primary text-primary-foreground" onClick={saveTrade} disabled={saving}>
+
+                <Button className="w-full min-h-[44px] gradient-primary text-primary-foreground" onClick={saveTrade} disabled={saving}>
                   {saving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
                   {t('save')}
                 </Button>
