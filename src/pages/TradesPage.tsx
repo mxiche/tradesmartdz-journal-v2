@@ -245,7 +245,7 @@ const TradesPage = () => {
 
     const duration = computeDuration(form.open_time, form.close_time);
 
-    const { error } = await supabase.from('trades').insert({
+    const insertPayload = {
       user_id: user!.id,
       symbol: form.symbol.trim().toUpperCase(),
       direction: form.direction,
@@ -255,11 +255,23 @@ const TradesPage = () => {
       duration: duration || null,
       setup_tag: setupTagValue,
       notes: notesValue,
-    });
+      account_id: null,
+      volume: 0,
+    };
+    console.log('[TradesPage] insert payload:', insertPayload);
+
+    const { data: insertData, error } = await supabase.from('trades').insert(insertPayload).select();
+    console.log('[TradesPage] insert response — data:', insertData, '| error:', error);
 
     setSubmitting(false);
     if (error) {
-      toast.error('Failed to save trade');
+      console.error('[TradesPage] Supabase error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      toast.error(`Failed to save trade: ${error.message}`);
       return;
     }
 
