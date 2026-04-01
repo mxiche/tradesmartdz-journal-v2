@@ -6,21 +6,103 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { TrendingUp, TrendingDown, Percent, BarChart3, RefreshCw, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Percent, BarChart3, RefreshCw, Loader2, Bot, Sparkles, RotateCcw, AlertCircle, Lightbulb, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
+
+// --- AI response renderer ---
+// Parses the Claude markdown response into styled JSX sections
+function renderAiResponse(text: string) {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let key = 0;
+
+  const sectionIcons: Record<string, React.ReactNode> = {
+    'Overall Performance': <BarChart3 className="h-4 w-4 text-primary" />,
+    'Performance': <BarChart3 className="h-4 w-4 text-primary" />,
+    'Strengths': <TrendingUp className="h-4 w-4 text-profit" />,
+    'Areas to Improve': <AlertCircle className="h-4 w-4 text-yellow-500" />,
+    'Actionable': <Lightbulb className="h-4 w-4 text-amber-400" />,
+    'Tips': <Lightbulb className="h-4 w-4 text-amber-400" />,
+  };
+
+  const getSectionIcon = (heading: string) => {
+    for (const [key, icon] of Object.entries(sectionIcons)) {
+      if (heading.toLowerCase().includes(key.toLowerCase())) return icon;
+    }
+    return <Sparkles className="h-4 w-4 text-primary" />;
+  };
+
+  // Bold inline: **text**
+  const parseBold = (line: string) => {
+    const parts = line.split(/\*\*(.+?)\*\*/g);
+    return parts.map((p, i) => i % 2 === 1 ? <strong key={i} className="font-semibold text-foreground">{p}</strong> : p);
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed) { elements.push(<div key={key++} className="h-2" />); continue; }
+
+    // Section heading: **1. Title** or **Title**
+    const headingMatch = trimmed.match(/^\*\*(\d+\.\s*)?(.+?)\*\*\s*[-—:]?\s*$/);
+    if (headingMatch) {
+      const heading = headingMatch[2];
+      elements.push(
+        <div key={key++} className="mt-4 flex items-center gap-2 first:mt-0">
+          {getSectionIcon(heading)}
+          <h3 className="text-sm font-bold text-foreground">{heading}</h3>
+        </div>
+      );
+      continue;
+    }
+
+    // Numbered point: "1. **Bold** text" or "1. text"
+    const numMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
+    if (numMatch) {
+      elements.push(
+        <div key={key++} className="ms-1 flex gap-2 text-sm text-muted-foreground">
+          <span className="shrink-0 font-medium text-primary">{numMatch[1]}.</span>
+          <span>{parseBold(numMatch[2])}</span>
+        </div>
+      );
+      continue;
+    }
+
+    // Bullet: "- text"
+    if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+      elements.push(
+        <div key={key++} className="ms-1 flex gap-2 text-sm text-muted-foreground">
+          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
+          <span>{parseBold(trimmed.slice(2))}</span>
+        </div>
+      );
+      continue;
+    }
+
+    // Plain line
+    elements.push(<p key={key++} className="text-sm text-muted-foreground">{parseBold(trimmed)}</p>);
+  }
+
+  return elements;
+}
 
 type Trade = Tables<'trades'>;
 type Account = Tables<'mt5_accounts'>;
 
 const DashboardPage = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const lang = language as 'ar' | 'fr' | 'en';
   const { user } = useAuth();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  // AI Coach state
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const fetchData = async () => {
     if (!user) return;
@@ -58,6 +140,97 @@ const DashboardPage = () => {
       toast.error('Could not reach MT5 sync server. Make sure the sync service is running.');
     } finally {
       setSyncingId(null);
+    }
+  };
+
+  // Load cached AI analysis on mount
+  useEffect(() => {
+    if (!user) return;
+    const cached = localStorage.getItem(`tradesmartdz_ai_${user.id}`);
+    if (cached) {
+      try {
+        const { text } = JSON.parse(cached);
+        if (text) setAiAnalysis(text);
+      } catch { /* ignore corrupted cache */ }
+    }
+  }, [user]);
+
+  const runAiAnalysis = async () => {
+    if (!trades.length) {
+      toast.error(lang === 'ar' ? 'لا توجد صفقات للتحليل' : lang === 'fr' ? 'Aucun trade à analyser' : 'No trades to analyze');
+      return;
+    }
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      toast.error('Add VITE_ANTHROPIC_API_KEY to your .env file');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiAnalysis(null);
+
+    const langLabel = lang === 'ar' ? 'Arabic' : lang === 'fr' ? 'French' : 'English';
+
+    // Send only relevant fields to keep the prompt concise
+    const tradeData = trades.slice(-100).map(tr => ({
+      symbol: tr.symbol,
+      direction: tr.direction,
+      profit: tr.profit,
+      open_time: tr.open_time,
+      close_time: tr.close_time,
+      duration: tr.duration,
+      setup_tag: tr.setup_tag,
+    }));
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `You are a professional trading performance coach analyzing a trader's journal data.
+
+Here are the trader's recent trades:
+${JSON.stringify(tradeData, null, 2)}
+
+Analyze their trading performance and provide:
+1. **Overall Performance Summary** - win rate, best/worst setups, best/worst sessions
+2. **Strengths** - what they are doing well (2-3 specific points with data)
+3. **Areas to Improve** - patterns showing weakness (2-3 specific points with data)
+4. **Actionable Tips** - 3 specific recommendations based on the data
+
+Important rules:
+- Never give financial advice or tell them what trades to take
+- Only analyze past performance patterns
+- Be specific and reference actual numbers from their data
+- Be encouraging but honest
+- Keep response under 400 words
+- Respond in ${langLabel}`,
+          }],
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error?.message ?? `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text: string = data.content?.[0]?.text ?? '';
+      setAiAnalysis(text);
+      localStorage.setItem(`tradesmartdz_ai_${user!.id}`, JSON.stringify({ text, ts: Date.now(), tradeCount: trades.length }));
+    } catch (err: any) {
+      toast.error('AI analysis failed: ' + (err.message ?? 'Unknown error'));
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -196,6 +369,90 @@ const DashboardPage = () => {
                 <Line type="monotone" dataKey="balance" stroke="hsl(165, 100%, 42%)" strokeWidth={2} dot={{ fill: 'hsl(165, 100%, 42%)', r: 4 }} />
               </LineChart>
             </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* AI Coach */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <Bot className="h-4 w-4 text-primary" />
+              </div>
+              <CardTitle className="text-lg">
+                {lang === 'ar' ? 'مدرب الذكاء الاصطناعي' : lang === 'fr' ? 'Coach IA' : 'AI Coach'}
+              </CardTitle>
+              <Badge variant="secondary" className="text-xs">Beta</Badge>
+            </div>
+            {aiAnalysis && !aiLoading && (
+              <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={runAiAnalysis}>
+                <RotateCcw className="h-3.5 w-3.5" />
+                {lang === 'ar' ? 'إعادة التحليل' : lang === 'fr' ? 'Relancer' : 'Regenerate'}
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {aiLoading ? (
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <div className="relative">
+                <div className="h-12 w-12 rounded-full bg-primary/10" />
+                <Loader2 className="absolute inset-0 m-auto h-6 w-6 animate-spin text-primary" />
+              </div>
+              <p className="text-sm font-medium text-foreground">
+                {lang === 'ar' ? 'الذكاء الاصطناعي يحلل صفقاتك...' : lang === 'fr' ? 'L\'IA analyse vos trades...' : 'AI is analyzing your trades...'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {lang === 'ar' ? 'قد يستغرق هذا بضع ثوانٍ' : lang === 'fr' ? 'Cela peut prendre quelques secondes' : 'This may take a few seconds'}
+              </p>
+            </div>
+          ) : aiAnalysis ? (
+            <div className="space-y-1 rounded-lg border border-primary/10 bg-primary/5 p-4">
+              {renderAiResponse(aiAnalysis)}
+              <div className="mt-4 flex items-center gap-1.5 border-t border-border pt-3">
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">
+                  {lang === 'ar'
+                    ? 'هذا تحليل للأداء السابق فقط وليس نصيحة مالية.'
+                    : lang === 'fr'
+                    ? 'Analyse des performances passées uniquement — pas de conseil financier.'
+                    : 'Past performance analysis only — not financial advice.'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4 py-6 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                <Sparkles className="h-7 w-7 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium text-foreground">
+                  {lang === 'ar' ? 'احصل على تحليل ذكي لصفقاتك' : lang === 'fr' ? 'Obtenez une analyse IA de vos trades' : 'Get an AI-powered analysis of your trades'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {lang === 'ar'
+                    ? 'يحلل الذكاء الاصطناعي نقاط قوتك وضعفك ويقدم نصائح قابلة للتطبيق.'
+                    : lang === 'fr'
+                    ? 'L\'IA identifie vos forces, faiblesses et donne des conseils concrets.'
+                    : 'AI identifies your strengths, weaknesses, and gives actionable coaching tips.'}
+                </p>
+              </div>
+              <Button
+                className="gradient-primary text-primary-foreground gap-2"
+                onClick={runAiAnalysis}
+                disabled={trades.length === 0}
+              >
+                <Bot className="h-4 w-4" />
+                {lang === 'ar' ? 'تحليل صفقاتي' : lang === 'fr' ? 'Analyser mes trades' : 'Analyze My Trading'}
+              </Button>
+              {trades.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {lang === 'ar' ? 'قم بمزامنة صفقاتك أولاً' : lang === 'fr' ? 'Synchronisez vos trades d\'abord' : 'Sync your trades first to enable analysis'}
+                </p>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
