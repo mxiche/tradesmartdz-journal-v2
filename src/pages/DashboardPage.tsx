@@ -160,9 +160,9 @@ const DashboardPage = () => {
       toast.error(lang === 'ar' ? 'لا توجد صفقات للتحليل' : lang === 'fr' ? 'Aucun trade à analyser' : 'No trades to analyze');
       return;
     }
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
-      toast.error('Add VITE_ANTHROPIC_API_KEY to your .env file');
+      toast.error('Add VITE_GEMINI_API_KEY to your .env file');
       return;
     }
 
@@ -182,21 +182,7 @@ const DashboardPage = () => {
       setup_tag: tr.setup_tag,
     }));
 
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `You are a professional trading performance coach analyzing a trader's journal data.
+    const prompt = `You are a professional trading performance coach analyzing a trader's journal data.
 
 Here are the trader's recent trades:
 ${JSON.stringify(tradeData, null, 2)}
@@ -213,10 +199,19 @@ Important rules:
 - Be specific and reference actual numbers from their data
 - Be encouraging but honest
 - Keep response under 400 words
-- Respond in ${langLabel}`,
-          }],
-        }),
-      });
+- Respond in ${langLabel}`;
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+          }),
+        }
+      );
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -224,7 +219,7 @@ Important rules:
       }
 
       const data = await response.json();
-      const text: string = data.content?.[0]?.text ?? '';
+      const text: string = data.candidates[0].content.parts[0].text ?? '';
       setAiAnalysis(text);
       localStorage.setItem(`tradesmartdz_ai_${user!.id}`, JSON.stringify({ text, ts: Date.now(), tradeCount: trades.length }));
     } catch (err: any) {
