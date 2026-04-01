@@ -160,9 +160,9 @@ const DashboardPage = () => {
       toast.error(lang === 'ar' ? 'لا توجد صفقات للتحليل' : lang === 'fr' ? 'Aucun trade à analyser' : 'No trades to analyze');
       return;
     }
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
     if (!apiKey && import.meta.env.DEV) {
-      toast.error('Add VITE_GEMINI_API_KEY to your .env file');
+      toast.error('Add VITE_OPENROUTER_API_KEY to your .env file');
       return;
     }
 
@@ -202,16 +202,20 @@ Important rules:
 - Respond in ${langLabel}`;
 
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-          }),
-        }
-      );
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://neuroport.xyz',
+          'X-Title': 'TradeSmartDz',
+        },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-3.1-8b-instruct:free',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 1000,
+        }),
+      });
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -219,7 +223,7 @@ Important rules:
       }
 
       const data = await response.json();
-      const text: string = data.candidates[0].content.parts[0].text ?? '';
+      const text: string = data.choices[0].message.content ?? '';
       setAiAnalysis(text);
       localStorage.setItem(`tradesmartdz_ai_${user!.id}`, JSON.stringify({ text, ts: Date.now(), tradeCount: trades.length }));
     } catch (err: any) {
