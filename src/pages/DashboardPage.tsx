@@ -110,8 +110,10 @@ const DashboardPage = () => {
       supabase.from('trades').select('*').eq('user_id', user.id).order('close_time', { ascending: true }),
       supabase.from('mt5_accounts').select('*').eq('user_id', user.id),
     ]);
-    setTrades(tradesData ?? []);
+    const tradesList = tradesData ?? [];
+    setTrades(tradesList);
     setAccounts(accountsData ?? []);
+    console.log('[Dashboard] trades fetched from Supabase:', tradesList.length, tradesList);
   };
 
   useEffect(() => {
@@ -233,7 +235,7 @@ Important rules:
     }
   };
 
-  // Stats
+  // Stats — computed from real Supabase trades
   const closedTrades = trades.filter(tr => tr.profit !== null);
   const totalPnl = closedTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
   const wins = closedTrades.filter(tr => (tr.profit ?? 0) > 0);
@@ -243,7 +245,7 @@ Important rules:
   const grossLoss = Math.abs(losses.reduce((s, tr) => s + (tr.profit ?? 0), 0));
   const profitFactor = grossLoss > 0 ? +(grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? Infinity : 0;
 
-  // Max drawdown
+  // Max drawdown — peak-to-trough on cumulative PnL
   let peak = 0, maxDrawdown = 0, runningPnl = 0;
   for (const tr of closedTrades) {
     runningPnl += tr.profit ?? 0;
@@ -251,6 +253,23 @@ Important rules:
     const dd = peak > 0 ? ((peak - runningPnl) / peak) * 100 : 0;
     if (dd > maxDrawdown) maxDrawdown = dd;
   }
+
+  // Log computed stats whenever trades change
+  useEffect(() => {
+    if (!trades.length) return;
+    console.log('[Dashboard] computed stats:', {
+      totalTrades: trades.length,
+      closedTrades: closedTrades.length,
+      wins: wins.length,
+      losses: losses.length,
+      winRate: `${winRate}%`,
+      totalPnl: totalPnl.toFixed(2),
+      grossProfit: grossProfit.toFixed(2),
+      grossLoss: grossLoss.toFixed(2),
+      profitFactor: isFinite(profitFactor) ? profitFactor : '∞',
+      maxDrawdown: `${maxDrawdown.toFixed(1)}%`,
+    });
+  }, [trades]);
 
   // Equity curve
   const startBalance = (accounts[0]?.balance ?? 0) - totalPnl;
