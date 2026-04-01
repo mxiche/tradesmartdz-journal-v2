@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"c:\\\\Users\\\\pc\\\\Downloads\\\\tradesmartdz-journal-main \\(1\\)\\\\tradesmartdz-journal-main\")",
+      "Bash(cat \"c:\\\\Users\\\\pc\\\\Downloads\\\\tradesmartdz-journal-main \\(1\\)\\\\tradesmartdz-journal-main\\\\.gitignore\")",
+      "Bash(git config:*)",
+      "Bash(npx tsc:*)",
+      "Bash(ls \"c:\\\\Users\\\\pc\\\\Downloads\\\\tradesmartdz-journal-main \\(1\\)\\\\tradesmartdz-journal-main\\\\supabase\\\\migrations\"\")"
+    ]
+  }
+}

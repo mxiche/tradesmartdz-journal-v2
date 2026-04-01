@@ -6,7 +6,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, BarChart3, Link2, Settings, LogOut, Menu, X, TrendingUp, User, Download } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Link2, Settings, LogOut, Menu, X, TrendingUp, User } from 'lucide-react';
 import { useState } from 'react';
 
 const navItems = [
@@ -14,8 +14,7 @@ const navItems = [
   { key: 'myTrades' as const, icon: TrendingUp, path: '/trades' },
   { key: 'analytics' as const, icon: BarChart3, path: '/analytics' },
   { key: 'connectAccount' as const, icon: Link2, path: '/connect' },
-  { key: 'eaSetup' as const, icon: Download, path: '/ea-setup' },
-  { key: 'settings' as const, icon: Settings, path: '/settings' },
+{ key: 'settings' as const, icon: Settings, path: '/settings' },
 ];
 
 export default function AppLayout() {

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, Loader2, Lock, Info, Copy, Check } from 'lucide-react';
+import { CheckCircle, Loader2, Lock, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 
@@ -23,8 +23,6 @@ const ConnectPage = () => {
   const [investorPass, setInvestorPass] = useState('');
   const [accountName, setAccountName] = useState('');
   const [accountBalance, setAccountBalance] = useState('');
-  const [accountId, setAccountId] = useState('');
-
   const handleTest = async () => {
     if (!firm || !accountNumber || !server || !investorPass) {
       toast.error('Please fill all fields');
@@ -54,7 +52,6 @@ const ConnectPage = () => {
       if (data.success) {
         setAccountName(data.account_name ?? '');
         setAccountBalance(data.balance ?? '');
-        setAccountId(data.account_id ?? '');
 
         // Upsert account directly from frontend so it's visible immediately
         if (user?.id) {
@@ -79,14 +76,6 @@ const ConnectPage = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-
-  const copyToClipboard = (value: string, field: string) => {
-    navigator.clipboard.writeText(value);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
   };
 
   const handleStartSync = async () => {
@@ -179,49 +168,6 @@ const ConnectPage = () => {
             <CheckCircle className="mx-auto h-16 w-16 text-profit" />
             <h3 className="text-xl font-bold text-foreground">{t('connectionSuccess')}</h3>
             <Progress value={100} className="mx-auto w-48" />
-
-            {/* EA IDs box */}
-            <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 text-start space-y-3">
-              <p className="text-sm font-medium text-foreground">
-                {t('language') === 'language'
-                  ? 'Copy these IDs into the TradeSmartDz EA settings in MT5'
-                  : 'Copy these IDs and paste them into the TradeSmartDz EA settings in MT5'}
-              </p>
-
-              {/* User ID */}
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">User ID</p>
-                <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
-                  <code className="flex-1 truncate text-xs text-foreground">{user?.id ?? '—'}</code>
-                  <button
-                    onClick={() => copyToClipboard(user?.id ?? '', 'userId')}
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                  >
-                    {copiedField === 'userId' ? <Check className="h-4 w-4 text-profit" /> : <Copy className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Account ID */}
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Account ID</p>
-                <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
-                  <code className="flex-1 truncate text-xs text-foreground">{accountId || '—'}</code>
-                  <button
-                    onClick={() => copyToClipboard(accountId, 'accountId')}
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                    disabled={!accountId}
-                  >
-                    {copiedField === 'accountId' ? <Check className="h-4 w-4 text-profit" /> : <Copy className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Find full setup instructions under <strong>EA Setup</strong> in the sidebar.
-              </p>
-            </div>
-
             <Button onClick={() => window.location.href = '/dashboard'} className="w-full min-h-[44px] gradient-primary text-primary-foreground">
               {t('goToDashboard')}
             </Button>

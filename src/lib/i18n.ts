@@ -103,7 +103,6 @@ const translations = {
     errorRegister: 'خطأ في إنشاء الحساب',
     passwordsMismatch: 'كلمات المرور غير متطابقة',
     testimonials: 'آراء المتداولين',
-    eaSetup: 'إعداد EA',
   },
   fr: {
     dashboard: 'Tableau de bord',
@@ -207,7 +206,6 @@ const translations = {
     errorRegister: "Erreur d'inscription",
     passwordsMismatch: 'Les mots de passe ne correspondent pas',
     testimonials: 'Témoignages',
-    eaSetup: 'Configuration EA',
   },
   en: {
     dashboard: 'Dashboard',
@@ -311,7 +309,6 @@ const translations = {
     errorRegister: 'Registration failed',
     passwordsMismatch: 'Passwords do not match',
     testimonials: 'Testimonials',
-    eaSetup: 'EA Setup',
   },
 } as const;
 
