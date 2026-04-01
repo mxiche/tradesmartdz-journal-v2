@@ -30,6 +30,29 @@ const SESSION_OPTIONS = [
   { value: 'Asia', label: { ar: 'آسيا', fr: 'Asie', en: 'Asia' } },
 ];
 
+async function compressImage(file: File): Promise<Blob> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    const img = new Image();
+    img.onload = () => {
+      const maxWidth = 800;
+      const ratio = Math.min(maxWidth / img.width, 1);
+      canvas.width = img.width * ratio;
+      canvas.height = img.height * ratio;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.5);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function computeDuration(open: string, close: string): string {
   const diffMs = new Date(close).getTime() - new Date(open).getTime();
   if (isNaN(diffMs) || diffMs < 0) return '';
@@ -63,6 +86,7 @@ const TradesPage = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [compressedSize, setCompressedSize] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getStoragePath = (url: string) => {
@@ -80,14 +104,20 @@ const TradesPage = () => {
 
     setUploading(true);
     setUploadProgress(0);
+    setCompressedSize(null);
 
-    // Animate fake progress to 80% while uploading
+    // Compress before uploading
+    const compressed = await compressImage(file);
+    const sizeLabel = formatBytes(compressed.size);
+    setCompressedSize(sizeLabel);
+
+    // Animate progress to 80% while uploading
     const interval = setInterval(() => {
       setUploadProgress(p => p < 80 ? p + 10 : p);
     }, 150);
 
-    const ext = file.name.split('.').pop() ?? 'jpg';
-    const path = `${user.id}/${selectedTrade.id}/${Date.now()}.${ext}`;
+    // Always store as .jpg since canvas compresses to JPEG
+    const path = `${user.id}/${selectedTrade.id}/${Date.now()}.jpg`;
 
     // Delete old screenshot from storage if exists
     if (screenshotUrl) {
@@ -97,13 +127,14 @@ const TradesPage = () => {
 
     const { error: uploadError } = await supabase.storage
       .from('trade-screenshots')
-      .upload(path, file, { upsert: true });
+      .upload(path, compressed, { upsert: true, contentType: 'image/jpeg' });
 
     clearInterval(interval);
 
     if (uploadError) {
       setUploading(false);
       setUploadProgress(0);
+      setCompressedSize(null);
       toast.error('Upload failed: ' + uploadError.message);
       return;
     }
@@ -131,7 +162,11 @@ const TradesPage = () => {
     setTrades(prev => prev.map(tr =>
       tr.id === selectedTrade.id ? { ...tr, screenshot_url: publicUrl } : tr
     ));
-    toast.success(lang === 'ar' ? 'تم رفع الصورة' : lang === 'fr' ? 'Image uploadée' : 'Screenshot uploaded!');
+    toast.success(
+      lang === 'ar' ? `تم رفع الصورة (${sizeLabel})` :
+      lang === 'fr' ? `Image uploadée (${sizeLabel})` :
+      `Screenshot uploaded (${sizeLabel})`
+    );
   };
 
   const handleDeleteScreenshot = async () => {
@@ -283,6 +318,7 @@ const TradesPage = () => {
     setScreenshotUrl(trade.screenshot_url ?? null);
     setUploadProgress(0);
     setIsDragging(false);
+    setCompressedSize(null);
   };
 
   const toggleTag = (tag: string) => {
@@ -800,12 +836,20 @@ const TradesPage = () => {
                         <>
                           <Loader2 className="h-8 w-8 animate-spin text-primary" />
                           <p className="text-sm font-medium text-primary">
-                            {lang === 'ar' ? 'جاري الرفع...' : lang === 'fr' ? 'Envoi en cours...' : 'Uploading...'}
+                            {compressedSize === null
+                              ? (lang === 'ar' ? 'جاري ضغط الصورة...' : lang === 'fr' ? 'Compression...' : 'Compressing...')
+                              : (lang === 'ar' ? 'جاري الرفع...' : lang === 'fr' ? 'Envoi en cours...' : 'Uploading...')
+                            }
                           </p>
+                          {compressedSize !== null && (
+                            <p className="text-xs text-muted-foreground">
+                              {lang === 'ar' ? `حجم الملف: ${compressedSize}` : lang === 'fr' ? `Taille: ${compressedSize}` : `Compressed to ${compressedSize}`}
+                            </p>
+                          )}
                           <div className="w-full max-w-[160px] overflow-hidden rounded-full bg-secondary h-1.5">
                             <div
                               className="h-full rounded-full bg-primary transition-all duration-150"
-                              style={{ width: `${uploadProgress}%` }}
+                              style={{ width: compressedSize === null ? '15%' : `${uploadProgress}%` }}
                             />
                           </div>
                         </>
