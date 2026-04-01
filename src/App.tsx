@@ -15,6 +15,7 @@ import TradesPage from "./pages/TradesPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import ConnectPage from "./pages/ConnectPage";
 import SettingsPage from "./pages/SettingsPage";
+import EASetupPage from "./pages/EASetupPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
                   <Route path="/trades" element={<TradesPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route path="/connect" element={<ConnectPage />} />
+                  <Route path="/ea-setup" element={<EASetupPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
