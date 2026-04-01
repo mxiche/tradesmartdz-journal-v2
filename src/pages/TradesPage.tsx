@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Loader2, Plus, X, Camera, Trash2 } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 
@@ -29,6 +29,71 @@ const SESSION_OPTIONS = [
   { value: 'New York', label: { ar: 'نيويورك', fr: 'New York', en: 'New York' } },
   { value: 'Asia', label: { ar: 'آسيا', fr: 'Asie', en: 'Asia' } },
 ];
+
+const RESULT_VALUES = ['Win', 'Loss', 'Breakeven', 'Partial Win - TP1', 'Partial Win - TP2'];
+const SESSION_VALUES = ['London', 'New York', 'Asia', 'NY Lunch'];
+
+function parseSetupTag(setupTag: string | null) {
+  if (!setupTag) return { result: null, session: null, setup: null };
+  const parts = setupTag.split(',').map(s => s.trim()).filter(Boolean);
+  let result: string | null = null;
+  let session: string | null = null;
+  const setup: string[] = [];
+  for (const p of parts) {
+    if (RESULT_VALUES.includes(p)) result = p;
+    else if (SESSION_VALUES.includes(p)) session = p;
+    else setup.push(p);
+  }
+  return { result, session, setup: setup.join(', ') || null };
+}
+
+function extractRR(notes: string | null): string | null {
+  if (!notes) return null;
+  const m = notes.match(/R:R ([\d.]+)/);
+  return m ? m[1] : null;
+}
+
+function notesPreview(notes: string | null): string | null {
+  if (!notes) return null;
+  const lines = notes.split('\n');
+  const body = lines[0].includes('Risk $') || lines[0].includes('R:R')
+    ? lines.slice(1).join(' ').trim()
+    : lines.join(' ').trim();
+  if (!body) return null;
+  return body.length > 30 ? body.slice(0, 30) + '…' : body;
+}
+
+function resultBadgeClass(result: string): string {
+  switch (result) {
+    case 'Win': return 'bg-profit/20 text-profit border-profit/30';
+    case 'Loss': return 'bg-loss/20 text-loss border-loss/30';
+    case 'Breakeven': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+    case 'Partial Win - TP1': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+    case 'Partial Win - TP2': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+    default: return 'bg-secondary text-muted-foreground';
+  }
+}
+
+function resultLabel(result: string, lang: 'ar' | 'fr' | 'en'): string {
+  const map: Record<string, Record<string, string>> = {
+    Win:                  { ar: 'ربح',         fr: 'Gain',    en: 'Win' },
+    Loss:                 { ar: 'خسارة',        fr: 'Perte',   en: 'Loss' },
+    Breakeven:            { ar: 'تعادل',        fr: 'Neutre',  en: 'BE' },
+    'Partial Win - TP1':  { ar: 'TP1',          fr: 'TP1',     en: 'TP1' },
+    'Partial Win - TP2':  { ar: 'TP2',          fr: 'TP2',     en: 'TP2' },
+  };
+  return map[result]?.[lang] ?? result;
+}
+
+function sessionBadgeClass(session: string): string {
+  switch (session) {
+    case 'London':   return 'bg-blue-500/15 text-blue-400';
+    case 'New York': return 'bg-orange-500/15 text-orange-400';
+    case 'Asia':     return 'bg-purple-500/15 text-purple-400';
+    case 'NY Lunch': return 'bg-muted text-muted-foreground';
+    default: return 'bg-muted text-muted-foreground';
+  }
+}
 
 async function compressImage(file: File): Promise<Blob> {
   return new Promise((resolve) => {
@@ -205,7 +270,9 @@ const TradesPage = () => {
     symbol: '',
     direction: '' as 'BUY' | 'SELL' | '',
     result: '',
-    profit: '',
+    profit: '',      // Win / Loss / BE
+    tp1Amount: '',   // Partial TP1/TP2 — TP1 portion
+    tp2Amount: '',   // Partial TP1/TP2 — TP2 portion (optional)
     risk: '',
     open_time: '',
     close_time: '',
@@ -214,30 +281,49 @@ const TradesPage = () => {
     notes: '',
   });
 
+  const isPartial = form.result.startsWith('Partial');
+
   const rr = (() => {
-    const p = parseFloat(form.profit);
     const r = parseFloat(form.risk);
-    if (!r || r === 0 || isNaN(p) || isNaN(r)) return '';
-    return (p / r).toFixed(2);
+    if (!r || r === 0) return '';
+    const p = isPartial
+      ? (parseFloat(form.tp1Amount) || 0) + (parseFloat(form.tp2Amount) || 0)
+      : parseFloat(form.profit);
+    if (isNaN(p) || isNaN(r)) return '';
+    return (Math.abs(p) / r).toFixed(2);
   })();
 
   const resetForm = () => setForm({
-    symbol: '', direction: '', result: '', profit: '', risk: '',
-    open_time: '', close_time: '', session: '', setup_tag: '', notes: '',
+    symbol: '', direction: '', result: '', profit: '', tp1Amount: '', tp2Amount: '',
+    risk: '', open_time: '', close_time: '', session: '', setup_tag: '', notes: '',
   });
 
   const handleAddTrade = async () => {
-    if (!form.symbol.trim() || !form.direction || !form.result || form.profit === '' || !form.open_time || !form.close_time) {
+    const hasAmount = isPartial ? form.tp1Amount !== '' : form.profit !== '';
+    if (!form.symbol.trim() || !form.direction || !form.result || !hasAmount || !form.open_time || !form.close_time) {
       toast.error(lang === 'ar' ? 'يرجى ملء الحقول المطلوبة' : lang === 'fr' ? 'Veuillez remplir les champs obligatoires' : 'Please fill all required fields');
       return;
     }
     setSubmitting(true);
 
-    // Build setup_tag: combine result + custom setup tag
+    // Compute final profit with sign
+    let finalProfit: number;
+    if (form.result === 'Win') {
+      finalProfit = Math.abs(parseFloat(form.profit));
+    } else if (form.result === 'Loss') {
+      finalProfit = -Math.abs(parseFloat(form.profit));
+    } else if (form.result === 'Breakeven') {
+      finalProfit = parseFloat(form.profit) || 0;
+    } else {
+      // Partial TP1/TP2 — sum of both, always positive
+      finalProfit = Math.abs(parseFloat(form.tp1Amount) || 0) + Math.abs(parseFloat(form.tp2Amount) || 0);
+    }
+
+    // setup_tag: result, session, custom tag
     const tagParts = [form.result, form.session, form.setup_tag.trim()].filter(Boolean);
     const setupTagValue = tagParts.join(', ') || null;
 
-    // Append risk/RR info to notes if provided
+    // notes: auto-generated meta line + user notes
     const rrStr = rr ? `R:R ${rr}` : '';
     const riskStr = form.risk ? `Risk $${form.risk}` : '';
     const extraInfo = [riskStr, rrStr].filter(Boolean).join(' | ');
@@ -249,7 +335,7 @@ const TradesPage = () => {
       user_id: user!.id,
       symbol: form.symbol.trim().toUpperCase(),
       direction: form.direction,
-      profit: parseFloat(form.profit),
+      profit: finalProfit,
       open_time: new Date(form.open_time).toISOString(),
       close_time: new Date(form.close_time).toISOString(),
       duration: duration || null,
@@ -258,19 +344,12 @@ const TradesPage = () => {
       account_id: null,
       volume: 0,
     };
-    console.log('[TradesPage] insert payload:', insertPayload);
 
-    const { data: insertData, error } = await supabase.from('trades').insert(insertPayload).select();
-    console.log('[TradesPage] insert response — data:', insertData, '| error:', error);
+    const { error } = await supabase.from('trades').insert(insertPayload).select();
 
     setSubmitting(false);
     if (error) {
-      console.error('[TradesPage] Supabase error details:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
+      console.error('[TradesPage] insert error:', error);
       toast.error(`Failed to save trade: ${error.message}`);
       return;
     }
@@ -278,8 +357,6 @@ const TradesPage = () => {
     toast.success(lang === 'ar' ? 'تم حفظ الصفقة' : lang === 'fr' ? 'Trade enregistré' : 'Trade saved!');
     setAddOpen(false);
     resetForm();
-
-    // Refresh trades list
     const { data } = await supabase.from('trades').select('*').eq('user_id', user!.id).order('close_time', { ascending: false });
     setTrades(data ?? []);
   };
@@ -493,46 +570,121 @@ const TradesPage = () => {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('symbol')}</TableHead>
-                    <TableHead>{t('direction')}</TableHead>
-                    <TableHead>{t('entry')}</TableHead>
-                    <TableHead>{t('exit')}</TableHead>
-                    <TableHead>{t('pnl')}</TableHead>
-                    <TableHead>{t('duration')}</TableHead>
-                    <TableHead>{t('setup')}</TableHead>
-                    <TableHead>{t('date')}</TableHead>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="font-semibold">{t('symbol')}</TableHead>
+                    <TableHead className="font-semibold">{t('direction')}</TableHead>
+                    <TableHead className="font-semibold">{lang === 'ar' ? 'النتيجة' : lang === 'fr' ? 'Résultat' : 'Result'}</TableHead>
+                    <TableHead className="font-semibold">{t('pnl')}</TableHead>
+                    <TableHead className="font-semibold">R:R</TableHead>
+                    <TableHead className="font-semibold">{lang === 'ar' ? 'الجلسة' : lang === 'fr' ? 'Session' : 'Session'}</TableHead>
+                    <TableHead className="font-semibold">{t('setup')}</TableHead>
+                    <TableHead className="font-semibold">{t('notes')}</TableHead>
+                    <TableHead className="font-semibold w-8"></TableHead>
+                    <TableHead className="font-semibold">{t('date')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map(trade => (
-                    <TableRow key={trade.id} className="cursor-pointer hover:bg-secondary/50" onClick={() => openTrade(trade)}>
-                      <TableCell className="font-medium">{trade.symbol}</TableCell>
-                      <TableCell>
-                        <Badge className={trade.direction === 'BUY' ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss'}>
-                          {trade.direction === 'BUY' ? t('buy') : t('sell')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{trade.entry}</TableCell>
-                      <TableCell>{trade.exit_price}</TableCell>
-                      <TableCell className={(trade.profit ?? 0) >= 0 ? 'text-profit font-medium' : 'text-loss font-medium'}>
-                        {(trade.profit ?? 0) >= 0 ? '+' : ''}${trade.profit}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{trade.duration}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {trade.setup_tag
-                            ? trade.setup_tag.split(',').map(s => s.trim()).filter(Boolean).map(tag => (
-                                <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-                              ))
-                            : <span className="text-muted-foreground">—</span>}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {trade.close_time ? new Date(trade.close_time).toLocaleDateString() : '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filtered.map(trade => {
+                    const { result, session, setup } = parseSetupTag(trade.setup_tag);
+                    const rrVal = extractRR(trade.notes);
+                    const preview = notesPreview(trade.notes);
+                    const pnl = trade.profit ?? 0;
+                    return (
+                      <TableRow
+                        key={trade.id}
+                        className="cursor-pointer border-border transition-colors hover:bg-secondary/40"
+                        onClick={() => openTrade(trade)}
+                      >
+                        {/* Symbol */}
+                        <TableCell className="font-bold text-foreground">{trade.symbol}</TableCell>
+
+                        {/* Direction */}
+                        <TableCell>
+                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                            trade.direction === 'BUY'
+                              ? 'border-profit/30 bg-profit/15 text-profit'
+                              : 'border-loss/30 bg-loss/15 text-loss'
+                          }`}>
+                            {trade.direction === 'BUY' ? t('buy') : t('sell')}
+                          </span>
+                        </TableCell>
+
+                        {/* Result */}
+                        <TableCell>
+                          {result ? (
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${resultBadgeClass(result)}`}>
+                              {resultLabel(result, lang)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+
+                        {/* P&L */}
+                        <TableCell className={`font-semibold tabular-nums ${pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+                        </TableCell>
+
+                        {/* R:R */}
+                        <TableCell className="tabular-nums text-muted-foreground text-sm">
+                          {rrVal ? `1:${parseFloat(rrVal).toFixed(1)}` : '—'}
+                        </TableCell>
+
+                        {/* Session */}
+                        <TableCell>
+                          {session ? (
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${sessionBadgeClass(session)}`}>
+                              {session === 'New York' ? 'NY' : session}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+
+                        {/* Setup */}
+                        <TableCell>
+                          {setup ? (
+                            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                              {setup.length > 14 ? setup.slice(0, 14) + '…' : setup}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+
+                        {/* Notes preview */}
+                        <TableCell className="max-w-[140px]">
+                          {preview ? (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Pencil className="h-3 w-3 shrink-0 opacity-50" />
+                              <span className="truncate">{preview}</span>
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+
+                        {/* Screenshot icon */}
+                        <TableCell className="w-8 text-center">
+                          {trade.screenshot_url ? (
+                            <button
+                              type="button"
+                              title="View screenshot"
+                              onClick={e => { e.stopPropagation(); window.open(trade.screenshot_url!, '_blank'); }}
+                              className="text-muted-foreground transition-colors hover:text-primary"
+                            >
+                              <Camera className="h-4 w-4" />
+                            </button>
+                          ) : null}
+                        </TableCell>
+
+                        {/* Date */}
+                        <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                          {trade.close_time ? new Date(trade.close_time).toLocaleDateString() : '—'}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -603,38 +755,84 @@ const TradesPage = () => {
               </Select>
             </div>
 
-            {/* Profit / Risk / RR */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label>{lang === 'ar' ? 'الربح/الخسارة ($)' : lang === 'fr' ? 'P&L ($)' : 'P&L ($)'} <span className="text-destructive">*</span></Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={form.profit}
-                  onChange={e => setForm(f => ({ ...f, profit: e.target.value }))}
-                />
+            {/* Profit / Risk / RR — conditional on result type */}
+            {isPartial ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>
+                      {lang === 'ar' ? 'مبلغ TP1 ($)' : lang === 'fr' ? 'Montant TP1 ($)' : 'TP1 Amount ($)'}
+                      <span className="text-destructive"> *</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={form.tp1Amount}
+                      onChange={e => setForm(f => ({ ...f, tp1Amount: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>
+                      {lang === 'ar' ? 'مبلغ TP2 ($) — اختياري' : lang === 'fr' ? 'Montant TP2 ($) — optionnel' : 'TP2 Amount ($) — optional'}
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={form.tp2Amount}
+                      onChange={e => setForm(f => ({ ...f, tp2Amount: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>{lang === 'ar' ? 'المخاطرة ($)' : lang === 'fr' ? 'Risque ($)' : 'Risk ($)'}</Label>
+                    <Input type="number" step="0.01" placeholder="0.00" value={form.risk}
+                      onChange={e => setForm(f => ({ ...f, risk: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>R:R</Label>
+                    <Input readOnly value={rr} placeholder="—" className="cursor-default bg-secondary text-muted-foreground" />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>{lang === 'ar' ? 'المخاطرة ($)' : lang === 'fr' ? 'Risque ($)' : 'Risk ($)'}</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={form.risk}
-                  onChange={e => setForm(f => ({ ...f, risk: e.target.value }))}
-                />
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label>
+                    {form.result === 'Loss'
+                      ? (lang === 'ar' ? 'مبلغ الخسارة ($)' : lang === 'fr' ? 'Montant perte ($)' : 'Loss Amount ($)')
+                      : form.result === 'Breakeven'
+                      ? (lang === 'ar' ? 'P&L ($)' : lang === 'fr' ? 'P&L ($)' : 'P&L ($)')
+                      : (lang === 'ar' ? 'الربح ($)' : lang === 'fr' ? 'Gain ($)' : 'Profit ($)')
+                    }
+                    <span className="text-destructive"> *</span>
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder={form.result === 'Loss' ? '100.00' : '0.00'}
+                    value={form.profit}
+                    onChange={e => setForm(f => ({ ...f, profit: e.target.value }))}
+                  />
+                  {form.result === 'Loss' && (
+                    <p className="text-xs text-muted-foreground">
+                      {lang === 'ar' ? 'أدخل رقماً موجباً — سيُحفظ كخسارة' : lang === 'fr' ? 'Entrez un positif — sauvegardé comme perte' : 'Enter positive — saved as negative'}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>{lang === 'ar' ? 'المخاطرة ($)' : lang === 'fr' ? 'Risque ($)' : 'Risk ($)'}</Label>
+                  <Input type="number" step="0.01" placeholder="0.00" value={form.risk}
+                    onChange={e => setForm(f => ({ ...f, risk: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>R:R</Label>
+                  <Input readOnly value={rr} placeholder="—" className="cursor-default bg-secondary text-muted-foreground" />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>R:R</Label>
-                <Input
-                  readOnly
-                  value={rr}
-                  placeholder="—"
-                  className="cursor-default bg-secondary text-muted-foreground"
-                />
-              </div>
-            </div>
+            )}
 
             {/* Open / Close time */}
             <div className="grid grid-cols-2 gap-3">
