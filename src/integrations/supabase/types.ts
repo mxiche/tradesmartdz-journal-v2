@@ -131,6 +131,7 @@ export type Database = {
         Row: {
           created_at: string | null
           currency: string | null
+          custom_tags: Json | null
           id: string
           language: string | null
           theme: string | null
@@ -140,6 +141,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           currency?: string | null
+          custom_tags?: Json | null
           id?: string
           language?: string | null
           theme?: string | null
@@ -149,6 +151,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           currency?: string | null
+          custom_tags?: Json | null
           id?: string
           language?: string | null
           theme?: string | null

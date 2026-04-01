@@ -32,31 +32,37 @@ const TradesPage = () => {
   const [editNotes, setEditNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Tag management
+  // Tag management — allTags is the single source of truth, persisted to user_preferences.custom_tags
   const [allTags, setAllTags] = useState<string[]>(DEFAULT_TAGS);
-  const [customTags, setCustomTags] = useState<string[]>([]);
   const [newTagInput, setNewTagInput] = useState('');
   const [addingTag, setAddingTag] = useState(false);
 
-  // Load trades and custom tags from Supabase
+  // Persist the full tag list to Supabase
+  const saveTagList = async (tags: string[]) => {
+    if (!user) return;
+    await supabase
+      .from('user_preferences')
+      .upsert({ user_id: user.id, custom_tags: tags }, { onConflict: 'user_id' });
+  };
+
+  // Load trades and tag list from Supabase
   useEffect(() => {
     if (!user) return;
     const fetchAll = async () => {
       setLoading(true);
       const [{ data: tradesData }, { data: prefsData }] = await Promise.all([
         supabase.from('trades').select('*').eq('user_id', user.id).order('close_time', { ascending: false }),
-        supabase.from('user_preferences').select('*').eq('user_id', user.id).maybeSingle(),
+        supabase.from('user_preferences').select('custom_tags').eq('user_id', user.id).maybeSingle(),
       ]);
       setTrades(tradesData ?? []);
 
-      // Parse custom_tags from user_preferences (stored as JSON string)
-      const raw = (prefsData as any)?.custom_tags;
-      let parsed: string[] = [];
-      if (raw) {
-        try { parsed = JSON.parse(raw); } catch { parsed = []; }
+      // custom_tags is jsonb — Supabase returns it as a JS array directly
+      const stored = prefsData?.custom_tags;
+      if (Array.isArray(stored) && stored.length > 0) {
+        setAllTags(stored as string[]);
+      } else {
+        setAllTags(DEFAULT_TAGS);
       }
-      setCustomTags(parsed);
-      setAllTags([...DEFAULT_TAGS, ...parsed.filter((t: string) => !DEFAULT_TAGS.includes(t))]);
       setLoading(false);
     };
     fetchAll();
@@ -85,23 +91,20 @@ const TradesPage = () => {
       return;
     }
     setAddingTag(true);
-    const newCustom = [...customTags, tag];
-    // Upsert to user_preferences
-    const { error } = await supabase
-      .from('user_preferences')
-      .upsert(
-        { user_id: user!.id, custom_tags: JSON.stringify(newCustom) } as any,
-        { onConflict: 'user_id' }
-      );
-    if (error) {
-      toast.error('Could not save tag');
-    } else {
-      setCustomTags(newCustom);
-      setAllTags(prev => [...prev, tag]);
-      setEditTags(prev => [...prev, tag]); // auto-select the new tag
-    }
+    const updated = [...allTags, tag];
+    await saveTagList(updated);
+    setAllTags(updated);
+    setEditTags(prev => [...prev, tag]); // auto-select the new tag
     setNewTagInput('');
     setAddingTag(false);
+  };
+
+  const removeTag = async (tag: string) => {
+    const updated = allTags.filter(t => t !== tag);
+    await saveTagList(updated);
+    setAllTags(updated);
+    setEditTags(prev => prev.filter(t => t !== tag));
+    if (setupFilter === tag) setSetupFilter('all');
   };
 
   const handleTagInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -133,28 +136,31 @@ const TradesPage = () => {
   };
 
   const exportCsv = () => {
-    const escape = (val: string | number | null | undefined) => {
+    // Always quote every field so Excel handles commas, special chars, and UTF-8 correctly
+    const q = (val: string | number | null | undefined) => {
       const s = val == null ? '' : String(val);
-      return s.includes(',') || s.includes('"') || s.includes('\n')
-        ? `"${s.replace(/"/g, '""')}"`
-        : s;
+      return `"${s.replace(/"/g, '""')}"`;
     };
+    const fmt = (n: number | null | undefined) =>
+      n == null ? '' : Number(n).toFixed(2);
+
     const rows = [
-      ['Date', 'Symbol', 'Direction', 'Entry', 'Exit', 'PnL', 'Volume', 'Duration', 'Setup Tags', 'Notes'],
+      ['Date', 'Symbol', 'Direction', 'Entry Price', 'Exit Price', 'P&L ($)', 'Volume (Lots)', 'Duration', 'Setup Tags', 'Notes'],
       ...filtered.map(tr => [
         tr.close_time ? new Date(tr.close_time).toLocaleDateString() : '',
         tr.symbol,
         tr.direction,
-        tr.entry ?? '',
-        tr.exit_price ?? '',
-        tr.profit ?? '',
-        tr.volume ?? '',
+        fmt(tr.entry),
+        fmt(tr.exit_price),
+        fmt(tr.profit),
+        fmt(tr.volume),
         tr.duration ?? '',
         tr.setup_tag ?? '',
         tr.notes ?? '',
       ]),
     ];
-    const csv = rows.map(r => r.map(escape).join(',')).join('\n');
+    // \uFEFF BOM tells Excel this is UTF-8
+    const csv = '\uFEFF' + rows.map(r => r.map(q).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -299,18 +305,28 @@ const TradesPage = () => {
                     {allTags.map(tag => {
                       const active = editTags.includes(tag);
                       return (
-                        <button
-                          key={tag}
-                          type="button"
-                          onClick={() => toggleTag(tag)}
-                          className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                            active
-                              ? 'border-primary bg-primary/20 text-primary'
-                              : 'border-border bg-secondary text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                          }`}
-                        >
-                          {tag}
-                        </button>
+                        <div key={tag} className="group relative flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleTag(tag)}
+                            className={`rounded-full border pe-6 ps-3 py-1 text-xs font-medium transition-colors ${
+                              active
+                                ? 'border-primary bg-primary/20 text-primary'
+                                : 'border-border bg-secondary text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                          {/* Delete tag from list */}
+                          <button
+                            type="button"
+                            onClick={() => removeTag(tag)}
+                            className="absolute end-1 flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                            title="Remove tag"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
