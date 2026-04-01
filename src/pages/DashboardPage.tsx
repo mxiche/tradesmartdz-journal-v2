@@ -161,7 +161,7 @@ const DashboardPage = () => {
       return;
     }
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!apiKey && import.meta.env.DEV) {
       toast.error('Add VITE_GEMINI_API_KEY to your .env file');
       return;
     }
