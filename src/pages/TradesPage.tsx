@@ -1,4 +1,4 @@
-import { useEffect, useState, KeyboardEvent } from 'react';
+import { useEffect, useState, useRef, KeyboardEvent, DragEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Loader2, Plus, X } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X, Camera, Trash2 } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 
@@ -57,6 +57,111 @@ const TradesPage = () => {
   const [editTags, setEditTags] = useState<string[]>([]);
   const [editNotes, setEditNotes] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Screenshot upload
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const getStoragePath = (url: string) => {
+    const marker = '/trade-screenshots/';
+    const idx = url.indexOf(marker);
+    return idx === -1 ? '' : url.slice(idx + marker.length);
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!selectedTrade || !user) return;
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
+      toast.error(lang === 'ar' ? 'صيغة غير مدعومة. استخدم JPG, PNG أو WEBP' : lang === 'fr' ? 'Format non supporté. Utilisez JPG, PNG ou WEBP' : 'Unsupported format. Use JPG, PNG or WEBP');
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    // Animate fake progress to 80% while uploading
+    const interval = setInterval(() => {
+      setUploadProgress(p => p < 80 ? p + 10 : p);
+    }, 150);
+
+    const ext = file.name.split('.').pop() ?? 'jpg';
+    const path = `${user.id}/${selectedTrade.id}/${Date.now()}.${ext}`;
+
+    // Delete old screenshot from storage if exists
+    if (screenshotUrl) {
+      const oldPath = getStoragePath(screenshotUrl);
+      if (oldPath) await supabase.storage.from('trade-screenshots').remove([oldPath]);
+    }
+
+    const { error: uploadError } = await supabase.storage
+      .from('trade-screenshots')
+      .upload(path, file, { upsert: true });
+
+    clearInterval(interval);
+
+    if (uploadError) {
+      setUploading(false);
+      setUploadProgress(0);
+      toast.error('Upload failed: ' + uploadError.message);
+      return;
+    }
+
+    setUploadProgress(100);
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('trade-screenshots')
+      .getPublicUrl(path);
+
+    const { error: dbError } = await supabase
+      .from('trades')
+      .update({ screenshot_url: publicUrl })
+      .eq('id', selectedTrade.id);
+
+    setUploading(false);
+    setUploadProgress(0);
+
+    if (dbError) {
+      toast.error('Failed to save screenshot URL');
+      return;
+    }
+
+    setScreenshotUrl(publicUrl);
+    setTrades(prev => prev.map(tr =>
+      tr.id === selectedTrade.id ? { ...tr, screenshot_url: publicUrl } : tr
+    ));
+    toast.success(lang === 'ar' ? 'تم رفع الصورة' : lang === 'fr' ? 'Image uploadée' : 'Screenshot uploaded!');
+  };
+
+  const handleDeleteScreenshot = async () => {
+    if (!selectedTrade || !screenshotUrl) return;
+    const path = getStoragePath(screenshotUrl);
+    if (path) await supabase.storage.from('trade-screenshots').remove([path]);
+    await supabase.from('trades').update({ screenshot_url: null }).eq('id', selectedTrade.id);
+    setScreenshotUrl(null);
+    setTrades(prev => prev.map(tr =>
+      tr.id === selectedTrade.id ? { ...tr, screenshot_url: null } : tr
+    ));
+    toast.success(lang === 'ar' ? 'تم حذف الصورة' : lang === 'fr' ? 'Image supprimée' : 'Screenshot removed');
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileUpload(file);
+  };
 
   // Add trade dialog
   const [addOpen, setAddOpen] = useState(false);
@@ -170,12 +275,14 @@ const TradesPage = () => {
 
   const openTrade = (trade: Trade) => {
     setSelectedTrade(trade);
-    // Parse comma-separated tags into array
     const tags = trade.setup_tag
       ? trade.setup_tag.split(',').map(s => s.trim()).filter(Boolean)
       : [];
     setEditTags(tags);
     setEditNotes(trade.notes ?? '');
+    setScreenshotUrl(trade.screenshot_url ?? null);
+    setUploadProgress(0);
+    setIsDragging(false);
   };
 
   const toggleTag = (tag: string) => {
@@ -644,6 +751,88 @@ const TradesPage = () => {
                     rows={4}
                     value={editNotes}
                     onChange={e => setEditNotes(e.target.value)}
+                  />
+                </div>
+
+                {/* Screenshot */}
+                <div className="space-y-2">
+                  <Label>
+                    {lang === 'ar' ? 'لقطة الشاشة' : lang === 'fr' ? 'Capture d\'écran' : 'Chart Screenshot'}
+                  </Label>
+
+                  {screenshotUrl ? (
+                    <div className="relative overflow-hidden rounded-lg border border-border">
+                      <img
+                        src={screenshotUrl}
+                        alt="Trade screenshot"
+                        className="w-full object-contain max-h-64"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleDeleteScreenshot}
+                        className="absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-background/80 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-destructive hover:text-white"
+                        title={lang === 'ar' ? 'حذف الصورة' : lang === 'fr' ? 'Supprimer' : 'Delete screenshot'}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      {/* Click to replace */}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute bottom-2 end-2 rounded-md bg-background/80 px-2 py-1 text-xs text-muted-foreground backdrop-blur-sm transition-colors hover:text-foreground"
+                      >
+                        {lang === 'ar' ? 'استبدال' : lang === 'fr' ? 'Remplacer' : 'Replace'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onClick={() => !uploading && fileInputRef.current?.click()}
+                      className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
+                        isDragging
+                          ? 'border-primary bg-primary/5 text-primary'
+                          : 'border-border bg-secondary/30 text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                      } ${uploading ? 'cursor-default opacity-70' : ''}`}
+                    >
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <p className="text-sm font-medium text-primary">
+                            {lang === 'ar' ? 'جاري الرفع...' : lang === 'fr' ? 'Envoi en cours...' : 'Uploading...'}
+                          </p>
+                          <div className="w-full max-w-[160px] overflow-hidden rounded-full bg-secondary h-1.5">
+                            <div
+                              className="h-full rounded-full bg-primary transition-all duration-150"
+                              style={{ width: `${uploadProgress}%` }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="h-8 w-8" />
+                          <p className="text-sm font-medium">
+                            {lang === 'ar' ? 'أفلت لقطة الشاشة هنا' : lang === 'fr' ? 'Déposez votre capture ici' : 'Drop your chart screenshot here'}
+                          </p>
+                          <p className="text-xs">
+                            {lang === 'ar' ? 'أو انقر للاختيار — JPG, PNG, WEBP' : lang === 'fr' ? 'ou cliquez — JPG, PNG, WEBP' : 'or click to browse — JPG, PNG, WEBP'}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload(file);
+                      e.target.value = '';
+                    }}
                   />
                 </div>
 
