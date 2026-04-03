@@ -17,10 +17,14 @@ type Account = Tables<'mt5_accounts'>;
 const PROP_FIRMS = ['FTMO', 'FundingPips', 'Alpha Capital', 'FundedNext', 'Exness', 'Other'];
 const ACCOUNT_TYPES = ['Challenge Phase 1', 'Challenge Phase 2', 'Instant Funded', 'Funded', 'Live', 'Demo'];
 
-// Which account types have a profit target
-const HAS_PROFIT_TARGET = ['Challenge Phase 1', 'Challenge Phase 2', 'Funded'];
-// Which account types have mandatory drawdown rules
+// Profit target: required for challenges, optional for Demo, hidden for others
+const PROFIT_TARGET_REQUIRED = ['Challenge Phase 1', 'Challenge Phase 2'];
+const PROFIT_TARGET_OPTIONAL = ['Demo'];
+const SHOWS_PROFIT_TARGET = [...PROFIT_TARGET_REQUIRED, ...PROFIT_TARGET_OPTIONAL];
+// Which account types have mandatory drawdown/daily loss rules
 const HAS_REQUIRED_RULES = ['Challenge Phase 1', 'Challenge Phase 2', 'Instant Funded', 'Funded'];
+// Only challenges show profit progress bar on card
+const SHOWS_PROFIT_PROGRESS = ['Challenge Phase 1', 'Challenge Phase 2'];
 const ACCOUNT_SIZES = ['2500', '5000', '6000', '10000', '15000', '25000', '50000', '100000', '200000'];
 
 export function typeBadgeClass(type: string | null): string {
@@ -357,12 +361,15 @@ const ConnectPage = () => {
               </div>
             </div>
 
-            {/* Profit target — only for challenge/funded types */}
-            {HAS_PROFIT_TARGET.includes(form.account_type) && (
+            {/* Profit target — required for challenges, optional for Demo, hidden for others */}
+            {SHOWS_PROFIT_TARGET.includes(form.account_type) && (
               <div className="space-y-1.5">
                 <Label className="text-xs leading-tight">
                   {lang === 'ar' ? 'هدف الربح %' : lang === 'fr' ? 'Objectif profit %' : 'Profit Target %'}
-                  {form.account_type === 'Funded' && (
+                  {PROFIT_TARGET_REQUIRED.includes(form.account_type) && (
+                    <span className="text-destructive"> *</span>
+                  )}
+                  {PROFIT_TARGET_OPTIONAL.includes(form.account_type) && (
                     <span className="ms-1 text-muted-foreground">
                       ({lang === 'ar' ? 'اختياري' : lang === 'fr' ? 'optionnel' : 'optional'})
                     </span>
@@ -382,9 +389,9 @@ const ConnectPage = () => {
               <div className="space-y-1.5">
                 <Label className="text-xs leading-tight">
                   {lang === 'ar' ? 'حد السحب %' : lang === 'fr' ? 'DD max %' : 'Max DD %'}
-                  {!HAS_REQUIRED_RULES.includes(form.account_type) && form.account_type && (
+                  {['Live', 'Demo'].includes(form.account_type) && (
                     <span className="ms-1 text-muted-foreground">
-                      ({lang === 'ar' ? 'اختياري' : 'optional'})
+                      ({lang === 'ar' ? 'اختياري' : lang === 'fr' ? 'optionnel' : 'optional'})
                     </span>
                   )}
                 </Label>
@@ -398,9 +405,9 @@ const ConnectPage = () => {
               <div className="space-y-1.5">
                 <Label className="text-xs leading-tight">
                   {lang === 'ar' ? 'خسارة يومية %' : lang === 'fr' ? 'Perte/jour %' : 'Daily Loss %'}
-                  {!HAS_REQUIRED_RULES.includes(form.account_type) && form.account_type && (
+                  {['Live', 'Demo'].includes(form.account_type) && (
                     <span className="ms-1 text-muted-foreground">
-                      ({lang === 'ar' ? 'اختياري' : 'optional'})
+                      ({lang === 'ar' ? 'اختياري' : lang === 'fr' ? 'optionnel' : 'optional'})
                     </span>
                   )}
                 </Label>
@@ -511,21 +518,23 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact }: AccountCar
           </div>
         </div>
 
-        {/* Profit progress */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="flex items-center gap-1 text-muted-foreground">
-              <TrendingUp className="h-3 w-3" />
-              {lang === 'ar' ? 'هدف الربح' : lang === 'fr' ? 'Objectif gain' : 'Profit Target'} {acc.profit_target ?? 10}%
-            </span>
-            <span className={`font-medium ${profitPct >= 0 ? 'text-profit' : 'text-loss'}`}>
-              {profitPct >= 0 ? '+' : ''}{profitPct.toFixed(2)}%
-            </span>
+        {/* Profit progress — only for Challenge Phase 1 & 2 */}
+        {SHOWS_PROFIT_PROGRESS.includes(acc.account_type ?? '') && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <TrendingUp className="h-3 w-3" />
+                {lang === 'ar' ? 'هدف الربح' : lang === 'fr' ? 'Objectif gain' : 'Profit Target'} {acc.profit_target ?? 10}%
+              </span>
+              <span className={`font-medium ${profitPct >= 0 ? 'text-profit' : 'text-loss'}`}>
+                {profitPct >= 0 ? '+' : ''}{profitPct.toFixed(2)}%
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-secondary">
+              <div className="h-full rounded-full bg-profit transition-all" style={{ width: `${profitProgress}%` }} />
+            </div>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-secondary">
-            <div className="h-full rounded-full bg-profit transition-all" style={{ width: `${profitProgress}%` }} />
-          </div>
-        </div>
+        )}
 
         {/* Drawdown progress */}
         <div className="space-y-1.5">

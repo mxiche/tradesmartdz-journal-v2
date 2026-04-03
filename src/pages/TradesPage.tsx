@@ -600,7 +600,7 @@ const TradesPage = () => {
             <div className="flex h-48 items-center justify-center">
               <p className="text-muted-foreground">
                 {trades.length === 0
-                  ? 'No trades yet. Connect your MT5 account to sync trades.'
+                  ? "No trades yet. Click '+ Add Trade' to add your first trade."
                   : 'No trades match your filters.'}
               </p>
             </div>
