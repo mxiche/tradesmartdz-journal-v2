@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TrendingUp, TrendingDown, Percent, BarChart3, Loader2, Bot, Sparkles, RotateCcw, AlertCircle, Lightbulb, ShieldCheck } from 'lucide-react';
 import { AccountCard } from '@/pages/ConnectPage';
+import { OnboardingModal } from '@/components/OnboardingModal';
 import { toast } from 'sonner';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
@@ -100,6 +101,9 @@ const DashboardPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Onboarding
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   // AI Coach state
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -120,6 +124,27 @@ const DashboardPage = () => {
     if (!user) return;
     setLoading(true);
     fetchData().finally(() => setLoading(false));
+  }, [user]);
+
+  // Check if onboarding should be shown (0 accounts, 0 trades, not completed)
+  useEffect(() => {
+    if (!user) return;
+    const checkOnboarding = async () => {
+      const { data: prefs } = await supabase
+        .from('user_preferences')
+        .select('onboarding_completed')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (prefs?.onboarding_completed) return;
+      const [{ count: tradeCount }, { count: accCount }] = await Promise.all([
+        supabase.from('trades').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase.from('mt5_accounts').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+      ]);
+      if ((tradeCount ?? 0) === 0 && (accCount ?? 0) === 0) {
+        setShowOnboarding(true);
+      }
+    };
+    checkOnboarding();
   }, [user]);
 
 
@@ -290,6 +315,13 @@ Important rules:
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {showOnboarding && user && (
+        <OnboardingModal
+          userId={user.id}
+          lang={lang}
+          onClose={() => setShowOnboarding(false)}
+        />
+      )}
       <h1 className="text-2xl font-bold text-foreground">{t('dashboard')}</h1>
 
       {/* Stats */}
@@ -464,7 +496,7 @@ Important rules:
           <CardHeader><CardTitle className="text-lg">{t('recentTrades')}</CardTitle></CardHeader>
           <CardContent>
             {trades.length === 0 ? (
-              <p className="text-muted-foreground">No trades yet. Connect your MT5 account to sync trades.</p>
+              <p className="text-muted-foreground">No trades yet. Click 'Add Trade' on the Trades page to get started.</p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>

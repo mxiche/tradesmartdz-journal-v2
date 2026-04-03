@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, RefreshCw, Loader2 } from 'lucide-react';
+import { Trash2, Loader2, Send, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Language } from '@/lib/i18n';
 import { Tables } from '@/integrations/supabase/types';
@@ -20,10 +20,16 @@ type Account = Tables<'mt5_accounts'>;
 
 const SettingsPage = () => {
   const { t, language, setLanguage } = useLanguage();
+  const lang = language as 'ar' | 'fr' | 'en';
   const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+
+  // Telegram
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [savingTelegram, setSavingTelegram] = useState(false);
+  const [testingSend, setTestingSend] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -34,6 +40,16 @@ const SettingsPage = () => {
       setLoadingAccounts(false);
     };
     fetchAccounts();
+
+    // Load telegram chat id
+    supabase
+      .from('user_preferences')
+      .select('telegram_chat_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.telegram_chat_id) setTelegramChatId(data.telegram_chat_id);
+      });
   }, [user]);
 
   const deleteAccount = async (id: string) => {
@@ -46,6 +62,48 @@ const SettingsPage = () => {
     }
   };
 
+  const saveTelegramChatId = async () => {
+    if (!user) return;
+    setSavingTelegram(true);
+    const { error } = await supabase
+      .from('user_preferences')
+      .upsert({ user_id: user.id, telegram_chat_id: telegramChatId.trim() || null }, { onConflict: 'user_id' });
+    setSavingTelegram(false);
+    if (error) { toast.error('Failed to save'); return; }
+    toast.success(lang === 'ar' ? 'تم الحفظ!' : lang === 'fr' ? 'Sauvegardé !' : 'Saved!');
+  };
+
+  const sendTestMessage = async () => {
+    const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+    if (!botToken) { toast.error('VITE_TELEGRAM_BOT_TOKEN not configured'); return; }
+    if (!telegramChatId.trim()) {
+      toast.error(lang === 'ar' ? 'أدخل Chat ID أولاً' : lang === 'fr' ? 'Entrez un Chat ID d\'abord' : 'Enter a Chat ID first');
+      return;
+    }
+    setTestingSend(true);
+    const text = lang === 'ar'
+      ? '✅ مرحباً من TradeSmartDz! الإشعارات تعمل بشكل صحيح.'
+      : lang === 'fr'
+      ? '✅ Bonjour de TradeSmartDz ! Les notifications fonctionnent correctement.'
+      : '✅ Hello from TradeSmartDz! Notifications are working correctly.';
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: telegramChatId.trim(), text }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(lang === 'ar' ? 'تم الإرسال! تحقق من Telegram' : lang === 'fr' ? 'Envoyé ! Vérifiez Telegram' : 'Sent! Check your Telegram');
+      } else {
+        toast.error('Telegram error: ' + (data.description ?? 'Unknown'));
+      }
+    } catch (e: any) {
+      toast.error('Failed to send: ' + e.message);
+    }
+    setTestingSend(false);
+  };
+
   return (
     <div className="mx-auto max-w-2xl space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold text-foreground">{t('settings')}</h1>
@@ -54,10 +112,13 @@ const SettingsPage = () => {
         <TabsList className="w-full">
           <TabsTrigger value="profile" className="flex-1">{t('profile')}</TabsTrigger>
           <TabsTrigger value="preferences" className="flex-1">{t('preferences')}</TabsTrigger>
+          <TabsTrigger value="notifications" className="flex-1">
+            {lang === 'ar' ? 'الإشعارات' : lang === 'fr' ? 'Notifications' : 'Notifications'}
+          </TabsTrigger>
           <TabsTrigger value="subscription" className="flex-1">{t('subscription')}</TabsTrigger>
-          <TabsTrigger value="accounts" className="flex-1">{t('connectedAccounts')}</TabsTrigger>
         </TabsList>
 
+        {/* Profile tab */}
         <TabsContent value="profile">
           <Card className="border-border bg-card">
             <CardHeader><CardTitle>{t('profile')}</CardTitle></CardHeader>
@@ -84,6 +145,7 @@ const SettingsPage = () => {
           </Card>
         </TabsContent>
 
+        {/* Preferences tab */}
         <TabsContent value="preferences">
           <Card className="border-border bg-card">
             <CardHeader><CardTitle>{t('preferences')}</CardTitle></CardHeader>
@@ -139,6 +201,87 @@ const SettingsPage = () => {
           </Card>
         </TabsContent>
 
+        {/* Notifications tab */}
+        <TabsContent value="notifications">
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle>
+                {lang === 'ar' ? 'إشعارات Telegram' : lang === 'fr' ? 'Notifications Telegram' : 'Telegram Notifications'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* How-to instruction */}
+              <div className="rounded-lg border border-border bg-secondary/40 p-4 text-sm text-muted-foreground leading-relaxed">
+                {lang === 'ar'
+                  ? 'افتح Telegram وابحث عن @userinfobot وأرسل له /start للحصول على Chat ID الخاص بك.'
+                  : lang === 'fr'
+                  ? 'Ouvrez Telegram, cherchez @userinfobot et envoyez /start pour obtenir votre Chat ID.'
+                  : 'Open Telegram, search @userinfobot and send /start to get your Chat ID.'}
+              </div>
+
+              {/* Chat ID input */}
+              <div className="space-y-2">
+                <Label>
+                  {lang === 'ar' ? 'معرّف المحادثة (Chat ID)' : lang === 'fr' ? 'Chat ID Telegram' : 'Telegram Chat ID'}
+                </Label>
+                <Input
+                  placeholder="123456789"
+                  value={telegramChatId}
+                  onChange={e => setTelegramChatId(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  className="gradient-primary text-primary-foreground"
+                  onClick={saveTelegramChatId}
+                  disabled={savingTelegram}
+                >
+                  {savingTelegram ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="me-2 h-4 w-4" />}
+                  {lang === 'ar' ? 'حفظ' : lang === 'fr' ? 'Enregistrer' : 'Save'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={sendTestMessage}
+                  disabled={testingSend || !telegramChatId.trim()}
+                >
+                  {testingSend ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Send className="me-2 h-4 w-4" />}
+                  {lang === 'ar' ? 'إرسال رسالة تجريبية' : lang === 'fr' ? 'Envoyer un test' : 'Send Test Message'}
+                </Button>
+              </div>
+
+              {/* What triggers notifications */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">
+                  {lang === 'ar' ? 'متى يتم الإرسال؟' : lang === 'fr' ? 'Quand les notifications sont-elles envoyées ?' : 'When are notifications sent?'}
+                </p>
+                <div className="space-y-1.5">
+                  {[
+                    {
+                      icon: '✅',
+                      text: lang === 'ar' ? 'عند تسجيل صفقة رابحة' : lang === 'fr' ? 'Lors d\'un trade gagnant' : 'When a winning trade is saved',
+                    },
+                    {
+                      icon: '❌',
+                      text: lang === 'ar' ? 'عند تسجيل صفقة خاسرة' : lang === 'fr' ? 'Lors d\'un trade perdant' : 'When a losing trade is saved',
+                    },
+                    {
+                      icon: '⚠️',
+                      text: lang === 'ar' ? 'عند اقتراب حد الخسارة اليومي (70%)' : lang === 'fr' ? 'Quand la limite de perte quotidienne approche (70%)' : 'When daily loss limit approaches 70%',
+                    },
+                  ].map(item => (
+                    <div key={item.text} className="flex items-start gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-muted-foreground">
+                      <span>{item.icon}</span>
+                      <span>{item.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Subscription tab */}
         <TabsContent value="subscription">
           <Card className="border-border bg-card">
             <CardHeader><CardTitle>{t('subscription')}</CardTitle></CardHeader>
@@ -166,34 +309,6 @@ const SettingsPage = () => {
                   <Button variant="outline">{t('choosePlan')}</Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="accounts">
-          <Card className="border-border bg-card">
-            <CardHeader><CardTitle>{t('connectedAccounts')}</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              {loadingAccounts ? (
-                <div className="flex h-24 items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : accounts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No connected accounts yet.</p>
-              ) : (
-                accounts.map(acc => (
-                  <div key={acc.id} className="flex items-center justify-between rounded-lg border border-border p-4">
-                    <div>
-                      <p className="font-medium">{acc.firm}</p>
-                      <p className="text-sm text-muted-foreground">****{String(acc.login).slice(-4)}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm"><RefreshCw className="me-1 h-3 w-3" /> {t('syncNow')}</Button>
-                      <Button variant="destructive" size="sm" onClick={() => deleteAccount(acc.id)}><Trash2 className="h-3 w-3" /></Button>
-                    </div>
-                  </div>
-                ))
-              )}
             </CardContent>
           </Card>
         </TabsContent>

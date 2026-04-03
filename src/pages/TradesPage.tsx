@@ -128,6 +128,18 @@ function computeDuration(open: string, close: string): string {
   return `${h}h ${m}m`;
 }
 
+async function sendTelegramNotification(chatId: string, text: string) {
+  const token = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+  if (!token || !chatId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+  } catch { /* silent — notifications are non-critical */ }
+}
+
 type Trade = Tables<'trades'>;
 
 const DEFAULT_TAGS = ['FVG', 'IFVG', 'Liquidity Sweep', 'Order Block', 'BOS/CHoCH', 'MSS', 'Fair Value Gap + Sweep'];
@@ -362,6 +374,53 @@ const TradesPage = () => {
     resetForm();
     const { data } = await supabase.from('trades').select('*').eq('user_id', user!.id).order('close_time', { ascending: false });
     setTrades(data ?? []);
+
+    // Telegram notifications
+    const { data: prefs } = await supabase
+      .from('user_preferences')
+      .select('telegram_chat_id, daily_loss_limit')
+      .eq('user_id', user!.id)
+      .maybeSingle();
+    const chatId = (prefs as any)?.telegram_chat_id;
+    if (chatId) {
+      const profitAbs = Math.abs(finalProfit).toFixed(2);
+      if (finalProfit > 0) {
+        const msg = lang === 'ar'
+          ? `✅ صفقة رابحة: ${form.symbol.trim().toUpperCase()} +$${profitAbs}`
+          : lang === 'fr'
+          ? `✅ Trade gagnant: ${form.symbol.trim().toUpperCase()} +$${profitAbs}`
+          : `✅ Winning trade: ${form.symbol.trim().toUpperCase()} +$${profitAbs}`;
+        await sendTelegramNotification(chatId, msg);
+      } else if (finalProfit < 0) {
+        const msg = lang === 'ar'
+          ? `❌ صفقة خاسرة: ${form.symbol.trim().toUpperCase()} -$${profitAbs}`
+          : lang === 'fr'
+          ? `❌ Trade perdant: ${form.symbol.trim().toUpperCase()} -$${profitAbs}`
+          : `❌ Losing trade: ${form.symbol.trim().toUpperCase()} -$${profitAbs}`;
+        await sendTelegramNotification(chatId, msg);
+
+        // Check daily loss limit
+        const todayTrades = (data ?? []).filter(tr => {
+          if (!tr.close_time) return false;
+          const d = new Date(tr.close_time);
+          const now = new Date();
+          return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+        });
+        const { data: accs } = await supabase.from('mt5_accounts').select('starting_balance, daily_loss_limit').eq('user_id', user!.id).limit(1).maybeSingle();
+        if (accs?.starting_balance && accs?.daily_loss_limit) {
+          const dailyLoss = Math.abs(todayTrades.filter(tr => (tr.profit ?? 0) < 0).reduce((s, tr) => s + (tr.profit ?? 0), 0));
+          const dailyLimit = (accs.starting_balance * accs.daily_loss_limit) / 100;
+          if (dailyLimit > 0 && dailyLoss / dailyLimit >= 0.7) {
+            const warn = lang === 'ar'
+              ? `⚠️ تحذير: اقتربت من حد الخسارة اليومي (${((dailyLoss / dailyLimit) * 100).toFixed(0)}% مستخدم)`
+              : lang === 'fr'
+              ? `⚠️ Attention: limite de perte quotidienne approchée (${((dailyLoss / dailyLimit) * 100).toFixed(0)}% utilisé)`
+              : `⚠️ Warning: Daily loss limit approaching (${((dailyLoss / dailyLimit) * 100).toFixed(0)}% used)`;
+            await sendTelegramNotification(chatId, warn);
+          }
+        }
+      }
+    }
   };
 
   // Tag management — allTags is the single source of truth, persisted to user_preferences.custom_tags

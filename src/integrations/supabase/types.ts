@@ -161,6 +161,8 @@ export type Database = {
           custom_tags: Json | null
           id: string
           language: string | null
+          onboarding_completed: boolean | null
+          telegram_chat_id: string | null
           theme: string | null
           timezone: string | null
           user_id: string
@@ -171,6 +173,8 @@ export type Database = {
           custom_tags?: Json | null
           id?: string
           language?: string | null
+          onboarding_completed?: boolean | null
+          telegram_chat_id?: string | null
           theme?: string | null
           timezone?: string | null
           user_id: string
@@ -181,6 +185,8 @@ export type Database = {
           custom_tags?: Json | null
           id?: string
           language?: string | null
+          onboarding_completed?: boolean | null
+          telegram_chat_id?: string | null
           theme?: string | null
           timezone?: string | null
           user_id?: string
