@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { TrendingUp, TrendingDown, Percent, BarChart3, RefreshCw, Loader2, Bot, Sparkles, RotateCcw, AlertCircle, Lightbulb, ShieldCheck } from 'lucide-react';
+import { TrendingUp, TrendingDown, Percent, BarChart3, Loader2, Bot, Sparkles, RotateCcw, AlertCircle, Lightbulb, ShieldCheck } from 'lucide-react';
+import { AccountCard } from '@/pages/ConnectPage';
 import { toast } from 'sonner';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
@@ -98,7 +99,6 @@ const DashboardPage = () => {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   // AI Coach state
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -122,28 +122,6 @@ const DashboardPage = () => {
     fetchData().finally(() => setLoading(false));
   }, [user]);
 
-  const handleSync = async (accountId: string) => {
-    if (!user) return;
-    setSyncingId(accountId);
-    try {
-      const response = await fetch('http://127.0.0.1:8001/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: accountId, user_id: user.id }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        toast.success(`Sync complete — ${data.trades_inserted} new trade${data.trades_inserted !== 1 ? 's' : ''} added`);
-        await fetchData();
-      } else {
-        toast.error(data.error ?? 'Sync failed');
-      }
-    } catch {
-      toast.error('Could not reach MT5 sync server. Make sure the sync service is running.');
-    } finally {
-      setSyncingId(null);
-    }
-  };
 
   // Load cached AI analysis on mount
   useEffect(() => {
@@ -333,36 +311,21 @@ Important rules:
 
       {/* Connected Accounts */}
       <Card className="border-border bg-card">
-        <CardHeader><CardTitle className="text-lg">{t('connectedAccounts')}</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">{t('connectedAccounts')}</CardTitle>
+            <a href="/connect" className="text-xs text-primary hover:underline">
+              {lang === 'ar' ? 'إدارة الحسابات' : lang === 'fr' ? 'Gérer' : 'Manage accounts'}
+            </a>
+          </div>
+        </CardHeader>
         <CardContent>
           {accounts.length === 0 ? (
             <p className="text-muted-foreground">{t('noAccounts')}</p>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {accounts.map(acc => (
-                <div key={acc.id} className="flex items-center justify-between rounded-lg border border-border p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-full bg-profit" />
-                    <div>
-                      <p className="font-medium text-foreground">{acc.firm}</p>
-                      <p className="text-sm text-muted-foreground">****{String(acc.login).slice(-4)}</p>
-                    </div>
-                  </div>
-                  <div className="text-end">
-                    <p className="font-medium text-foreground">${(acc.balance ?? 0).toLocaleString()}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={syncingId === acc.id}
-                    onClick={() => handleSync(acc.id)}
-                  >
-                    {syncingId === acc.id
-                      ? <Loader2 className="me-1 h-4 w-4 animate-spin" />
-                      : <RefreshCw className="me-1 h-4 w-4" />}
-                    {t('syncNow')}
-                  </Button>
-                </div>
+                <AccountCard key={acc.id} acc={acc} lang={lang} compact />
               ))}
             </div>
           )}

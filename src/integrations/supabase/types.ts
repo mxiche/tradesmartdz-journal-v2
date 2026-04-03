@@ -17,38 +17,59 @@ export type Database = {
       mt5_accounts: {
         Row: {
           account_name: string | null
+          account_size: number | null
+          account_type: string | null
           balance: number | null
           created_at: string | null
+          currency: string | null
+          daily_loss_limit: number | null
           firm: string
           id: string
           last_sync: string | null
-          login: number
-          password_encrypted: string
-          server: string
+          login: number | null
+          max_drawdown_limit: number | null
+          password_encrypted: string | null
+          profit_target: number | null
+          server: string | null
+          starting_balance: number | null
           user_id: string
         }
         Insert: {
           account_name?: string | null
+          account_size?: number | null
+          account_type?: string | null
           balance?: number | null
           created_at?: string | null
+          currency?: string | null
+          daily_loss_limit?: number | null
           firm: string
           id?: string
           last_sync?: string | null
-          login: number
-          password_encrypted: string
-          server: string
+          login?: number | null
+          max_drawdown_limit?: number | null
+          password_encrypted?: string | null
+          profit_target?: number | null
+          server?: string | null
+          starting_balance?: number | null
           user_id: string
         }
         Update: {
           account_name?: string | null
+          account_size?: number | null
+          account_type?: string | null
           balance?: number | null
           created_at?: string | null
+          currency?: string | null
+          daily_loss_limit?: number | null
           firm?: string
           id?: string
           last_sync?: string | null
-          login?: number
-          password_encrypted?: string
-          server?: string
+          login?: number | null
+          max_drawdown_limit?: number | null
+          password_encrypted?: string | null
+          profit_target?: number | null
+          server?: string | null
+          starting_balance?: number | null
           user_id?: string
         }
         Relationships: []
