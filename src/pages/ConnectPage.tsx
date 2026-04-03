@@ -15,13 +15,19 @@ import { toast } from 'sonner';
 type Account = Tables<'mt5_accounts'>;
 
 const PROP_FIRMS = ['FTMO', 'FundingPips', 'Alpha Capital', 'FundedNext', 'Exness', 'Other'];
-const ACCOUNT_TYPES = ['Challenge Phase 1', 'Challenge Phase 2', 'Funded', 'Live', 'Demo'];
+const ACCOUNT_TYPES = ['Challenge Phase 1', 'Challenge Phase 2', 'Instant Funded', 'Funded', 'Live', 'Demo'];
+
+// Which account types have a profit target
+const HAS_PROFIT_TARGET = ['Challenge Phase 1', 'Challenge Phase 2', 'Funded'];
+// Which account types have mandatory drawdown rules
+const HAS_REQUIRED_RULES = ['Challenge Phase 1', 'Challenge Phase 2', 'Instant Funded', 'Funded'];
 const ACCOUNT_SIZES = ['2500', '5000', '6000', '10000', '15000', '25000', '50000', '100000', '200000'];
 
 export function typeBadgeClass(type: string | null): string {
   switch (type) {
     case 'Challenge Phase 1': return 'bg-orange-500/20 text-orange-400 border border-orange-500/30';
     case 'Challenge Phase 2': return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30';
+    case 'Instant Funded':    return 'bg-purple-500/20 text-purple-400 border border-purple-500/30';
     case 'Funded':            return 'bg-profit/20 text-profit border border-profit/30';
     case 'Live':              return 'bg-blue-500/20 text-blue-400 border border-blue-500/30';
     case 'Demo':              return 'bg-muted text-muted-foreground border border-border';
@@ -351,11 +357,16 @@ const ConnectPage = () => {
               </div>
             </div>
 
-            {/* Profit target / Max DD / Daily loss */}
-            <div className="grid grid-cols-3 gap-3">
+            {/* Profit target — only for challenge/funded types */}
+            {HAS_PROFIT_TARGET.includes(form.account_type) && (
               <div className="space-y-1.5">
                 <Label className="text-xs leading-tight">
-                  {lang === 'ar' ? 'هدف الربح %' : lang === 'fr' ? 'Objectif %' : 'Profit Target %'}
+                  {lang === 'ar' ? 'هدف الربح %' : lang === 'fr' ? 'Objectif profit %' : 'Profit Target %'}
+                  {form.account_type === 'Funded' && (
+                    <span className="ms-1 text-muted-foreground">
+                      ({lang === 'ar' ? 'اختياري' : lang === 'fr' ? 'optionnel' : 'optional'})
+                    </span>
+                  )}
                 </Label>
                 <Input
                   type="number"
@@ -364,9 +375,18 @@ const ConnectPage = () => {
                   onChange={e => setForm(f => ({ ...f, profit_target: e.target.value }))}
                 />
               </div>
+            )}
+
+            {/* Max DD and Daily loss */}
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs leading-tight">
                   {lang === 'ar' ? 'حد السحب %' : lang === 'fr' ? 'DD max %' : 'Max DD %'}
+                  {!HAS_REQUIRED_RULES.includes(form.account_type) && form.account_type && (
+                    <span className="ms-1 text-muted-foreground">
+                      ({lang === 'ar' ? 'اختياري' : 'optional'})
+                    </span>
+                  )}
                 </Label>
                 <Input
                   type="number"
@@ -378,6 +398,11 @@ const ConnectPage = () => {
               <div className="space-y-1.5">
                 <Label className="text-xs leading-tight">
                   {lang === 'ar' ? 'خسارة يومية %' : lang === 'fr' ? 'Perte/jour %' : 'Daily Loss %'}
+                  {!HAS_REQUIRED_RULES.includes(form.account_type) && form.account_type && (
+                    <span className="ms-1 text-muted-foreground">
+                      ({lang === 'ar' ? 'اختياري' : 'optional'})
+                    </span>
+                  )}
                 </Label>
                 <Input
                   type="number"

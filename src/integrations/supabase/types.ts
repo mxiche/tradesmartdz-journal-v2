@@ -89,6 +89,7 @@ export type Database = {
           open_time: string | null
           profit: number | null
           screenshot_url: string | null
+          session: string | null
           setup_tag: string | null
           sl: number | null
           symbol: string
@@ -111,6 +112,7 @@ export type Database = {
           open_time?: string | null
           profit?: number | null
           screenshot_url?: string | null
+          session?: string | null
           setup_tag?: string | null
           sl?: number | null
           symbol: string
@@ -134,6 +136,7 @@ export type Database = {
           profit?: number | null
           setup_tag?: string | null
           screenshot_url?: string | null
+          session?: string | null
           sl?: number | null
           symbol?: string
           ticket?: number | null

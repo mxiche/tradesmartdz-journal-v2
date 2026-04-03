@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 
@@ -145,6 +145,8 @@ const TradesPage = () => {
   const [editTags, setEditTags] = useState<string[]>([]);
   const [editNotes, setEditNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deletingBulk, setDeletingBulk] = useState(false);
 
   // Screenshot upload
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
@@ -340,6 +342,7 @@ const TradesPage = () => {
       close_time: new Date(form.close_time).toISOString(),
       duration: duration || null,
       setup_tag: setupTagValue,
+      session: form.session || null,
       notes: notesValue,
       account_id: null,
       volume: 0,
@@ -467,6 +470,35 @@ const TradesPage = () => {
     }
   };
 
+  const handleDeleteTrade = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(lang === 'ar' ? 'هل أنت متأكد من حذف هذه الصفقة؟' : lang === 'fr' ? 'Supprimer ce trade ?' : 'Are you sure you want to delete this trade?')) return;
+    await supabase.from('trades').delete().eq('id', id);
+    setTrades(prev => prev.filter(tr => tr.id !== id));
+    setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+    toast.success(lang === 'ar' ? 'تم الحذف' : lang === 'fr' ? 'Supprimé' : 'Trade deleted');
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(lang === 'ar' ? `حذف ${selectedIds.size} صفقات؟` : lang === 'fr' ? `Supprimer ${selectedIds.size} trades ?` : `Delete ${selectedIds.size} selected trade(s)?`)) return;
+    setDeletingBulk(true);
+    const ids = [...selectedIds];
+    await supabase.from('trades').delete().in('id', ids);
+    setTrades(prev => prev.filter(tr => !selectedIds.has(tr.id)));
+    setSelectedIds(new Set());
+    setDeletingBulk(false);
+    toast.success(lang === 'ar' ? 'تم الحذف' : lang === 'fr' ? 'Supprimés' : `${ids.length} trade(s) deleted`);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(tr => tr.id)));
+    }
+  };
+
   const exportCsv = () => {
     // Always quote every field so Excel handles commas, special chars, and UTF-8 correctly
     const q = (val: string | number | null | undefined) => {
@@ -518,6 +550,12 @@ const TradesPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-foreground">{t('myTrades')}</h1>
         <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <Button size="sm" variant="destructive" onClick={handleDeleteSelected} disabled={deletingBulk} className="gap-1">
+              {deletingBulk ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {lang === 'ar' ? `حذف (${selectedIds.size})` : lang === 'fr' ? `Supprimer (${selectedIds.size})` : `Delete (${selectedIds.size})`}
+            </Button>
+          )}
           <Button size="sm" className="gradient-primary text-primary-foreground gap-1" onClick={() => setAddOpen(true)}>
             <Plus className="h-4 w-4" />
             {lang === 'ar' ? 'إضافة صفقة' : lang === 'fr' ? 'Ajouter' : 'Add Trade'}
@@ -571,6 +609,14 @@ const TradesPage = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="w-8 px-2">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 cursor-pointer accent-primary"
+                        checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                        onChange={toggleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead className="font-semibold">{t('symbol')}</TableHead>
                     <TableHead className="font-semibold">{t('direction')}</TableHead>
                     <TableHead className="font-semibold">{lang === 'ar' ? 'النتيجة' : lang === 'fr' ? 'Résultat' : 'Result'}</TableHead>
@@ -581,6 +627,7 @@ const TradesPage = () => {
                     <TableHead className="font-semibold">{t('notes')}</TableHead>
                     <TableHead className="font-semibold w-8"></TableHead>
                     <TableHead className="font-semibold">{t('date')}</TableHead>
+                    <TableHead className="w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -595,6 +642,19 @@ const TradesPage = () => {
                         className="cursor-pointer border-border transition-colors hover:bg-secondary/40"
                         onClick={() => openTrade(trade)}
                       >
+                        {/* Checkbox */}
+                        <TableCell className="w-8 px-2" onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 cursor-pointer accent-primary"
+                            checked={selectedIds.has(trade.id)}
+                            onChange={() => setSelectedIds(prev => {
+                              const next = new Set(prev);
+                              next.has(trade.id) ? next.delete(trade.id) : next.add(trade.id);
+                              return next;
+                            })}
+                          />
+                        </TableCell>
                         {/* Symbol */}
                         <TableCell className="font-bold text-foreground">{trade.symbol}</TableCell>
 
@@ -681,6 +741,17 @@ const TradesPage = () => {
                         {/* Date */}
                         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                           {trade.close_time ? new Date(trade.close_time).toLocaleDateString() : '—'}
+                        </TableCell>
+                        {/* Delete */}
+                        <TableCell className="w-10 px-2" onClick={e => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            title="Delete trade"
+                            onClick={e => handleDeleteTrade(trade.id, e)}
+                            className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-loss/20 hover:text-loss"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </TableCell>
                       </TableRow>
                     );
