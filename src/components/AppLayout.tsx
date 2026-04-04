@@ -11,7 +11,7 @@ import { useState, useMemo } from 'react';
 
 export default function AppLayout() {
   const { user, signOut } = useAuth();
-  const { t } = useLanguage();
+  const { t, isRtl } = useLanguage();
 
   const navItems = useMemo(() => [
     { label: t('dashboard'),      icon: LayoutDashboard, path: '/dashboard' },
@@ -39,8 +39,8 @@ export default function AppLayout() {
         />
       )}
 
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 start-0 z-50 flex w-64 flex-col border-e border-border bg-card transition-transform duration-300 lg:static lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'}`}>
+      {/* Sidebar — hidden transform computed in JS to avoid rtl: variant conflicting with lg:translate-x-0 */}
+      <aside className={`fixed inset-y-0 start-0 z-50 flex w-64 flex-col border-e border-border bg-card transition-transform duration-300 lg:static lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : isRtl ? 'translate-x-full' : '-translate-x-full'}`}>
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
           <Logo size="sm" />
           <Button variant="ghost" size="icon" className="h-11 w-11 lg:hidden" onClick={() => setSidebarOpen(false)}>
