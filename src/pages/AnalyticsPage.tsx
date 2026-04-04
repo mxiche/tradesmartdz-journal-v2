@@ -266,6 +266,7 @@ const AnalyticsPage = () => {
   const { user } = useAuth();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fullName, setFullName] = useState('');
   const [timeRange, setTimeRange] = useState('allTime');
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
@@ -277,12 +278,12 @@ const AnalyticsPage = () => {
     if (!user) return;
     const fetchTrades = async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from('trades')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('close_time', { ascending: true });
-      setTrades(data ?? []);
+      const [{ data: tradesData }, { data: profile }] = await Promise.all([
+        supabase.from('trades').select('*').eq('user_id', user.id).order('close_time', { ascending: true }),
+        supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+      ]);
+      setTrades(tradesData ?? []);
+      setFullName(profile?.full_name || '');
       setLoading(false);
     };
     fetchTrades();
@@ -482,7 +483,7 @@ const AnalyticsPage = () => {
               {r.label}
             </Button>
           ))}
-          <Button variant="outline" size="sm" onClick={() => generatePDF(filteredTrades, lang, user?.email ?? '')} className="gap-1.5">
+          <Button variant="outline" size="sm" onClick={() => generatePDF(filteredTrades, lang, fullName || 'Trader')} className="gap-1.5">
             <FileDown className="h-4 w-4" />
             {lang === 'ar' ? 'تحميل الشهادة' : lang === 'fr' ? 'Télécharger le certificat' : 'Download Certificate'}
           </Button>
