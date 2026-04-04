@@ -275,9 +275,8 @@ Important rules:
     });
   }, [trades]);
 
-  // Equity curve
-  const startBalance = (accounts[0]?.balance ?? 0) - totalPnl;
-  let running = startBalance;
+  // Equity curve — cumulative PnL starting from 0, all trades across all accounts
+  let running = 0;
   const equityCurve = closedTrades.map(tr => {
     running += tr.profit ?? 0;
     return {

@@ -533,7 +533,9 @@ const AnalyticsPage = () => {
               <XAxis type="number" stroke="hsl(220, 10%, 55%)" fontSize={11} />
               <YAxis dataKey="name" type="category" stroke="hsl(220, 10%, 55%)" fontSize={11} width={90} />
               <Tooltip
-                contentStyle={{ backgroundColor: 'hsl(225, 18%, 12%)', border: '1px solid hsl(225, 15%, 20%)', borderRadius: '8px', color: 'hsl(220, 10%, 90%)' }}
+                contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: '8px', color: '#e2e8f0' }}
+                labelStyle={{ color: '#e2e8f0' }}
+                itemStyle={{ color: '#00d4aa' }}
                 formatter={(val: number) => [`$${val.toFixed(2)}`, 'P&L']}
               />
               <Bar dataKey="pnl" radius={[0, 4, 4, 0]}>
@@ -562,7 +564,7 @@ const AnalyticsPage = () => {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(225, 15%, 20%)" />
               <XAxis dataKey="name" stroke="hsl(220, 10%, 55%)" fontSize={11} />
               <YAxis stroke="hsl(220, 10%, 55%)" fontSize={11} />
-              <Tooltip contentStyle={{ backgroundColor: 'hsl(225, 18%, 12%)', border: '1px solid hsl(225, 15%, 20%)', borderRadius: '8px', color: 'hsl(220, 10%, 90%)' }} formatter={(val: number) => [`$${val.toFixed(2)}`, 'P&L']} />
+              <Tooltip contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: '8px', color: '#e2e8f0' }} labelStyle={{ color: '#e2e8f0' }} itemStyle={{ color: '#00d4aa' }} formatter={(val: number) => [`$${val.toFixed(2)}`, 'P&L']} />
               <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                 {data.map((entry, i) => (
                   <Cell key={i} fill={entry.pnl >= 0 ? 'hsl(142, 71%, 45%)' : 'hsl(0, 84%, 60%)'} />

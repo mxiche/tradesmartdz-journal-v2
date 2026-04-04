@@ -141,6 +141,7 @@ async function sendTelegramNotification(chatId: string, text: string) {
 }
 
 type Trade = Tables<'trades'>;
+type Account = Tables<'mt5_accounts'>;
 
 const DEFAULT_TAGS = ['FVG', 'IFVG', 'Liquidity Sweep', 'Order Block', 'BOS/CHoCH', 'MSS', 'Fair Value Gap + Sweep'];
 
@@ -149,6 +150,7 @@ const TradesPage = () => {
   const lang = language as 'ar' | 'fr' | 'en';
   const { user } = useAuth();
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dirFilter, setDirFilter] = useState('all');
@@ -280,6 +282,8 @@ const TradesPage = () => {
   // Add trade dialog
   const [addOpen, setAddOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [addScreenshotFile, setAddScreenshotFile] = useState<File | null>(null);
+  const addFileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     symbol: '',
     direction: '' as 'BUY' | 'SELL' | '',
@@ -293,6 +297,7 @@ const TradesPage = () => {
     session: '',
     setup_tag: '',
     notes: '',
+    account_id: '',
   });
 
   const isPartial = form.result.startsWith('Partial');
@@ -307,15 +312,23 @@ const TradesPage = () => {
     return (Math.abs(p) / r).toFixed(2);
   })();
 
-  const resetForm = () => setForm({
-    symbol: '', direction: '', result: '', profit: '', tp1Amount: '', tp2Amount: '',
-    risk: '', open_time: '', close_time: '', session: '', setup_tag: '', notes: '',
-  });
+  const resetForm = () => {
+    setForm({
+      symbol: '', direction: '', result: '', profit: '', tp1Amount: '', tp2Amount: '',
+      risk: '', open_time: '', close_time: '', session: '', setup_tag: '', notes: '',
+      account_id: '',
+    });
+    setAddScreenshotFile(null);
+  };
 
   const handleAddTrade = async () => {
     const hasAmount = isPartial ? form.tp1Amount !== '' : form.profit !== '';
     if (!form.symbol.trim() || !form.direction || !form.result || !hasAmount || !form.open_time || !form.close_time) {
       toast.error(lang === 'ar' ? 'يرجى ملء الحقول المطلوبة' : lang === 'fr' ? 'Veuillez remplir les champs obligatoires' : 'Please fill all required fields');
+      return;
+    }
+    if (!form.account_id) {
+      toast.error(lang === 'ar' ? 'يرجى اختيار الحساب' : lang === 'fr' ? 'Veuillez sélectionner un compte' : 'Please select an account');
       return;
     }
     setSubmitting(true);
@@ -356,11 +369,24 @@ const TradesPage = () => {
       setup_tag: setupTagValue,
       session: form.session || null,
       notes: notesValue,
-      account_id: null,
+      account_id: form.account_id || null,
       volume: 0,
     };
 
-    const { error } = await supabase.from('trades').insert(insertPayload).select();
+    const { data: inserted, error } = await supabase.from('trades').insert(insertPayload).select().single();
+
+    // Upload screenshot if one was selected
+    if (!error && inserted && addScreenshotFile) {
+      const compressed = await compressImage(addScreenshotFile);
+      const path = `${user!.id}/${inserted.id}/${Date.now()}.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from('trade-screenshots')
+        .upload(path, compressed, { contentType: 'image/jpeg' });
+      if (!upErr) {
+        const { data: { publicUrl } } = supabase.storage.from('trade-screenshots').getPublicUrl(path);
+        await supabase.from('trades').update({ screenshot_url: publicUrl }).eq('id', inserted.id);
+      }
+    }
 
     setSubmitting(false);
     if (error) {
@@ -436,16 +462,18 @@ const TradesPage = () => {
       .upsert({ user_id: user.id, custom_tags: tags }, { onConflict: 'user_id' });
   };
 
-  // Load trades and tag list from Supabase
+  // Load trades, accounts, and tag list from Supabase
   useEffect(() => {
     if (!user) return;
     const fetchAll = async () => {
       setLoading(true);
-      const [{ data: tradesData }, { data: prefsData }] = await Promise.all([
+      const [{ data: tradesData }, { data: prefsData }, { data: accountsData }] = await Promise.all([
         supabase.from('trades').select('*').eq('user_id', user.id).order('close_time', { ascending: false }),
         supabase.from('user_preferences').select('custom_tags').eq('user_id', user.id).maybeSingle(),
+        supabase.from('mt5_accounts').select('id, firm, login, account_name').eq('user_id', user.id),
       ]);
       setTrades(tradesData ?? []);
+      setAccounts((accountsData ?? []) as Account[]);
 
       // custom_tags is jsonb — Supabase returns it as a JS array directly
       const stored = prefsData?.custom_tags;
@@ -831,6 +859,29 @@ const TradesPage = () => {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            {/* Account */}
+            <div className="space-y-1.5">
+              <Label>{lang === 'ar' ? 'الحساب' : lang === 'fr' ? 'Compte' : 'Account'} <span className="text-destructive">*</span></Label>
+              <Select value={form.account_id} onValueChange={v => setForm(f => ({ ...f, account_id: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder={lang === 'ar' ? 'اختر الحساب' : lang === 'fr' ? 'Sélectionner un compte' : 'Select account'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      {lang === 'ar' ? 'لا توجد حسابات — أضف حساباً أولاً' : lang === 'fr' ? 'Aucun compte — ajoutez-en un d\'abord' : 'No accounts — add one first'}
+                    </SelectItem>
+                  ) : (
+                    accounts.map(acc => (
+                      <SelectItem key={acc.id} value={acc.id}>
+                        {acc.account_name || `${acc.firm}${acc.login ? ` · ${acc.login}` : ''}`}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Symbol */}
             <div className="space-y-1.5">
               <Label>{t('symbol')} <span className="text-destructive">*</span></Label>
@@ -1018,6 +1069,42 @@ const TradesPage = () => {
                 value={form.notes}
                 onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               />
+            </div>
+
+            {/* Screenshot upload */}
+            <div className="space-y-1.5">
+              <Label>{lang === 'ar' ? 'صورة الصفقة' : lang === 'fr' ? 'Capture d\'écran' : 'Screenshot'}</Label>
+              <input
+                ref={addFileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) setAddScreenshotFile(file);
+                  e.target.value = '';
+                }}
+              />
+              {addScreenshotFile ? (
+                <div className="flex items-center justify-between rounded-md border border-border bg-secondary px-3 py-2 text-sm">
+                  <div className="flex items-center gap-2 text-foreground">
+                    <Camera className="h-4 w-4 text-primary" />
+                    <span className="truncate max-w-[200px]">{addScreenshotFile.name}</span>
+                  </div>
+                  <button type="button" onClick={() => setAddScreenshotFile(null)} className="text-muted-foreground hover:text-loss">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => addFileRef.current?.click()}
+                  className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border bg-secondary py-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                >
+                  <Camera className="h-4 w-4" />
+                  {lang === 'ar' ? 'إضافة صورة' : lang === 'fr' ? 'Ajouter une image' : 'Add screenshot'}
+                </button>
+              )}
             </div>
 
             <Button

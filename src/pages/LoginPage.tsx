@@ -21,6 +21,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const [rememberMe, setRememberMe] = useState(true);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
@@ -78,6 +79,27 @@ const LoginPage = () => {
               <Label htmlFor="password">{t('password')}</Label>
               <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
             </div>
+            {/* Remember Me */}
+            <div className="flex items-center justify-between">
+              <label htmlFor="remember-me" className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+                <input
+                  id="remember-me"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={e => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 accent-primary cursor-pointer"
+                />
+                {t('rememberMe') ?? 'Remember me'}
+              </label>
+              <button
+                type="button"
+                className="text-sm text-primary hover:underline"
+                onClick={() => setForgotOpen(true)}
+              >
+                {t('forgotPassword')}
+              </button>
+            </div>
+
             <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
               {loading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {t('login')}
