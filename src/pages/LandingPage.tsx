@@ -6,7 +6,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Tag, Languages, Building2, BarChart3, Clock, Check, Star, ArrowRight, Menu, X, TrendingUp, Zap, LineChart } from 'lucide-react';
+import { RefreshCw, Tag, Languages, Building2, BarChart3, Clock, Check, Star, ArrowRight, Menu, X, TrendingUp, LineChart, BookOpen } from 'lucide-react';
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 const useParallax = (speed = 0.3) => {
@@ -132,7 +132,7 @@ const DashboardMockup = () => (
 );
 
 const LandingPage = () => {
-  const { t, isRtl } = useLanguage();
+  const { t, isRtl, language } = useLanguage();
   const parallaxOffset = useParallax(0.35);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -160,9 +160,36 @@ const LandingPage = () => {
   ];
 
   const steps = [
-    { icon: RefreshCw, num: '01', title: 'Connect MT5', desc: 'Enter your account number and investor password. We connect read-only — no risk to your funds.' },
-    { icon: Zap, num: '02', title: 'Trades Sync Automatically', desc: 'Your full trade history imports instantly. New trades sync whenever you click Sync Now.' },
-    { icon: LineChart, num: '03', title: 'Analyze & Improve', desc: 'See your win rate by setup, session, and symbol. Discover what actually works for you.' },
+    {
+      icon: Building2,
+      num: '01',
+      title: { ar: 'أضف حسابك', fr: 'Ajoutez votre compte', en: 'Add Your Account' },
+      desc: {
+        ar: 'أنشئ ملف حسابك في شركة التمويل مع قواعد التحدي وحدود السحب وأهداف الربح.',
+        fr: 'Créez votre profil de compte prop firm avec vos règles de challenge, limites de drawdown et objectifs de profit.',
+        en: 'Create your prop firm or live trading account profile with your challenge rules, drawdown limits and profit targets.',
+      },
+    },
+    {
+      icon: BookOpen,
+      num: '02',
+      title: { ar: 'سجّل صفقاتك', fr: 'Enregistrez vos trades', en: 'Log Your Trades' },
+      desc: {
+        ar: 'سجّل كل صفقة مع النتيجة والجلسة والإعداد وصورة الرسم البياني. أضف ملاحظاتك لمراجعة قراراتك.',
+        fr: 'Notez chaque trade avec le résultat, la session, le tag de setup et une capture d\'écran. Ajoutez des notes.',
+        en: 'Record every trade with result, session, setup tag and chart screenshot. Add notes to review your decisions.',
+      },
+    },
+    {
+      icon: LineChart,
+      num: '03',
+      title: { ar: 'حلّل وتطوّر', fr: 'Analysez & Progressez', en: 'Analyze & Improve' },
+      desc: {
+        ar: 'احصل على تحليل ذكاء اصطناعي لأنماط تداولك. نسبة الربح حسب الإعداد والجلسة والرمز. ملخصات يومية على تيليغرام.',
+        fr: 'Obtenez des insights IA sur vos habitudes de trading. Win rate par setup, session et symbole. Résumés Telegram quotidiens.',
+        en: 'Get AI-powered insights on your trading patterns. See win rate by setup, session and symbol. Receive daily Telegram summaries.',
+      },
+    },
   ];
 
   const floatingStats = [
@@ -294,7 +321,9 @@ const LandingPage = () => {
 
       {/* How it works */}
       <section id="how-it-works" className="container mx-auto px-4 py-12 md:py-20">
-        <h2 className="mb-8 text-center text-2xl font-bold text-foreground md:mb-12 md:text-3xl">How It Works</h2>
+        <h2 className="mb-8 text-center text-2xl font-bold text-foreground md:mb-12 md:text-3xl">
+          {language === 'ar' ? 'كيف يعمل؟' : language === 'fr' ? 'Comment ça marche ?' : 'How It Works'}
+        </h2>
         <div className="relative mx-auto max-w-4xl">
           {/* Connector line (desktop only) */}
           <div className="absolute top-10 left-[calc(16.67%+1rem)] right-[calc(16.67%+1rem)] hidden h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent md:block" />
@@ -307,8 +336,8 @@ const LandingPage = () => {
                     {step.num}
                   </span>
                 </div>
-                <h3 className="mb-2 text-lg font-semibold text-foreground">{step.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{step.desc}</p>
+                <h3 className="mb-2 text-lg font-semibold text-foreground">{step.title[language]}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{step.desc[language]}</p>
               </div>
             ))}
           </div>
