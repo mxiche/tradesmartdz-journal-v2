@@ -11,7 +11,7 @@ import { TrendingUp, TrendingDown, Percent, BarChart3, Loader2, Bot, Sparkles, R
 import { AccountCard } from '@/pages/ConnectPage';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { toast } from 'sonner';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
 
 // --- AI response renderer ---
@@ -149,17 +149,22 @@ const DashboardPage = () => {
   }, [user]);
 
 
-  // Load cached AI analysis on mount
+  // Load cached AI analysis on mount; clear cache when language changes
   useEffect(() => {
     if (!user) return;
     const cached = localStorage.getItem(`tradesmartdz_ai_${user.id}`);
     if (cached) {
       try {
-        const { text } = JSON.parse(cached);
-        if (text) setAiAnalysis(text);
+        const { text, lang: cachedLang } = JSON.parse(cached);
+        // Discard cache if it was generated in a different language
+        if (text && (!cachedLang || cachedLang === lang)) setAiAnalysis(text);
+        else if (cachedLang && cachedLang !== lang) {
+          localStorage.removeItem(`tradesmartdz_ai_${user.id}`);
+          setAiAnalysis(null);
+        }
       } catch { /* ignore corrupted cache */ }
     }
-  }, [user]);
+  }, [user, lang]);
 
   const runAiAnalysis = async () => {
     if (!trades.length) {
@@ -188,6 +193,13 @@ const DashboardPage = () => {
       setup_tag: tr.setup_tag,
     }));
 
+    const langInstruction =
+      lang === 'ar'
+        ? 'IMPORTANT: You must respond entirely in Arabic language (العربية). All text, headings, and analysis must be written in Arabic.'
+        : lang === 'fr'
+        ? 'IMPORTANT: You must respond entirely in French language. All text must be in French.'
+        : 'IMPORTANT: You must respond entirely in English.';
+
     const prompt = `You are a professional trading performance coach analyzing a trader's journal data.
 
 Here are the trader's recent trades:
@@ -205,7 +217,8 @@ Important rules:
 - Be specific and reference actual numbers from their data
 - Be encouraging but honest
 - Keep response under 400 words
-- Respond in ${langLabel}`;
+
+${langInstruction}`;
 
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -231,7 +244,7 @@ Important rules:
       const data = await response.json();
       const text: string = data.choices[0].message.content ?? '';
       setAiAnalysis(text);
-      localStorage.setItem(`tradesmartdz_ai_${user!.id}`, JSON.stringify({ text, ts: Date.now(), tradeCount: trades.length }));
+      localStorage.setItem(`tradesmartdz_ai_${user!.id}`, JSON.stringify({ text, ts: Date.now(), tradeCount: trades.length, lang }));
     } catch (err: any) {
       toast.error('AI analysis failed: ' + (err.message ?? 'Unknown error'));
     } finally {
@@ -275,20 +288,29 @@ Important rules:
     });
   }, [trades]);
 
-  // Equity curve — account-based, starting from starting_balance
-  const [equityAccountId, setEquityAccountId] = useState<string>('all');
+  // Equity curve — account-based, redesigned
+  const HAS_LIMITS_TYPES = ['Challenge Phase 1', 'Challenge Phase 2', 'Instant Funded', 'Funded'];
+  const [equityAccountId, setEquityAccountId] = useState<string>(() => accounts.length === 1 ? accounts[0].id : 'all');
+
+  const selectedAccount = useMemo(
+    () => equityAccountId === 'all' ? null : accounts.find(a => a.id === equityAccountId) ?? null,
+    [equityAccountId, accounts]
+  );
+
+  const hasLimits = selectedAccount ? HAS_LIMITS_TYPES.includes(selectedAccount.account_type ?? '') : false;
 
   const equityCurve = useMemo(() => {
     const isAll = equityAccountId === 'all';
     const startBalance = isAll
       ? accounts.reduce((s, a) => s + (a.starting_balance ?? a.balance ?? 0), 0)
-      : (() => { const a = accounts.find(x => x.id === equityAccountId); return a?.starting_balance ?? a?.balance ?? 0; })();
+      : (selectedAccount?.starting_balance ?? selectedAccount?.balance ?? 0);
     const relevantTrades = isAll
       ? closedTrades
       : closedTrades.filter(tr => tr.account_id === equityAccountId);
 
     if (relevantTrades.length === 0) {
-      return [{ date: lang === 'ar' ? 'الآن' : lang === 'fr' ? 'Maintenant' : 'Now', balance: +startBalance.toFixed(2) }];
+      const label = lang === 'ar' ? 'الآن' : lang === 'fr' ? 'Maintenant' : 'Now';
+      return [{ date: label, balance: +startBalance.toFixed(2) }];
     }
     let running = startBalance;
     const points = relevantTrades.map(tr => {
@@ -299,12 +321,24 @@ Important rules:
       };
     });
     return [{ date: '', balance: +startBalance.toFixed(2) }, ...points];
-  }, [equityAccountId, accounts, closedTrades, lang]);
+  }, [equityAccountId, selectedAccount, accounts, closedTrades, lang]);
 
   const equityStart = equityCurve[0]?.balance ?? 0;
   const equityCurrent = equityCurve[equityCurve.length - 1]?.balance ?? 0;
   const equityChange = equityCurrent - equityStart;
   const equityChangePct = equityStart > 0 ? ((equityChange / equityStart) * 100).toFixed(2) : '0.00';
+
+  // Danger zone calculation
+  const accountSize = selectedAccount?.account_size ?? selectedAccount?.starting_balance ?? 0;
+  const ddLimit = selectedAccount?.max_drawdown_limit ?? 10;
+  const dangerLevel = hasLimits && accountSize > 0 ? +(equityStart - (accountSize * ddLimit / 100)).toFixed(2) : null;
+  const ddUsedAmt = Math.max(0, equityStart - equityCurrent);
+  const ddUsedPct = accountSize > 0 ? (ddUsedAmt / accountSize) * 100 : 0;
+
+  // Line color based on current equity position
+  const lineColor = hasLimits
+    ? (equityCurrent >= equityStart ? '#00d4aa' : dangerLevel !== null && equityCurrent > dangerLevel ? '#f59e0b' : '#ef4444')
+    : '#00d4aa';
 
   // Kill zones
   const sessions = ['London', 'NY', 'Asia', 'NY Lunch'];
@@ -318,6 +352,17 @@ Important rules:
       count: st.length,
     };
   }).filter(s => s.count > 0);
+
+  // User display name
+  const displayName = (user?.user_metadata?.full_name as string | undefined)?.trim() || 'Trader';
+  const greeting =
+    lang === 'ar' ? `مرحباً، ${displayName} 👋` :
+    lang === 'fr' ? `Bonjour, ${displayName} 👋` :
+                    `Welcome back, ${displayName} 👋`;
+  const todayDate = new Date().toLocaleDateString(
+    lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
+    { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+  );
 
   const statCards = [
     { label: t('totalPnl'), value: `$${totalPnl.toFixed(2)}`, icon: TrendingUp, positive: totalPnl >= 0 },
@@ -343,7 +388,10 @@ Important rules:
           onClose={() => setShowOnboarding(false)}
         />
       )}
-      <h1 className="text-2xl font-bold text-foreground">{t('dashboard')}</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">{greeting}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{todayDate}</p>
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
@@ -389,19 +437,25 @@ Important rules:
       <Card className="border-border bg-card">
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+            <div className="space-y-1">
               <CardTitle className="text-lg">
                 {lang === 'ar' ? 'منحنى رأس المال' : lang === 'fr' ? 'Courbe d\'équité' : 'Equity Curve'}
               </CardTitle>
               {accounts.length > 0 && (
-                <div className="mt-1 flex items-center gap-3 text-sm">
+                <div className="flex flex-wrap items-center gap-4 text-sm">
                   <span className="text-muted-foreground">
-                    {lang === 'ar' ? 'الرصيد الحالي:' : lang === 'fr' ? 'Solde actuel:' : 'Current balance:'}
+                    {lang === 'ar' ? 'الرصيد:' : lang === 'fr' ? 'Solde:' : 'Balance:'}
                     {' '}<span className="font-semibold text-foreground">${equityCurrent.toFixed(2)}</span>
                   </span>
-                  <span className={equityChange >= 0 ? 'text-profit' : 'text-loss'}>
+                  <span className={equityChange >= 0 ? 'text-profit font-medium' : 'text-loss font-medium'}>
                     {equityChange >= 0 ? '+' : ''}${equityChange.toFixed(2)} ({equityChange >= 0 ? '+' : ''}{equityChangePct}%)
                   </span>
+                  {hasLimits && accountSize > 0 && (
+                    <span className={`text-xs font-medium ${ddUsedPct > 70 ? 'text-loss' : ddUsedPct > 50 ? 'text-yellow-500' : 'text-muted-foreground'}`}>
+                      {lang === 'ar' ? 'السحب:' : lang === 'fr' ? 'DD:' : 'DD:'}
+                      {' '}{ddUsedPct.toFixed(1)}% {lang === 'ar' ? 'من' : 'of'} {ddLimit}%
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -426,18 +480,71 @@ Important rules:
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={equityCurve}>
+            <LineChart data={equityCurve} margin={{ right: 16 }}>
+              <defs>
+                <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={lineColor} stopOpacity={0.15} />
+                  <stop offset="100%" stopColor={lineColor} stopOpacity={0.01} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(225, 15%, 20%)" />
-              <XAxis dataKey="date" stroke="hsl(220, 10%, 55%)" fontSize={12} />
-              <YAxis stroke="hsl(220, 10%, 55%)" fontSize={12} tickFormatter={(v) => `$${v}`} />
+              <XAxis dataKey="date" stroke="hsl(220, 10%, 55%)" fontSize={11} />
+              <YAxis
+                stroke="hsl(220, 10%, 55%)"
+                fontSize={11}
+                tickFormatter={(v) => `$${v}`}
+                domain={dangerLevel !== null ? [Math.min(dangerLevel * 0.998, dangerLevel - 50), 'auto'] : ['auto', 'auto']}
+                width={75}
+              />
               <Tooltip
                 contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: '8px', color: '#e2e8f0' }}
                 labelStyle={{ color: '#e2e8f0' }}
                 formatter={(val: number) => [`$${val.toFixed(2)}`, lang === 'ar' ? 'الرصيد' : lang === 'fr' ? 'Solde' : 'Balance']}
               />
-              <Line type="monotone" dataKey="balance" stroke="hsl(165, 100%, 42%)" strokeWidth={2} dot={{ fill: 'hsl(165, 100%, 42%)', r: 4 }} />
+              {/* Danger zone shaded area */}
+              {dangerLevel !== null && (
+                <ReferenceArea
+                  y1={dangerLevel * 0.998}
+                  y2={dangerLevel}
+                  fill="#ef444418"
+                  ifOverflow="extendDomain"
+                />
+              )}
+              {/* Starting balance reference line */}
+              {hasLimits && (
+                <ReferenceLine
+                  y={equityStart}
+                  stroke="#f59e0b"
+                  strokeDasharray="6 4"
+                  strokeWidth={1.5}
+                  label={{ value: lang === 'ar' ? 'الرصيد الابتدائي' : lang === 'fr' ? 'Solde initial' : 'Starting Balance', position: 'insideTopRight', fill: '#f59e0b', fontSize: 10 }}
+                />
+              )}
+              {/* Max drawdown limit reference line */}
+              {dangerLevel !== null && (
+                <ReferenceLine
+                  y={dangerLevel}
+                  stroke="#ef4444"
+                  strokeDasharray="6 4"
+                  strokeWidth={1.5}
+                  label={{ value: lang === 'ar' ? 'حد السحب' : lang === 'fr' ? 'DD Max' : 'Max Drawdown', position: 'insideBottomRight', fill: '#ef4444', fontSize: 10 }}
+                />
+              )}
+              <Line
+                type="monotone"
+                dataKey="balance"
+                stroke={lineColor}
+                strokeWidth={2}
+                dot={{ fill: lineColor, r: 3, strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: lineColor }}
+              />
             </LineChart>
           </ResponsiveContainer>
+          {equityCurve.length === 1 && (
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              {lang === 'ar' ? 'لا توجد صفقات بعد' : lang === 'fr' ? 'Aucun trade pour le moment' : 'No trades yet — flat line at starting balance'}
+            </p>
+          )}
         </CardContent>
       </Card>
 
