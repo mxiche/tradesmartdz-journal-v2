@@ -26,6 +26,12 @@ const SettingsPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
 
+  // Change password
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+
   // Telegram
   const [telegramChatId, setTelegramChatId] = useState('');
   const [polling, setPolling] = useState(false);
@@ -98,6 +104,36 @@ const SettingsPage = () => {
     startPolling();
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPwd !== confirmPwd) {
+      toast.error(t('passwordsMismatch'));
+      return;
+    }
+    if (!user?.email) return;
+    setPwdLoading(true);
+    // Verify current password
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPwd,
+    });
+    if (signInError) {
+      setPwdLoading(false);
+      toast.error(t('currentPasswordIncorrect'));
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPwd });
+    setPwdLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success(t('passwordChanged'));
+      setCurrentPwd('');
+      setNewPwd('');
+      setConfirmPwd('');
+    }
+  };
+
   const disconnectTelegram = async () => {
     if (!user) return;
     stopPolling();
@@ -141,11 +177,35 @@ const SettingsPage = () => {
 
               <div className="border-t border-border pt-4">
                 <h3 className="mb-3 font-medium">{t('changePassword')}</h3>
-                <div className="space-y-3">
-                  <Input type="password" placeholder={t('password')} />
-                  <Input type="password" placeholder={t('confirmPassword')} />
-                  <Button variant="outline">{t('changePassword')}</Button>
-                </div>
+                <form onSubmit={handleChangePassword} className="space-y-3">
+                  <Input
+                    type="password"
+                    placeholder={t('currentPassword')}
+                    value={currentPwd}
+                    onChange={e => setCurrentPwd(e.target.value)}
+                    required
+                  />
+                  <Input
+                    type="password"
+                    placeholder={t('newPassword')}
+                    value={newPwd}
+                    onChange={e => setNewPwd(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                  <Input
+                    type="password"
+                    placeholder={t('confirmPassword')}
+                    value={confirmPwd}
+                    onChange={e => setConfirmPwd(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                  <Button type="submit" variant="outline" disabled={pwdLoading}>
+                    {pwdLoading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                    {t('changePassword')}
+                  </Button>
+                </form>
               </div>
             </CardContent>
           </Card>

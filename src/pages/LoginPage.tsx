@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const LoginPage = () => {
   const { signIn } = useAuth();
@@ -18,6 +20,11 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +35,28 @@ const LoginPage = () => {
       toast.error(t('errorLogin'), { description: error.message });
     } else {
       navigate('/dashboard');
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setResetLoading(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      setResetSent(true);
+    }
+  };
+
+  const handleForgotClose = (open: boolean) => {
+    setForgotOpen(open);
+    if (!open) {
+      setResetEmail('');
+      setResetSent(false);
     }
   };
 
@@ -55,13 +84,50 @@ const LoginPage = () => {
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
-            <button className="text-primary hover:underline">{t('forgotPassword')}</button>
+            <button
+              type="button"
+              className="text-primary hover:underline"
+              onClick={() => setForgotOpen(true)}
+            >
+              {t('forgotPassword')}
+            </button>
           </div>
           <p className="mt-4 text-center text-sm text-muted-foreground">
             {t('noAccount')} <Link to="/register" className="text-primary hover:underline">{t('register')}</Link>
           </p>
         </CardContent>
       </Card>
+
+      <Dialog open={forgotOpen} onOpenChange={handleForgotClose}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('resetPasswordTitle')}</DialogTitle>
+            <DialogDescription>{t('resetPasswordSubtitle')}</DialogDescription>
+          </DialogHeader>
+          {resetSent ? (
+            <p className="rounded-lg border border-profit/30 bg-profit/10 px-4 py-3 text-sm text-profit">
+              {t('resetPasswordSent')}
+            </p>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">{t('email')}</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  value={resetEmail}
+                  onChange={e => setResetEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={resetLoading}>
+                {resetLoading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                {t('sendResetLink')}
+              </Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
