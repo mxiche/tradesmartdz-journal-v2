@@ -103,6 +103,9 @@ const translations = {
     errorRegister: 'خطأ في إنشاء الحساب',
     passwordsMismatch: 'كلمات المرور غير متطابقة',
     testimonials: 'آراء المتداولين',
+    noTradesYet: "لا توجد صفقات بعد. انقر على '+ إضافة صفقة' لإضافة أول صفقة",
+    noDataYet: 'لا توجد بيانات بعد',
+    noAccountsYet: 'لا توجد حسابات بعد',
   },
   fr: {
     dashboard: 'Tableau de bord',
@@ -206,6 +209,9 @@ const translations = {
     errorRegister: "Erreur d'inscription",
     passwordsMismatch: 'Les mots de passe ne correspondent pas',
     testimonials: 'Témoignages',
+    noTradesYet: "Pas encore de trades. Cliquez sur '+ Ajouter un trade'",
+    noDataYet: 'Pas encore de données',
+    noAccountsYet: 'Pas encore de comptes',
   },
   en: {
     dashboard: 'Dashboard',
@@ -309,6 +315,9 @@ const translations = {
     errorRegister: 'Registration failed',
     passwordsMismatch: 'Passwords do not match',
     testimonials: 'Testimonials',
+    noTradesYet: "No trades yet. Click '+ Add Trade' to add your first trade.",
+    noDataYet: 'No data yet.',
+    noAccountsYet: 'No accounts yet.',
   },
 } as const;
 

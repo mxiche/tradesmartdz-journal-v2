@@ -7,19 +7,19 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { LayoutDashboard, BarChart3, Link2, Settings, LogOut, Menu, X, TrendingUp, User } from 'lucide-react';
-import { useState } from 'react';
-
-const navItems = [
-  { key: 'dashboard' as const, icon: LayoutDashboard, path: '/dashboard' },
-  { key: 'myTrades' as const, icon: TrendingUp, path: '/trades' },
-  { key: 'analytics' as const, icon: BarChart3, path: '/analytics' },
-  { key: 'connectAccount' as const, icon: Link2, path: '/connect' },
-{ key: 'settings' as const, icon: Settings, path: '/settings' },
-];
+import { useState, useMemo } from 'react';
 
 export default function AppLayout() {
   const { user, signOut } = useAuth();
   const { t } = useLanguage();
+
+  const navItems = useMemo(() => [
+    { label: t('dashboard'),      icon: LayoutDashboard, path: '/dashboard' },
+    { label: t('myTrades'),       icon: TrendingUp,      path: '/trades'    },
+    { label: t('analytics'),      icon: BarChart3,       path: '/analytics' },
+    { label: t('connectAccount'), icon: Link2,           path: '/connect'   },
+    { label: t('settings'),       icon: Settings,        path: '/settings'  },
+  ], [t]);
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -52,13 +52,13 @@ export default function AppLayout() {
             const active = location.pathname === item.path;
             return (
               <Link
-                key={item.key}
+                key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ${active ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
               >
                 <item.icon className="h-5 w-5 shrink-0" />
-                <span className="truncate">{t(item.key)}</span>
+                <span className="truncate">{item.label}</span>
               </Link>
             );
           })}

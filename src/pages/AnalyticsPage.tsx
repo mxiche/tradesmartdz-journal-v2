@@ -394,7 +394,7 @@ const AnalyticsPage = () => {
       <CardContent>
         {data.length === 0 ? (
           <div className="flex h-[250px] items-center justify-center">
-            <p className="text-sm text-muted-foreground">No data yet.</p>
+            <p className="text-sm text-muted-foreground">{t('noDataYet')}</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={250}>
@@ -424,7 +424,7 @@ const AnalyticsPage = () => {
       <CardContent>
         {data.every(d => d.pnl === 0) ? (
           <div className="flex h-[250px] items-center justify-center">
-            <p className="text-sm text-muted-foreground">No data yet.</p>
+            <p className="text-sm text-muted-foreground">{t('noDataYet')}</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={250}>

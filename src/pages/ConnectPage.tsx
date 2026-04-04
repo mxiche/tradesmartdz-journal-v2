@@ -77,7 +77,7 @@ const DEFAULT_FORM = {
 };
 
 const ConnectPage = () => {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const lang = language as 'ar' | 'fr' | 'en';
   const { user } = useAuth();
 
@@ -229,7 +229,7 @@ const ConnectPage = () => {
           <Wallet className="h-12 w-12 text-muted-foreground/40" />
           <div className="space-y-1">
             <p className="font-medium text-foreground">
-              {lang === 'ar' ? 'لا توجد حسابات بعد' : lang === 'fr' ? "Aucun compte pour l'instant" : 'No accounts yet'}
+              {t('noAccountsYet')}
             </p>
             <p className="text-sm text-muted-foreground">
               {lang === 'ar' ? 'أضف حسابك الأول لتتبع أدائك' :

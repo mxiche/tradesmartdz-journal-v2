@@ -659,8 +659,8 @@ const TradesPage = () => {
             <div className="flex h-48 items-center justify-center">
               <p className="text-muted-foreground">
                 {trades.length === 0
-                  ? "No trades yet. Click '+ Add Trade' to add your first trade."
-                  : 'No trades match your filters.'}
+                  ? t('noTradesYet')
+                  : (lang === 'ar' ? 'لا توجد صفقات تطابق المرشحات' : lang === 'fr' ? 'Aucun trade ne correspond aux filtres' : 'No trades match your filters.')}
               </p>
             </div>
           ) : (

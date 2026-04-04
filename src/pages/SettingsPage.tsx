@@ -240,7 +240,8 @@ const SettingsPage = () => {
               ) : (
                 <div className="space-y-4">
                   <Button
-                    className="gradient-primary text-primary-foreground gap-2"
+                    className="text-white gap-2"
+                    style={{ backgroundColor: '#229ED9' }}
                     onClick={connectTelegram}
                     disabled={polling}
                   >
@@ -272,9 +273,24 @@ const SettingsPage = () => {
                 </p>
                 <div className="space-y-1.5">
                   {[
-                    { icon: '✅', text: lang === 'ar' ? 'عند تسجيل صفقة رابحة' : lang === 'fr' ? 'Lors d\'un trade gagnant' : 'When a winning trade is saved' },
-                    { icon: '❌', text: lang === 'ar' ? 'عند تسجيل صفقة خاسرة' : lang === 'fr' ? 'Lors d\'un trade perdant' : 'When a losing trade is saved' },
-                    { icon: '⚠️', text: lang === 'ar' ? 'عند اقتراب حد الخسارة اليومي (70%)' : lang === 'fr' ? 'Quand la limite de perte quotidienne approche (70%)' : 'When daily loss limit approaches 70%' },
+                    {
+                      icon: '📊',
+                      text: lang === 'ar' ? 'ملخص يومي كل يوم في الساعة 10 مساءً بتوقيت الجزائر'
+                          : lang === 'fr' ? 'Résumé quotidien chaque jour à 22h (heure algérienne)'
+                          : 'Daily summary every day at 10 PM Algiers time',
+                    },
+                    {
+                      icon: '📈',
+                      text: lang === 'ar' ? 'تقرير أسبوعي كل يوم أحد'
+                          : lang === 'fr' ? 'Rapport hebdomadaire chaque dimanche'
+                          : 'Weekly report every Sunday',
+                    },
+                    {
+                      icon: '⚠️',
+                      text: lang === 'ar' ? 'تنبيه عند اقتراب حد الخسارة'
+                          : lang === 'fr' ? 'Alerte quand le drawdown approche de la limite'
+                          : 'Warning when drawdown approaches limit',
+                    },
                   ].map(item => (
                     <div key={item.text} className="flex items-start gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-muted-foreground">
                       <span>{item.icon}</span>
