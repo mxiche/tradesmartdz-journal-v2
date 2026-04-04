@@ -518,6 +518,18 @@ const AnalyticsPage = () => {
     setSelectedDay(null);
   };
 
+  const PnLTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    const val = payload[0].value as number;
+    const color = val >= 0 ? '#22c55e' : '#ef4444';
+    return (
+      <div style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: '8px', padding: '8px 12px' }}>
+        <p style={{ color: '#e2e8f0', marginBottom: 4, fontSize: 13 }}>{label}</p>
+        <p style={{ color, fontSize: 13 }}>{`P&L: $${val.toFixed(2)}`}</p>
+      </div>
+    );
+  };
+
   const renderBarChart = (data: { name: string; pnl: number }[], title: string) => (
     <Card className="border-border bg-card">
       <CardHeader><CardTitle className="text-lg">{title}</CardTitle></CardHeader>
@@ -532,15 +544,10 @@ const AnalyticsPage = () => {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(225, 15%, 20%)" horizontal={false} />
               <XAxis type="number" stroke="hsl(220, 10%, 55%)" fontSize={11} />
               <YAxis dataKey="name" type="category" stroke="hsl(220, 10%, 55%)" fontSize={11} width={90} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: '8px', color: '#e2e8f0' }}
-                labelStyle={{ color: '#e2e8f0' }}
-                itemStyle={{ color: '#00d4aa' }}
-                formatter={(val: number) => [`$${val.toFixed(2)}`, 'P&L']}
-              />
+              <Tooltip content={<PnLTooltip />} />
               <Bar dataKey="pnl" radius={[0, 4, 4, 0]}>
                 {data.map((entry, i) => (
-                  <Cell key={i} fill={entry.pnl >= 0 ? 'hsl(142, 71%, 45%)' : 'hsl(0, 84%, 60%)'} />
+                  <Cell key={i} fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} />
                 ))}
               </Bar>
             </BarChart>
@@ -564,10 +571,10 @@ const AnalyticsPage = () => {
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(225, 15%, 20%)" />
               <XAxis dataKey="name" stroke="hsl(220, 10%, 55%)" fontSize={11} />
               <YAxis stroke="hsl(220, 10%, 55%)" fontSize={11} />
-              <Tooltip contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: '8px', color: '#e2e8f0' }} labelStyle={{ color: '#e2e8f0' }} itemStyle={{ color: '#00d4aa' }} formatter={(val: number) => [`$${val.toFixed(2)}`, 'P&L']} />
+              <Tooltip content={<PnLTooltip />} />
               <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                 {data.map((entry, i) => (
-                  <Cell key={i} fill={entry.pnl >= 0 ? 'hsl(142, 71%, 45%)' : 'hsl(0, 84%, 60%)'} />
+                  <Cell key={i} fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} />
                 ))}
               </Bar>
             </BarChart>

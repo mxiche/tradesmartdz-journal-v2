@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TrendingUp, TrendingDown, Percent, BarChart3, Loader2, Bot, Sparkles, RotateCcw, AlertCircle, Lightbulb, ShieldCheck } from 'lucide-react';
 import { AccountCard } from '@/pages/ConnectPage';
@@ -275,15 +276,36 @@ Important rules:
     });
   }, [trades]);
 
-  // Equity curve — cumulative PnL starting from 0, all trades across all accounts
-  let running = 0;
-  const equityCurve = closedTrades.map(tr => {
-    running += tr.profit ?? 0;
-    return {
-      date: tr.close_time ? new Date(tr.close_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
-      balance: +running.toFixed(2),
-    };
-  });
+  // Equity curve — account-based, starting from starting_balance
+  const [equityAccountId, setEquityAccountId] = useState<string>('all');
+
+  const equityCurve = useMemo(() => {
+    const isAll = equityAccountId === 'all';
+    const startBalance = isAll
+      ? accounts.reduce((s, a) => s + (a.starting_balance ?? a.balance ?? 0), 0)
+      : (() => { const a = accounts.find(x => x.id === equityAccountId); return a?.starting_balance ?? a?.balance ?? 0; })();
+    const relevantTrades = isAll
+      ? closedTrades
+      : closedTrades.filter(tr => tr.account_id === equityAccountId);
+
+    if (relevantTrades.length === 0) {
+      return [{ date: lang === 'ar' ? 'الآن' : lang === 'fr' ? 'Maintenant' : 'Now', balance: +startBalance.toFixed(2) }];
+    }
+    let running = startBalance;
+    const points = relevantTrades.map(tr => {
+      running += tr.profit ?? 0;
+      return {
+        date: tr.close_time ? new Date(tr.close_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+        balance: +running.toFixed(2),
+      };
+    });
+    return [{ date: '', balance: +startBalance.toFixed(2) }, ...points];
+  }, [equityAccountId, accounts, closedTrades, lang]);
+
+  const equityStart = equityCurve[0]?.balance ?? 0;
+  const equityCurrent = equityCurve[equityCurve.length - 1]?.balance ?? 0;
+  const equityChange = equityCurrent - equityStart;
+  const equityChangePct = equityStart > 0 ? ((equityChange / equityStart) * 100).toFixed(2) : '0.00';
 
   // Kill zones
   const sessions = ['London', 'NY', 'Asia', 'NY Lunch'];
@@ -366,23 +388,57 @@ Important rules:
 
       {/* Equity Curve */}
       <Card className="border-border bg-card">
-        <CardHeader><CardTitle className="text-lg">{t('equityCurve')}</CardTitle></CardHeader>
-        <CardContent>
-          {equityCurve.length === 0 ? (
-            <div className="flex h-[300px] items-center justify-center">
-              <p className="text-muted-foreground">No trade data yet.</p>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg">
+                {lang === 'ar' ? 'منحنى رأس المال' : lang === 'fr' ? 'Courbe d\'équité' : 'Equity Curve'}
+              </CardTitle>
+              {accounts.length > 0 && (
+                <div className="mt-1 flex items-center gap-3 text-sm">
+                  <span className="text-muted-foreground">
+                    {lang === 'ar' ? 'الرصيد الحالي:' : lang === 'fr' ? 'Solde actuel:' : 'Current balance:'}
+                    {' '}<span className="font-semibold text-foreground">${equityCurrent.toFixed(2)}</span>
+                  </span>
+                  <span className={equityChange >= 0 ? 'text-profit' : 'text-loss'}>
+                    {equityChange >= 0 ? '+' : ''}${equityChange.toFixed(2)} ({equityChange >= 0 ? '+' : ''}{equityChangePct}%)
+                  </span>
+                </div>
+              )}
             </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={equityCurve}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(225, 15%, 20%)" />
-                <XAxis dataKey="date" stroke="hsl(220, 10%, 55%)" fontSize={12} />
-                <YAxis stroke="hsl(220, 10%, 55%)" fontSize={12} />
-                <Tooltip contentStyle={{ backgroundColor: 'hsl(225, 18%, 12%)', border: '1px solid hsl(225, 15%, 20%)', borderRadius: '8px', color: 'hsl(220, 10%, 90%)' }} />
-                <Line type="monotone" dataKey="balance" stroke="hsl(165, 100%, 42%)" strokeWidth={2} dot={{ fill: 'hsl(165, 100%, 42%)', r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+            {accounts.length > 1 && (
+              <Select value={equityAccountId} onValueChange={setEquityAccountId}>
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {lang === 'ar' ? 'جميع الحسابات' : lang === 'fr' ? 'Tous les comptes' : 'All accounts'}
+                  </SelectItem>
+                  {accounts.map(acc => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.account_name ?? acc.login?.toString() ?? acc.id.slice(0, 8)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={equityCurve}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(225, 15%, 20%)" />
+              <XAxis dataKey="date" stroke="hsl(220, 10%, 55%)" fontSize={12} />
+              <YAxis stroke="hsl(220, 10%, 55%)" fontSize={12} tickFormatter={(v) => `$${v}`} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: '8px', color: '#e2e8f0' }}
+                labelStyle={{ color: '#e2e8f0' }}
+                formatter={(val: number) => [`$${val.toFixed(2)}`, lang === 'ar' ? 'الرصيد' : lang === 'fr' ? 'Solde' : 'Balance']}
+              />
+              <Line type="monotone" dataKey="balance" stroke="hsl(165, 100%, 42%)" strokeWidth={2} dot={{ fill: 'hsl(165, 100%, 42%)', r: 4 }} />
+            </LineChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
 

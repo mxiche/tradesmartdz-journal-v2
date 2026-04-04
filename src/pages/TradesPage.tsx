@@ -1073,7 +1073,10 @@ const TradesPage = () => {
 
             {/* Screenshot upload */}
             <div className="space-y-1.5">
-              <Label>{lang === 'ar' ? 'صورة الصفقة' : lang === 'fr' ? 'Capture d\'écran' : 'Screenshot'}</Label>
+              <Label>
+                {lang === 'ar' ? 'صورة الصفقة' : lang === 'fr' ? 'Capture d\'écran' : 'Screenshot'}
+                <span className="ms-1 text-xs text-muted-foreground">{lang === 'ar' ? '(اختياري)' : lang === 'fr' ? '(optionnel)' : '(optional)'}</span>
+              </Label>
               <input
                 ref={addFileRef}
                 type="file"
