@@ -243,7 +243,7 @@ const ConnectPage = () => {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {accounts.map(acc => <AccountCard key={acc.id} acc={acc} lang={lang} onEdit={openEdit} onDelete={handleDelete} />)}
+          {accounts.map(acc => <AccountCard key={acc.id} acc={acc} lang={lang} onEdit={openEdit} onDelete={handleDelete} userId={user?.id} />)}
         </div>
       )}
 
@@ -454,15 +454,58 @@ interface AccountCardProps {
   onEdit?: (acc: Account) => void;
   onDelete?: (id: string) => void;
   compact?: boolean;
+  userId?: string;
 }
 
-export function AccountCard({ acc, lang, onEdit, onDelete, compact }: AccountCardProps) {
+export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId }: AccountCardProps) {
+  const [tradePnl, setTradePnl] = useState<number | null>(null);
+  const [todayPnl, setTodayPnl] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!userId || !acc.id) return;
+    supabase
+      .from('trades')
+      .select('profit, close_time')
+      .eq('account_id', acc.id)
+      .eq('user_id', userId)
+      .then(({ data }) => {
+        if (!data) return;
+        const total = data.reduce((s, tr) => s + (tr.profit ?? 0), 0);
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        const todaySum = data
+          .filter(tr => tr.close_time && new Date(tr.close_time).toLocaleDateString('en-CA') === todayStr)
+          .reduce((s, tr) => s + (tr.profit ?? 0), 0);
+        setTradePnl(total);
+        setTodayPnl(todaySum);
+      });
+  }, [userId, acc.id]);
+
+  const accountSize = acc.account_size ?? acc.starting_balance ?? 0;
   const start = acc.starting_balance ?? 0;
   const curr = acc.balance ?? 0;
-  const profitPct = start ? ((curr - start) / start) * 100 : 0;
-  const profitProgress = profitProgressPct(acc);
-  const ddProgress = drawdownProgressPct(acc);
   const symbol = (acc.currency ?? 'USD') === 'EUR' ? '€' : '$';
+
+  // Use trade-based PnL if available, else fall back to balance diff
+  const effectivePnl = tradePnl !== null ? tradePnl : curr - start;
+  const effectiveTodayPnl = todayPnl ?? 0;
+
+  // Profit progress (Challenge only)
+  const profitTarget = acc.profit_target ?? 10;
+  const profitLimitAmt = accountSize * profitTarget / 100;
+  const profitBarPct = Math.min(effectivePnl > 0 && profitLimitAmt > 0 ? (effectivePnl / profitLimitAmt) * 100 : 0, 100);
+  const profitPct = accountSize > 0 ? (effectivePnl / accountSize) * 100 : 0;
+
+  // Drawdown progress
+  const ddLimit = acc.max_drawdown_limit ?? 10;
+  const ddUsedAmt = Math.max(0, -effectivePnl);
+  const ddUsedPct = accountSize > 0 ? (ddUsedAmt / accountSize) * 100 : 0;
+  const ddBarPct = Math.min(ddLimit > 0 ? (ddUsedPct / ddLimit) * 100 : 0, 100);
+
+  // Daily loss progress
+  const dailyLossLimit = acc.daily_loss_limit ?? 5;
+  const dailyLossLimitAmt = accountSize * dailyLossLimit / 100;
+  const dailyLossAmt = Math.max(0, -effectiveTodayPnl);
+  const dailyLossBarPct = Math.min(dailyLossLimitAmt > 0 ? (dailyLossAmt / dailyLossLimitAmt) * 100 : 0, 100);
 
   return (
     <Card className="border-border bg-card">
@@ -508,7 +551,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact }: AccountCar
             <p className="text-xs text-muted-foreground">
               {lang === 'ar' ? 'الرصيد الحالي' : lang === 'fr' ? 'Solde actuel' : 'Current'}
             </p>
-            <p className="mt-0.5 font-bold text-foreground">{symbol}{(curr).toLocaleString()}</p>
+            <p className="mt-0.5 font-bold text-foreground">{symbol}{(start + effectivePnl).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
           </div>
           <div className="rounded-lg bg-secondary/50 p-3">
             <p className="text-xs text-muted-foreground">
@@ -524,14 +567,14 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact }: AccountCar
             <div className="flex items-center justify-between text-xs">
               <span className="flex items-center gap-1 text-muted-foreground">
                 <TrendingUp className="h-3 w-3" />
-                {lang === 'ar' ? 'هدف الربح' : lang === 'fr' ? 'Objectif gain' : 'Profit Target'} {acc.profit_target ?? 10}%
+                {lang === 'ar' ? 'هدف الربح' : lang === 'fr' ? 'Objectif gain' : 'Profit Target'} {profitTarget}%
               </span>
-              <span className={`font-medium ${profitPct >= 0 ? 'text-profit' : 'text-loss'}`}>
-                {profitPct >= 0 ? '+' : ''}{profitPct.toFixed(2)}%
+              <span className={`font-medium ${effectivePnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                {effectivePnl >= 0 ? '+' : ''}{profitPct.toFixed(2)}%
               </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-secondary">
-              <div className="h-full rounded-full bg-profit transition-all" style={{ width: `${profitProgress}%` }} />
+              <div className="h-full rounded-full bg-profit transition-all" style={{ width: `${profitBarPct}%` }} />
             </div>
           </div>
         )}
@@ -541,29 +584,38 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact }: AccountCar
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1 text-muted-foreground">
               <TrendingDown className="h-3 w-3" />
-              {lang === 'ar' ? 'حد السحب' : lang === 'fr' ? 'Drawdown max' : 'Max Drawdown'} {acc.max_drawdown_limit ?? 10}%
+              {lang === 'ar' ? 'حد السحب' : lang === 'fr' ? 'Drawdown max' : 'Max Drawdown'} {ddLimit}%
             </span>
-            <span className={`font-medium ${ddProgress > 50 ? 'text-loss' : 'text-muted-foreground'}`}>
-              {ddProgress.toFixed(1)}% {lang === 'ar' ? 'مستخدم' : lang === 'fr' ? 'utilisé' : 'used'}
+            <span className={`font-medium ${ddBarPct > 50 ? 'text-loss' : 'text-muted-foreground'}`}>
+              {ddUsedPct.toFixed(1)}% {lang === 'ar' ? 'مستخدم' : lang === 'fr' ? 'utilisé' : 'used'}
             </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-secondary">
             <div
-              className={`h-full rounded-full transition-all ${ddBarColor(ddProgress)}`}
-              style={{ width: `${ddProgress}%` }}
+              className={`h-full rounded-full transition-all ${ddBarColor(ddBarPct)}`}
+              style={{ width: `${ddBarPct}%` }}
             />
           </div>
         </div>
 
-        {/* Daily loss limit — only show if not compact */}
-        {!compact && (
-          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-xs">
-            <span className="text-muted-foreground">
-              {lang === 'ar' ? 'حد الخسارة اليومية' : lang === 'fr' ? 'Perte journalière max' : 'Daily Loss Limit'}
+        {/* Daily loss progress */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <TrendingDown className="h-3 w-3 opacity-60" />
+              {lang === 'ar' ? 'خسارة اليوم' : lang === 'fr' ? 'Perte du jour' : 'Daily Loss'} {dailyLossLimit}%
             </span>
-            <span className="font-medium text-foreground">{acc.daily_loss_limit ?? 5}%</span>
+            <span className={`font-medium ${dailyLossBarPct > 50 ? 'text-loss' : 'text-muted-foreground'}`}>
+              {symbol}{dailyLossAmt.toFixed(2)} / {symbol}{dailyLossLimitAmt.toFixed(0)}
+            </span>
           </div>
-        )}
+          <div className="h-2 overflow-hidden rounded-full bg-secondary">
+            <div
+              className={`h-full rounded-full transition-all ${ddBarColor(dailyLossBarPct)}`}
+              style={{ width: `${dailyLossBarPct}%` }}
+            />
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

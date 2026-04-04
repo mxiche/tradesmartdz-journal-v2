@@ -6,20 +6,21 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, BarChart3, Link2, Settings, LogOut, Menu, X, TrendingUp, User } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Link2, Settings, LogOut, Menu, X, TrendingUp, User, Calendar } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
 export default function AppLayout() {
   const { user, signOut } = useAuth();
-  const { t, isRtl } = useLanguage();
+  const { t, isRtl, language } = useLanguage();
 
   const navItems = useMemo(() => [
     { label: t('dashboard'),      icon: LayoutDashboard, path: '/dashboard' },
     { label: t('myTrades'),       icon: TrendingUp,      path: '/trades'    },
     { label: t('analytics'),      icon: BarChart3,       path: '/analytics' },
     { label: t('connectAccount'), icon: Link2,           path: '/connect'   },
+    { label: language === 'ar' ? 'التقويم الاقتصادي' : language === 'fr' ? 'Calendrier' : 'Calendar', icon: Calendar, path: '/calendar' },
     { label: t('settings'),       icon: Settings,        path: '/settings'  },
-  ], [t]);
+  ], [t, language]);
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);

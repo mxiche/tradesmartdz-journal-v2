@@ -155,6 +155,7 @@ const TradesPage = () => {
   const [search, setSearch] = useState('');
   const [dirFilter, setDirFilter] = useState('all');
   const [setupFilter, setSetupFilter] = useState('all');
+  const [accountFilter, setAccountFilter] = useState('all');
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [editTags, setEditTags] = useState<string[]>([]);
   const [editNotes, setEditNotes] = useState('');
@@ -621,6 +622,9 @@ const TradesPage = () => {
     URL.revokeObjectURL(url);
   };
 
+  // account map for name lookup
+  const accountMap = Object.fromEntries(accounts.map(a => [a.id, a]));
+
   // Filter: check if trade's setup_tag contains the filter tag
   const filtered = trades.filter(tr => {
     if (search && !tr.symbol.toLowerCase().includes(search.toLowerCase())) return false;
@@ -628,6 +632,13 @@ const TradesPage = () => {
     if (setupFilter !== 'all') {
       const tradeTags = tr.setup_tag?.split(',').map(s => s.trim()) ?? [];
       if (!tradeTags.includes(setupFilter)) return false;
+    }
+    if (accountFilter !== 'all') {
+      if (accountFilter === 'manual') {
+        if (tr.account_id) return false;
+      } else {
+        if (tr.account_id !== accountFilter) return false;
+      }
     }
     return true;
   });
@@ -674,6 +685,22 @@ const TradesPage = () => {
             {allTags.map(tag => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
           </SelectContent>
         </Select>
+        {accounts.length > 0 && (
+          <Select value={accountFilter} onValueChange={setAccountFilter}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder={lang === 'ar' ? 'الحساب' : lang === 'fr' ? 'Compte' : 'Account'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{lang === 'ar' ? 'كل الحسابات' : lang === 'fr' ? 'Tous les comptes' : 'All accounts'}</SelectItem>
+              <SelectItem value="manual">{lang === 'ar' ? 'يدوي' : lang === 'fr' ? 'Manuel' : 'Manual'}</SelectItem>
+              {accounts.map(acc => (
+                <SelectItem key={acc.id} value={acc.id}>
+                  {acc.account_name ?? acc.login?.toString() ?? acc.id.slice(0, 8)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Table */}
@@ -705,6 +732,7 @@ const TradesPage = () => {
                       />
                     </TableHead>
                     <TableHead className="font-semibold">{t('symbol')}</TableHead>
+                    <TableHead className="font-semibold">{lang === 'ar' ? 'الحساب' : lang === 'fr' ? 'Compte' : 'Account'}</TableHead>
                     <TableHead className="font-semibold">{t('direction')}</TableHead>
                     <TableHead className="font-semibold">{lang === 'ar' ? 'النتيجة' : lang === 'fr' ? 'Résultat' : 'Result'}</TableHead>
                     <TableHead className="font-semibold">{t('pnl')}</TableHead>
@@ -744,6 +772,19 @@ const TradesPage = () => {
                         </TableCell>
                         {/* Symbol */}
                         <TableCell className="font-bold text-foreground">{trade.symbol}</TableCell>
+
+                        {/* Account */}
+                        <TableCell>
+                          {trade.account_id && accountMap[trade.account_id] ? (
+                            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                              {accountMap[trade.account_id].account_name ?? accountMap[trade.account_id].login?.toString() ?? '—'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                              {lang === 'ar' ? 'يدوي' : lang === 'fr' ? 'Manuel' : 'Manual'}
+                            </span>
+                          )}
+                        </TableCell>
 
                         {/* Direction */}
                         <TableCell>

@@ -10,7 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { TrendingUp, TrendingDown, Percent, BarChart3, Loader2, Bot, Sparkles, RotateCcw, AlertCircle, Lightbulb, ShieldCheck } from 'lucide-react';
 import { AccountCard } from '@/pages/ConnectPage';
 import { OnboardingModal } from '@/components/OnboardingModal';
-import { ForexCalendar } from '@/components/ForexCalendar';
 import { toast } from 'sonner';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
@@ -379,7 +378,7 @@ Important rules:
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {accounts.map(acc => (
-                <AccountCard key={acc.id} acc={acc} lang={lang} compact />
+                <AccountCard key={acc.id} acc={acc} lang={lang} compact userId={user?.id} />
               ))}
             </div>
           )}
@@ -593,8 +592,6 @@ Important rules:
         </Card>
       </div>
 
-      {/* Forex Economic Calendar */}
-      <ForexCalendar lang={lang} />
     </div>
   );
 };

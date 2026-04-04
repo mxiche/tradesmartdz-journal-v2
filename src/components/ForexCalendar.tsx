@@ -141,9 +141,9 @@ function saveFilters(f: Filters) {
 }
 
 // ---- Main component ----
-interface ForexCalendarProps { lang: Lang }
+interface ForexCalendarProps { lang: Lang; fullPage?: boolean }
 
-export function ForexCalendar({ lang }: ForexCalendarProps) {
+export function ForexCalendar({ lang, fullPage }: ForexCalendarProps) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -207,179 +207,201 @@ export function ForexCalendar({ lang }: ForexCalendarProps) {
   const sortedDays = Object.keys(grouped).sort();
   const today = todayKey();
 
-  return (
-    <Card className="border-border bg-card">
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+  const ALL_IMPACTS = [...IMPACTS, 'Holiday'] as const;
+
+  const filtersSection = (
+    <div className="space-y-3">
+      {/* Header row */}
+      <div className={`flex flex-wrap items-center ${fullPage ? 'justify-end' : 'justify-between'} gap-3`}>
+        {!fullPage && (
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">{t('title', lang)}</CardTitle>
           </div>
-          <button
-            onClick={fetchEvents}
-            disabled={loading}
-            className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            {t('retry', lang)}
-          </button>
-        </div>
+        )}
+        <button
+          onClick={fetchEvents}
+          disabled={loading}
+          className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          {t('retry', lang)}
+        </button>
+      </div>
 
-        {/* Impact filter buttons */}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <button
-            onClick={() => setImpacts([])}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors border ${
-              filters.impacts.length === 0
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
-            }`}
-          >
-            {t('all', lang)}
-          </button>
-          {IMPACTS.map(imp => {
-            const active = filters.impacts.includes(imp) && filters.impacts.length < 3;
-            const singleActive = filters.impacts.length === 1 && filters.impacts[0] === imp;
-            const isSelected = filters.impacts.includes(imp) && filters.impacts.length !== 0;
-            const colorCls =
-              imp === 'High'   ? 'border-red-500/50 text-red-400 bg-red-500/10' :
-              imp === 'Medium' ? 'border-orange-500/50 text-orange-400 bg-orange-500/10' :
-                                 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10';
-            const inactiveCls = 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground';
+      {/* Impact filter buttons */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setImpacts([])}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors border ${
+            filters.impacts.length === 0
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+          }`}
+        >
+          {t('all', lang)}
+        </button>
+        {ALL_IMPACTS.map(imp => {
+          const singleActive = filters.impacts.length === 1 && filters.impacts[0] === imp;
+          const isSelected = filters.impacts.includes(imp) && filters.impacts.length !== 0;
+          const colorCls =
+            imp === 'High'    ? 'border-red-500/50 text-red-400 bg-red-500/10' :
+            imp === 'Medium'  ? 'border-orange-500/50 text-orange-400 bg-orange-500/10' :
+            imp === 'Low'     ? 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10' :
+                                'border-border text-muted-foreground bg-secondary';
+          const inactiveCls = 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground';
+          return (
+            <button
+              key={imp}
+              onClick={() => {
+                if (filters.impacts.length === 0) {
+                  setImpacts([imp]);
+                } else if (singleActive) {
+                  setImpacts([]);
+                } else if (isSelected) {
+                  setImpacts(filters.impacts.filter(i => i !== imp));
+                } else {
+                  setImpacts([...filters.impacts, imp]);
+                }
+              }}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors border ${
+                isSelected ? colorCls : inactiveCls
+              }`}
+            >
+              {t(imp.toLowerCase() as keyof typeof UI, lang)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Currency checkboxes */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-xs text-muted-foreground">{t('currencies', lang)}:</span>
+        {ALL_CURRENCIES.map(cur => (
+          <label key={cur} className="flex cursor-pointer items-center gap-1 text-xs">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 accent-primary"
+              checked={filters.currencies.includes(cur)}
+              onChange={() => toggleCurrency(cur)}
+            />
+            <span className={filters.currencies.includes(cur) ? 'text-foreground' : 'text-muted-foreground'}>
+              {CURRENCY_FLAG[cur]} {cur}
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+
+  const eventsSection = (
+    <>
+      {loading ? (
+        <Skeleton />
+      ) : error ? (
+        <div className="flex flex-col items-center gap-3 py-8 text-center">
+          <p className="text-sm text-muted-foreground">{t('error', lang)}: {error}</p>
+          <Button variant="outline" size="sm" onClick={fetchEvents} className="gap-1.5">
+            <RefreshCw className="h-3.5 w-3.5" />
+            {t('retry', lang)}
+          </Button>
+        </div>
+      ) : sortedDays.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">{t('noEvents', lang)}</p>
+      ) : (
+        <div className="space-y-5">
+          {sortedDays.map(day => {
+            const isToday = day === today;
             return (
-              <button
-                key={imp}
-                onClick={() => {
-                  if (filters.impacts.length === 0) {
-                    // "All" was selected — switch to just this impact
-                    setImpacts([imp]);
-                  } else if (singleActive) {
-                    // Deselecting the only active one → show all
-                    setImpacts([]);
-                  } else if (isSelected) {
-                    setImpacts(filters.impacts.filter(i => i !== imp));
-                  } else {
-                    setImpacts([...filters.impacts, imp]);
-                  }
-                }}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors border ${
-                  isSelected ? colorCls : inactiveCls
-                }`}
-              >
-                {t(imp.toLowerCase() as keyof typeof UI, lang)}
-              </button>
+              <div key={day}>
+                {/* Day header */}
+                <div className={`mb-2 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-semibold ${
+                  isToday
+                    ? 'bg-primary/15 text-primary'
+                    : 'bg-secondary/60 text-muted-foreground'
+                }`}>
+                  {isToday && <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">{t('today', lang)}</span>}
+                  {dayLabel(day, lang)}
+                </div>
+
+                {/* Events table */}
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border bg-secondary/30 text-muted-foreground">
+                        <th className="px-3 py-2 text-start font-medium">{t('time', lang)}</th>
+                        <th className="px-3 py-2 text-start font-medium">{t('currency', lang)}</th>
+                        <th className="px-3 py-2 text-start font-medium w-full">{t('event', lang)}</th>
+                        <th className="px-3 py-2 text-end font-medium">{t('previous', lang)}</th>
+                        <th className="px-3 py-2 text-end font-medium">{t('forecast', lang)}</th>
+                        <th className="px-3 py-2 text-end font-medium">{t('actual', lang)}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {grouped[day].map((ev, i) => (
+                        <tr
+                          key={i}
+                          className={`border-b border-border/50 transition-colors last:border-0 ${
+                            ev.impact === 'Holiday'
+                              ? 'bg-secondary/20'
+                              : isToday ? 'hover:bg-primary/5' : 'hover:bg-secondary/40'
+                          }`}
+                        >
+                          <td className="px-3 py-2.5 tabular-nums text-muted-foreground whitespace-nowrap">
+                            {ev.impact === 'Holiday' ? '—' : fmtTime(ev.date)}
+                          </td>
+                          <td className="px-3 py-2.5 whitespace-nowrap">
+                            <span className="flex items-center gap-1 font-medium text-foreground">
+                              {CURRENCY_FLAG[ev.country] ?? '🏳'} {ev.country}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className={ev.impact === 'Holiday' ? 'text-muted-foreground italic' : 'text-foreground'}>{ev.title}</span>
+                              <ImpactBadge impact={ev.impact} lang={lang} />
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-end tabular-nums text-muted-foreground whitespace-nowrap">
+                            {ev.previous || '—'}
+                          </td>
+                          <td className="px-3 py-2.5 text-end tabular-nums text-muted-foreground whitespace-nowrap">
+                            {ev.forecast || '—'}
+                          </td>
+                          <td className={`px-3 py-2.5 text-end tabular-nums font-medium whitespace-nowrap ${
+                            ev.actual
+                              ? parseFloat(ev.actual) >= parseFloat(ev.forecast || '0')
+                                ? 'text-profit'
+                                : 'text-loss'
+                              : 'text-muted-foreground'
+                          }`}>
+                            {ev.actual || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             );
           })}
         </div>
+      )}
+    </>
+  );
 
-        {/* Currency checkboxes */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
-          <span className="text-xs text-muted-foreground">{t('currencies', lang)}:</span>
-          {ALL_CURRENCIES.map(cur => (
-            <label key={cur} className="flex cursor-pointer items-center gap-1 text-xs">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5 accent-primary"
-                checked={filters.currencies.includes(cur)}
-                onChange={() => toggleCurrency(cur)}
-              />
-              <span className={filters.currencies.includes(cur) ? 'text-foreground' : 'text-muted-foreground'}>
-                {CURRENCY_FLAG[cur]} {cur}
-              </span>
-            </label>
-          ))}
-        </div>
-      </CardHeader>
+  if (fullPage) {
+    return (
+      <div className="space-y-4">
+        {filtersSection}
+        {eventsSection}
+      </div>
+    );
+  }
 
-      <CardContent>
-        {loading ? (
-          <Skeleton />
-        ) : error ? (
-          <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <p className="text-sm text-muted-foreground">{t('error', lang)}: {error}</p>
-            <Button variant="outline" size="sm" onClick={fetchEvents} className="gap-1.5">
-              <RefreshCw className="h-3.5 w-3.5" />
-              {t('retry', lang)}
-            </Button>
-          </div>
-        ) : sortedDays.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">{t('noEvents', lang)}</p>
-        ) : (
-          <div className="space-y-5">
-            {sortedDays.map(day => {
-              const isToday = day === today;
-              return (
-                <div key={day}>
-                  {/* Day header */}
-                  <div className={`mb-2 flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-semibold ${
-                    isToday
-                      ? 'bg-primary/15 text-primary'
-                      : 'bg-secondary/60 text-muted-foreground'
-                  }`}>
-                    {isToday ? t('today', lang) : dayLabel(day, lang)}
-                  </div>
-
-                  {/* Events table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-border text-muted-foreground">
-                          <th className="pb-1.5 pe-3 text-start font-medium">{t('time', lang)}</th>
-                          <th className="pb-1.5 pe-3 text-start font-medium">{t('currency', lang)}</th>
-                          <th className="pb-1.5 pe-3 text-start font-medium w-full">{t('event', lang)}</th>
-                          <th className="pb-1.5 pe-3 text-end font-medium">{t('previous', lang)}</th>
-                          <th className="pb-1.5 pe-3 text-end font-medium">{t('forecast', lang)}</th>
-                          <th className="pb-1.5 text-end font-medium">{t('actual', lang)}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {grouped[day].map((ev, i) => (
-                          <tr
-                            key={i}
-                            className={`border-b border-border/50 transition-colors last:border-0 ${
-                              isToday ? 'hover:bg-primary/5' : 'hover:bg-secondary/40'
-                            }`}
-                          >
-                            <td className="py-2 pe-3 tabular-nums text-muted-foreground whitespace-nowrap">
-                              {fmtTime(ev.date)}
-                            </td>
-                            <td className="py-2 pe-3 whitespace-nowrap">
-                              <span className="flex items-center gap-1 font-medium text-foreground">
-                                {CURRENCY_FLAG[ev.country] ?? '🏳'} {ev.country}
-                              </span>
-                            </td>
-                            <td className="py-2 pe-3">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="text-foreground">{ev.title}</span>
-                                <ImpactBadge impact={ev.impact} lang={lang} />
-                              </div>
-                            </td>
-                            <td className="py-2 pe-3 text-end tabular-nums text-muted-foreground whitespace-nowrap">
-                              {ev.previous || '—'}
-                            </td>
-                            <td className="py-2 pe-3 text-end tabular-nums text-muted-foreground whitespace-nowrap">
-                              {ev.forecast || '—'}
-                            </td>
-                            <td className={`py-2 text-end tabular-nums font-medium whitespace-nowrap ${
-                              ev.actual
-                                ? parseFloat(ev.actual) >= parseFloat(ev.forecast || '0')
-                                  ? 'text-profit'
-                                  : 'text-loss'
-                                : 'text-muted-foreground'
-                            }`}>
-                              {ev.actual || '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
+  return (
+    <Card className="border-border bg-card">
+      <CardHeader>{filtersSection}</CardHeader>
+      <CardContent>{eventsSection}</CardContent>
     </Card>
   );
 }
