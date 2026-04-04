@@ -37,78 +37,61 @@ function getTradeSession(trade: Trade): string | null {
 type Lang = 'ar' | 'fr' | 'en';
 
 function generatePDF(trades: Trade[], lang: Lang, userName: string) {
-  // Canvas: 1200x850px
   const doc = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1200, 850] });
-  const W = 1200;
-  const H = 850;
-  const cx = W / 2;
+  const W = 1200, H = 850, cx = W / 2;
 
-  // ── Colors ──
   type RGB = [number, number, number];
-  const TEAL:  RGB = [0, 224, 184];
-  const GOLD:  RGB = [212, 175, 55];
+  const TEAL:     RGB = [0, 224, 184];
+  const GOLD:     RGB = [212, 175, 55];
   const GOLD_DIM: RGB = [140, 115, 35];
-  const WHITE: RGB = [255, 255, 255];
-  const SLATE: RGB = [148, 163, 184];
-  const SLATE2: RGB = [100, 116, 139];
-  const DIVIDER: RGB = [30, 45, 55];
+  const WHITE:    RGB = [255, 255, 255];
+  const SLATE:    RGB = [148, 163, 184];
+  const SLATE2:   RGB = [100, 116, 139];
 
   // ── Labels ──
   const L = {
     ar: {
-      heading: 'C E R T I F I C A T E   O F   P E R F O R M A N C E',
-      subHeading: 'Presented by TradeSmartDz',
-      congrats: '\u062a\u064f\u0645\u0646\u062d \u0647\u0630\u0647 \u0627\u0644\u0634\u0647\u0627\u062f\u0629 \u0628\u0641\u062e\u0631 \u0625\u0644\u0649',
-      tagline: '\u0644\u0623\u062f\u0627\u0621 \u0645\u062a\u0645\u064a\u0632 \u0648\u0627\u0646\u0636\u0628\u0627\u0637 \u0641\u064a \u0627\u0644\u062a\u062f\u0627\u0648\u0644',
-      totalTrades: '\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0635\u0641\u0642\u0627\u062a',
-      winRate:    '\u0646\u0633\u0628\u0629 \u0627\u0644\u0631\u0628\u062d',
-      totalPnl:  '\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0631\u0628\u062d',
-      bestTrade: '\u0623\u0641\u0636\u0644 \u0635\u0641\u0642\u0629',
-      profitFactor: '\u0645\u0639\u0627\u0645\u0644 \u0627\u0644\u0631\u0628\u062d',
-      quote: '\u0627\u0644\u0627\u0646\u0636\u0628\u0627\u0637 \u0648\u0627\u0644\u0627\u062a\u0633\u0627\u0642 \u0647\u0645\u0627 \u0623\u0633\u0627\u0633 \u0627\u0644\u0646\u062c\u0627\u062d \u0641\u064a \u0627\u0644\u062a\u062f\u0627\u0648\u0644.',
-      founder: 'Founder, TradeSmartDz',
-      issuedOn: '\u0635\u062f\u0631 \u0628\u062a\u0627\u0631\u064a\u062e:',
-      verified: 'VERIFIED',
-      trader: 'TRADER',
+      congrats:     'تُمنح هذه الشهادة بفخر إلى',
+      tagline:      'لأداء متميز وانضباط في التداول',
+      totalTrades:  'إجمالي الصفقات',
+      winRate:      'نسبة الربح',
+      totalPnl:     'إجمالي الربح',
+      bestTrade:    'أفضل صفقة',
+      profitFactor: 'معامل الربح',
+      quote:        'الانضباط والاتساق هما أساس النجاح في التداول.',
+      founder:      'Founder, TradeSmartDz',
+      issuedOn:     'صدر بتاريخ:',
     },
     fr: {
-      heading: 'C E R T I F I C A T E   O F   P E R F O R M A N C E',
-      subHeading: 'Presented by TradeSmartDz',
-      congrats: 'Ce certificat est fi\u00e8rement d\u00e9cern\u00e9 \u00e0',
-      tagline: 'Pour une performance exceptionnelle et de la discipline en trading',
-      totalTrades: 'Total trades',
-      winRate:    'Taux de r\u00e9ussite',
-      totalPnl:  'PnL total',
-      bestTrade: 'Meilleur trade',
+      congrats:     'Ce certificat est fièrement décerné à',
+      tagline:      'Pour une performance exceptionnelle et de la discipline en trading',
+      totalTrades:  'Total trades',
+      winRate:      'Taux de réussite',
+      totalPnl:     'PnL total',
+      bestTrade:    'Meilleur trade',
       profitFactor: 'Facteur de profit',
-      quote: 'La discipline et la constance sont les bases du succ\u00e8s en trading.',
-      founder: 'Founder, TradeSmartDz',
-      issuedOn: 'Issued on:',
-      verified: 'VERIFIED',
-      trader: 'TRADER',
+      quote:        'La discipline et la constance sont les bases du succès en trading.',
+      founder:      'Founder, TradeSmartDz',
+      issuedOn:     'Issued on:',
     },
     en: {
-      heading: 'C E R T I F I C A T E   O F   P E R F O R M A N C E',
-      subHeading: 'Presented by TradeSmartDz',
-      congrats: 'This certificate is proudly awarded to',
-      tagline: 'For outstanding performance and discipline in trading',
-      totalTrades: 'Total Trades',
-      winRate:    'Win Rate',
-      totalPnl:  'Total PnL',
-      bestTrade: 'Best Trade',
+      congrats:     'This certificate is proudly awarded to',
+      tagline:      'For outstanding performance and discipline in trading',
+      totalTrades:  'Total Trades',
+      winRate:      'Win Rate',
+      totalPnl:     'Total PnL',
+      bestTrade:    'Best Trade',
       profitFactor: 'Profit Factor',
-      quote: 'Discipline and consistency are the foundation of trading success.',
-      founder: 'Founder, TradeSmartDz',
-      issuedOn: 'Issued on:',
-      verified: 'VERIFIED',
-      trader: 'TRADER',
+      quote:        'Discipline and consistency are the foundation of trading success.',
+      founder:      'Founder, TradeSmartDz',
+      issuedOn:     'Issued on:',
     },
   }[lang];
 
   // ── Stats ──
-  const closed = trades.filter(tr => tr.profit !== null);
-  const wins   = closed.filter(tr => (tr.profit ?? 0) > 0);
-  const losses = closed.filter(tr => (tr.profit ?? 0) < 0);
+  const closed      = trades.filter(tr => tr.profit !== null);
+  const wins        = closed.filter(tr => (tr.profit ?? 0) > 0);
+  const losses      = closed.filter(tr => (tr.profit ?? 0) < 0);
   const totalPnl    = closed.reduce((s, tr) => s + (tr.profit ?? 0), 0);
   const winRate     = closed.length ? (wins.length / closed.length * 100).toFixed(1) : '0';
   const bestTrade   = closed.length ? Math.max(...closed.map(tr => tr.profit ?? 0)) : 0;
@@ -117,171 +100,240 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
   const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : '∞';
 
   const stats: Array<{ label: string; value: string; color: RGB }> = [
-    { label: L.totalTrades,  value: String(closed.length),                                                    color: [96, 165, 250]  },
-    { label: L.winRate,      value: `${winRate}%`,                                                            color: [0, 224, 184]   },
-    { label: L.totalPnl,    value: `$${totalPnl.toFixed(2)}`,                                                color: totalPnl >= 0 ? [34, 197, 94] : [239, 68, 68] },
-    { label: L.bestTrade,   value: bestTrade >= 0 ? `+$${bestTrade.toFixed(2)}` : `$${bestTrade.toFixed(2)}`, color: [245, 158, 11]  },
-    { label: L.profitFactor, value: profitFactor,                                                             color: [167, 139, 250] },
+    { label: L.totalTrades,  value: String(closed.length),                                                     color: [96, 165, 250]  },
+    { label: L.winRate,      value: `${winRate}%`,                                                             color: [0, 224, 184]   },
+    { label: L.totalPnl,    value: `$${totalPnl.toFixed(2)}`,                                                 color: totalPnl >= 0 ? [34, 197, 94] : [239, 68, 68] },
+    { label: L.bestTrade,   value: bestTrade >= 0 ? `+$${bestTrade.toFixed(2)}` : `$${bestTrade.toFixed(2)}`, color: [212, 175, 55]  },
+    { label: L.profitFactor, value: profitFactor,                                                              color: [167, 139, 250] },
   ];
 
+  // ── Shared draw helpers ──
+  // 4-line star drawn at (x,y) with arm length sz
+  const drawStar = (x: number, y: number, sz: number) => {
+    doc.line(x - sz, y, x + sz, y);
+    doc.line(x, y - sz, x, y + sz);
+    doc.line(x - sz * 0.65, y - sz * 0.65, x + sz * 0.65, y + sz * 0.65);
+    doc.line(x + sz * 0.65, y - sz * 0.65, x - sz * 0.65, y + sz * 0.65);
+  };
+  // Diamond outline at (x,y) half-size sz
+  const drawDiamond = (x: number, y: number, sz: number) => {
+    doc.line(x, y - sz, x + sz, y);
+    doc.line(x + sz, y, x, y + sz);
+    doc.line(x, y + sz, x - sz, y);
+    doc.line(x - sz, y, x, y - sz);
+  };
+  // Divider: lines either side of a drawn diamond
+  const drawDivider = (y: number, lx1: number, lx2: number, color: RGB) => {
+    doc.setDrawColor(...color);
+    doc.setLineWidth(0.7);
+    doc.line(lx1, y, cx - 14, y);
+    doc.line(cx + 14, y, lx2, y);
+    doc.setDrawColor(...TEAL);
+    doc.setLineWidth(1.2);
+    drawDiamond(cx, y, 7);
+  };
+
   // ── Layout constants ──
-  const MARGIN   = 60;   // left/right margin inside border
-  const BOX_H    = 120;
-  const BOX_GAP  = 16;
-  const BOX_W    = (W - MARGIN * 2 - BOX_GAP * (stats.length - 1)) / stats.length; // fills full width
-  const SEAL_R   = 65;
+  const OM = 15, IM = 28;      // outer/inner border margins
+  const BM = 46;               // box left/right margin
+  const BOX_H = 110, BOX_GAP = 14;
+  const BOX1_W = (W - BM * 2 - BOX_GAP * 2) / 3;  // 3 boxes row1
+  const SEAL_R = 65;
 
-  // Vertical anchors — top-down flow
-  const yHeaderTitle    = 100;
-  const ySubHeading     = 126;
-  const yHeaderDivider  = 144;
-  const yCongrats       = 182;
-  const yUserName       = 248;  // size 58
-  const yTagline        = 282;  // size 15
-  const yTealDivider    = 300;
-  const yBoxTop         = 318;
-  const yBoxBottom      = yBoxTop + BOX_H;          // 438
-  const yQuote          = yBoxBottom + 30;           // 468
-  // Seal sits ~30px below quote, centered
-  const ySeal           = yQuote + 30 + SEAL_R;     // 563
-  const ySigLine        = ySeal + SEAL_R + 28;       // 656
-  const ySigText1       = ySigLine + 20;             // 676
-  const ySigText2       = ySigLine + 38;             // 694
+  // ── Vertical anchors ──
+  const Y_TITLE    = 98;
+  const Y_LINE1    = 114;
+  const Y_SUB      = 132;
+  const Y_DIV1     = 152;   // diamond divider after sub
+  const Y_CONGRATS = 178;
+  const Y_NAME     = 242;   // size 56 bold
+  const Y_UNDERLN  = 257;
+  const Y_TAGLINE  = 278;
+  const Y_DIV2     = 297;   // diamond divider before stats
+  const Y_ROW1     = 315;
+  const Y_ROW2     = Y_ROW1 + BOX_H + BOX_GAP;   // 439
+  const Y_DIV3     = Y_ROW2 + BOX_H + 16;          // 565
+  const Y_QUOTE    = Y_DIV3 + 22;                   // 587
+  const Y_SEAL     = Y_QUOTE + 34 + SEAL_R;         // 686
+  const Y_SIG_LINE = Y_SEAL + SEAL_R + 22;          // 773 — but clamp to safe range
+  const Y_SIG_T1   = Y_SIG_LINE + 18;
+  const Y_SIG_T2   = Y_SIG_LINE + 34;
 
-  // ── 1. Background ──
+  // ── 1. Background gradient ──
   doc.setFillColor(10, 15, 28);
   doc.rect(0, 0, W, H, 'F');
   doc.setFillColor(13, 27, 42);
-  doc.rect(0, H * 0.5, W, H * 0.5, 'F');
+  doc.rect(W * 0.45, 0, W * 0.55, H, 'F');
 
-  // ── 2. Outer border: teal glow + solid ──
-  doc.setDrawColor(0, 140, 115);
-  doc.setLineWidth(6);
-  doc.rect(18, 18, W - 36, H - 36, 'S');
+  // ── 2. Corner glow circles (~6% teal on dark) ──
+  doc.setFillColor(9, 28, 38);
+  doc.circle(0,   0,   200, 'F');
+  doc.circle(W,   0,   200, 'F');
+  doc.circle(0,   H,   200, 'F');
+  doc.circle(W,   H,   200, 'F');
+
+  // ── 3. Outer border: gold 4px ──
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(4);
+  doc.rect(OM, OM, W - OM * 2, H - OM * 2, 'S');
+
+  // ── 4. Inner border: teal 1px ──
   doc.setDrawColor(...TEAL);
-  doc.setLineWidth(3);
-  doc.rect(20, 20, W - 40, H - 40, 'S');
+  doc.setLineWidth(1);
+  doc.rect(IM, IM, W - IM * 2, H - IM * 2, 'S');
 
-  // ── 3. Inner border: gold ──
+  // ── 5. Corner ornaments: gold L-shapes + star at junction ──
+  const ARM = 48;
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(2.5);
+  doc.line(OM, OM, OM + ARM, OM);       doc.line(OM, OM, OM, OM + ARM);
+  doc.line(W-OM, OM, W-OM-ARM, OM);     doc.line(W-OM, OM, W-OM, OM+ARM);
+  doc.line(OM, H-OM, OM+ARM, H-OM);     doc.line(OM, H-OM, OM, H-OM-ARM);
+  doc.line(W-OM, H-OM, W-OM-ARM, H-OM); doc.line(W-OM, H-OM, W-OM, H-OM-ARM);
+  // Small star at each corner junction
+  doc.setLineWidth(1.2);
+  [[OM,OM],[W-OM,OM],[OM,H-OM],[W-OM,H-OM]].forEach(([cx2,cy2]) => drawStar(cx2, cy2, 5));
+
+  // ── 6. HEADER ──
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(1.8);
+  drawStar(cx - 248, Y_TITLE - 4, 7);
+  drawStar(cx + 248, Y_TITLE - 4, 7);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(38);
+  doc.setTextColor(...GOLD);
+  doc.text('CERTIFICATE OF PERFORMANCE', cx, Y_TITLE, { align: 'center' });
+
+  doc.setDrawColor(...GOLD_DIM);
+  doc.setLineWidth(0.8);
+  doc.line(80, Y_LINE1, W - 80, Y_LINE1);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(13);
+  doc.setTextColor(160, 174, 192);
+  doc.text('Presented by TradeSmartDz', cx, Y_SUB, { align: 'center' });
+
+  // Teal diamond divider
+  doc.setDrawColor(...TEAL);
+  doc.setLineWidth(1);
+  drawDivider(Y_DIV1, 200, W - 200, [40, 65, 80]);
+
+  // ── 7. RECIPIENT ──
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(14);
+  doc.setTextColor(...SLATE);
+  doc.text(L.congrats, cx, Y_CONGRATS, { align: 'center' });
+
+  // Username — gold glow shadow + white main
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(56);
+  doc.setTextColor(100, 75, 8);
+  doc.text(userName, cx - 1.5, Y_NAME + 1.5, { align: 'center' });
+  doc.text(userName, cx + 1.5, Y_NAME - 1.5, { align: 'center' });
+  doc.setTextColor(...WHITE);
+  doc.text(userName, cx, Y_NAME, { align: 'center' });
+
+  // Gold underline sized to name width
+  const nameW = doc.getTextWidth(userName);
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(1);
-  doc.rect(35, 35, W - 70, H - 70, 'S');
-
-  // ── 4. Corner ornaments: gold L-shapes ──
-  const arm = 40;
-  const off = 35;
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(2.5);
-  doc.line(off,   off,   off+arm, off);     doc.line(off,   off,   off,   off+arm);
-  doc.line(W-off, off,   W-off-arm, off);   doc.line(W-off, off,   W-off, off+arm);
-  doc.line(off,   H-off, off+arm, H-off);   doc.line(off,   H-off, off,   H-off-arm);
-  doc.line(W-off, H-off, W-off-arm, H-off); doc.line(W-off, H-off, W-off, H-off-arm);
-
-  // ── 5. HEADER ──
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(36);
-  doc.setTextColor(...GOLD);
-  doc.text(L.heading, cx, yHeaderTitle, { align: 'center' });
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(14);
-  doc.setTextColor(...SLATE);
-  doc.text(L.subHeading, cx, ySubHeading, { align: 'center' });
-
-  doc.setDrawColor(...GOLD_DIM);
-  doc.setLineWidth(0.8);
-  doc.line(200, yHeaderDivider, W - 200, yHeaderDivider);
-
-  // ── 6. RECIPIENT ──
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(14);
-  doc.setTextColor(...SLATE);
-  doc.text(L.congrats, cx, yCongrats, { align: 'center' });
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(58);
-  doc.setTextColor(...WHITE);
-  doc.text(userName, cx, yUserName, { align: 'center' });
+  doc.line(cx - nameW / 2, Y_UNDERLN, cx + nameW / 2, Y_UNDERLN);
 
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(15);
+  doc.setFontSize(14);
   doc.setTextColor(203, 213, 225);
-  doc.text(L.tagline, cx, yTagline, { align: 'center' });
+  doc.text(L.tagline, cx, Y_TAGLINE, { align: 'center' });
 
-  doc.setDrawColor(...TEAL);
-  doc.setLineWidth(0.6);
-  doc.line(250, yTealDivider, W - 250, yTealDivider);
+  drawDivider(Y_DIV2, 80, W - 80, [40, 65, 80]);
 
-  // ── 7. STATS — 5 boxes filling full width ──
-  stats.forEach((stat, i) => {
-    const bx  = MARGIN + i * (BOX_W + BOX_GAP);
-    const bCx = bx + BOX_W / 2;
-
+  // ── 8. STATS — row 1: 3 boxes, row 2: 2 boxes centered ──
+  const drawBox = (bx: number, by: number, bw: number, label: string, value: string, col: RGB) => {
+    // Outer glow ring
+    doc.setDrawColor(Math.round(col[0]*0.35), Math.round(col[1]*0.35), Math.round(col[2]*0.35));
+    doc.setLineWidth(3);
+    doc.roundedRect(bx - 1, by - 1, bw + 2, BOX_H + 2, 9, 9, 'S');
+    // Box fill + border
     doc.setFillColor(13, 27, 42);
-    doc.setDrawColor(...TEAL);
+    doc.setDrawColor(...col);
     doc.setLineWidth(1);
-    doc.roundedRect(bx, yBoxTop, BOX_W, BOX_H, 6, 6, 'FD');
-
-    // Label — 15px from top inner edge
+    doc.roundedRect(bx, by, bw, BOX_H, 8, 8, 'FD');
+    // Label
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(13);
+    doc.setFontSize(12);
     doc.setTextColor(...SLATE);
-    doc.text(stat.label, bCx, yBoxTop + 32, { align: 'center' });
-
-    // Value — centered vertically in lower half
+    doc.text(label, bx + bw / 2, by + 30, { align: 'center' });
+    // Value
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(26);
-    doc.setTextColor(...stat.color);
-    doc.text(stat.value, bCx, yBoxTop + 82, { align: 'center' });
-  });
+    doc.setFontSize(28);
+    doc.setTextColor(...col);
+    doc.text(value, bx + bw / 2, by + 80, { align: 'center' });
+  };
 
-  // ── 8. QUOTE ──
+  // Row 1: 3 boxes
+  stats.slice(0, 3).forEach((s, i) =>
+    drawBox(BM + i * (BOX1_W + BOX_GAP), Y_ROW1, BOX1_W, s.label, s.value, s.color)
+  );
+  // Row 2: 2 boxes centered
+  const r2Stats = stats.slice(3);
+  const r2W = r2Stats.length * BOX1_W + (r2Stats.length - 1) * BOX_GAP;
+  r2Stats.forEach((s, i) =>
+    drawBox((W - r2W) / 2 + i * (BOX1_W + BOX_GAP), Y_ROW2, BOX1_W, s.label, s.value, s.color)
+  );
+
+  // ── 9. Divider after stats ──
+  drawDivider(Y_DIV3, 80, W - 80, [40, 65, 80]);
+
+  // ── 10. QUOTE ──
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(13);
-  doc.setTextColor(...SLATE);
-  doc.text(`"${L.quote}"`, cx, yQuote, { align: 'center' });
-
-  // ── 9. SEAL (left, below quote) ──
-  const sealX = MARGIN + SEAL_R + 20;
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(2.5);
-  doc.circle(sealX, ySeal, SEAL_R, 'S');
-  doc.setDrawColor(...GOLD_DIM);
-  doc.setLineWidth(0.8);
-  doc.circle(sealX, ySeal, SEAL_R - 9, 'S');
-  doc.setFillColor(10, 18, 30);
-  doc.circle(sealX, ySeal, SEAL_R - 10, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(...GOLD);
-  doc.text(L.verified, sealX, ySeal - 20, { align: 'center' });
-  doc.setFontSize(14);
-  doc.text(L.trader, ySeal > 0 ? sealX : sealX, ySeal + 2, { align: 'center' });
-  doc.setFontSize(8);
-  doc.setTextColor(...SLATE2);
-  doc.text('TradeSmartDz', sealX, ySeal + 20, { align: 'center' });
-  doc.text('2026', sealX, ySeal + 33, { align: 'center' });
-
-  // ── 10. SIGNATURE (right, aligned with seal vertically) ──
-  const sigX = W - MARGIN - 110;
-  doc.setDrawColor(...SLATE2);
-  doc.setLineWidth(0.7);
-  doc.line(sigX - 110, ySigLine, sigX + 110, ySigLine);
-
-  doc.setFont('helvetica', 'normal');
   doc.setFontSize(12);
   doc.setTextColor(...SLATE2);
-  doc.text(L.founder, sigX, ySigText1, { align: 'center' });
+  doc.text(`"${L.quote}"`, cx, Y_QUOTE, { align: 'center' });
 
+  // ── 11. SEAL — centered ──
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(2);
+  doc.circle(cx, Y_SEAL, SEAL_R, 'S');
+  doc.setDrawColor(...TEAL);
+  doc.setLineWidth(1);
+  doc.circle(cx, Y_SEAL, SEAL_R - 10, 'S');
+  doc.setFillColor(10, 15, 28);
+  doc.circle(cx, Y_SEAL, SEAL_R - 11, 'F');
+  // Checkmark (drawn, not Unicode)
+  doc.setDrawColor(...TEAL);
+  doc.setLineWidth(2.5);
+  doc.line(cx - 14, Y_SEAL - 3, cx - 4, Y_SEAL + 10);
+  doc.line(cx - 4, Y_SEAL + 10, cx + 18, Y_SEAL - 14);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...GOLD);
+  doc.text('VERIFIED TRADER', cx, Y_SEAL + 22, { align: 'center' });
+  doc.setFontSize(7);
+  doc.setTextColor(...TEAL);
+  doc.text('TradeSmartDz', cx, Y_SEAL + 33, { align: 'center' });
+  doc.setTextColor(...SLATE2);
+  doc.text('2026', cx, Y_SEAL + 43, { align: 'center' });
+
+  // ── 12. SIGNATURE — bottom right ──
+  const sigX = W - 185;
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(17);
+  doc.setTextColor(...TEAL);
+  doc.text('Mxiche', sigX, Y_SIG_LINE - 10, { align: 'center' });
+  doc.setDrawColor(...SLATE2);
+  doc.setLineWidth(0.7);
+  doc.line(sigX - 65, Y_SIG_LINE, sigX + 65, Y_SIG_LINE);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(...SLATE2);
+  doc.text(L.founder, sigX, Y_SIG_T1, { align: 'center' });
   const dateStr = new Date().toLocaleDateString(
     lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
     { year: 'numeric', month: 'long', day: 'numeric' }
   );
-  doc.setFontSize(11);
-  doc.text(`${L.issuedOn} ${dateStr}`, sigX, ySigText2, { align: 'center' });
+  doc.setFontSize(10);
+  doc.text(`${L.issuedOn} ${dateStr}`, sigX, Y_SIG_T2, { align: 'center' });
 
-  // ── Save ──
   const date = new Date().toISOString().slice(0, 10);
   doc.save(`tradesmartdz-certificate-${date}.pdf`);
 }
