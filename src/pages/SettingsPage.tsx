@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Loader2, Send, CheckCircle2, Link2, LinkOff } from 'lucide-react';
+import { Trash2, Loader2, Send, CheckCircle2, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Language } from '@/lib/i18n';
 import { Tables } from '@/integrations/supabase/types';
@@ -233,7 +233,7 @@ const SettingsPage = () => {
                     disabled={disconnecting}
                     className="gap-1.5 text-muted-foreground hover:text-destructive hover:border-destructive/50"
                   >
-                    {disconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LinkOff className="h-3.5 w-3.5" />}
+                    {disconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlink className="h-3.5 w-3.5" />}
                     {lang === 'ar' ? 'قطع الاتصال' : lang === 'fr' ? 'Déconnecter' : 'Disconnect'}
                   </Button>
                 </div>
