@@ -117,12 +117,36 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
   const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : '∞';
 
   const stats: Array<{ label: string; value: string; color: RGB }> = [
-    { label: L.totalTrades,  value: String(closed.length),                                                   color: [96, 165, 250]  }, // blue
-    { label: L.winRate,      value: `${winRate}%`,                                                           color: [0, 224, 184]   }, // teal
-    { label: L.totalPnl,    value: `$${totalPnl.toFixed(2)}`,                                               color: totalPnl >= 0 ? [34, 197, 94] : [239, 68, 68] }, // green / red
-    { label: L.bestTrade,   value: bestTrade >= 0 ? `+$${bestTrade.toFixed(2)}` : `$${bestTrade.toFixed(2)}`, color: [245, 158, 11] }, // amber
-    { label: L.profitFactor, value: profitFactor,                                                            color: [167, 139, 250] }, // purple
+    { label: L.totalTrades,  value: String(closed.length),                                                    color: [96, 165, 250]  },
+    { label: L.winRate,      value: `${winRate}%`,                                                            color: [0, 224, 184]   },
+    { label: L.totalPnl,    value: `$${totalPnl.toFixed(2)}`,                                                color: totalPnl >= 0 ? [34, 197, 94] : [239, 68, 68] },
+    { label: L.bestTrade,   value: bestTrade >= 0 ? `+$${bestTrade.toFixed(2)}` : `$${bestTrade.toFixed(2)}`, color: [245, 158, 11]  },
+    { label: L.profitFactor, value: profitFactor,                                                             color: [167, 139, 250] },
   ];
+
+  // ── Layout constants ──
+  const MARGIN   = 60;   // left/right margin inside border
+  const BOX_H    = 120;
+  const BOX_GAP  = 16;
+  const BOX_W    = (W - MARGIN * 2 - BOX_GAP * (stats.length - 1)) / stats.length; // fills full width
+  const SEAL_R   = 65;
+
+  // Vertical anchors — top-down flow
+  const yHeaderTitle    = 100;
+  const ySubHeading     = 126;
+  const yHeaderDivider  = 144;
+  const yCongrats       = 182;
+  const yUserName       = 248;  // size 58
+  const yTagline        = 282;  // size 15
+  const yTealDivider    = 300;
+  const yBoxTop         = 318;
+  const yBoxBottom      = yBoxTop + BOX_H;          // 438
+  const yQuote          = yBoxBottom + 30;           // 468
+  // Seal sits ~30px below quote, centered
+  const ySeal           = yQuote + 30 + SEAL_R;     // 563
+  const ySigLine        = ySeal + SEAL_R + 28;       // 656
+  const ySigText1       = ySigLine + 20;             // 676
+  const ySigText2       = ySigLine + 38;             // 694
 
   // ── 1. Background ──
   doc.setFillColor(10, 15, 28);
@@ -130,7 +154,7 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
   doc.setFillColor(13, 27, 42);
   doc.rect(0, H * 0.5, W, H * 0.5, 'F');
 
-  // ── 2. Outer border: teal glow layer + teal border ──
+  // ── 2. Outer border: teal glow + solid ──
   doc.setDrawColor(0, 140, 115);
   doc.setLineWidth(6);
   doc.rect(18, 18, W - 36, H - 36, 'S');
@@ -148,127 +172,114 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
   const off = 35;
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(2.5);
-  doc.line(off, off, off + arm, off);         doc.line(off, off, off, off + arm);
-  doc.line(W-off, off, W-off-arm, off);       doc.line(W-off, off, W-off, off+arm);
-  doc.line(off, H-off, off+arm, H-off);       doc.line(off, H-off, off, H-off-arm);
-  doc.line(W-off, H-off, W-off-arm, H-off);   doc.line(W-off, H-off, W-off, H-off-arm);
+  doc.line(off,   off,   off+arm, off);     doc.line(off,   off,   off,   off+arm);
+  doc.line(W-off, off,   W-off-arm, off);   doc.line(W-off, off,   W-off, off+arm);
+  doc.line(off,   H-off, off+arm, H-off);   doc.line(off,   H-off, off,   H-off-arm);
+  doc.line(W-off, H-off, W-off-arm, H-off); doc.line(W-off, H-off, W-off, H-off-arm);
 
   // ── 5. HEADER ──
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(36);
   doc.setTextColor(...GOLD);
-  doc.text(L.heading, cx, 105, { align: 'center' });
+  doc.text(L.heading, cx, yHeaderTitle, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(14);
   doc.setTextColor(...SLATE);
-  doc.text(L.subHeading, cx, 132, { align: 'center' });
+  doc.text(L.subHeading, cx, ySubHeading, { align: 'center' });
 
   doc.setDrawColor(...GOLD_DIM);
   doc.setLineWidth(0.8);
-  doc.line(200, 148, W - 200, 148);
+  doc.line(200, yHeaderDivider, W - 200, yHeaderDivider);
 
   // ── 6. RECIPIENT ──
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(14);
   doc.setTextColor(...SLATE);
-  doc.text(L.congrats, cx, 188, { align: 'center' });
+  doc.text(L.congrats, cx, yCongrats, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(52);
+  doc.setFontSize(58);
   doc.setTextColor(...WHITE);
-  doc.text(userName, cx, 248, { align: 'center' });
+  doc.text(userName, cx, yUserName, { align: 'center' });
 
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(14);
+  doc.setFontSize(15);
   doc.setTextColor(203, 213, 225);
-  doc.text(L.tagline, cx, 278, { align: 'center' });
+  doc.text(L.tagline, cx, yTagline, { align: 'center' });
 
   doc.setDrawColor(...TEAL);
   doc.setLineWidth(0.6);
-  doc.line(250, 296, W - 250, 296);
+  doc.line(250, yTealDivider, W - 250, yTealDivider);
 
-  // ── 7. STATS — 5 boxes evenly spaced in one row ──
-  const boxW = 190;
-  const boxH = 90;
-  const totalBoxW = stats.length * boxW;
-  const totalGap = W - 120 - totalBoxW;   // 60px margin each side
-  const gap = totalGap / (stats.length - 1);
-  const boxY = 316;
-
+  // ── 7. STATS — 5 boxes filling full width ──
   stats.forEach((stat, i) => {
-    const bx = 60 + i * (boxW + gap);
-    const bCx = bx + boxW / 2;
+    const bx  = MARGIN + i * (BOX_W + BOX_GAP);
+    const bCx = bx + BOX_W / 2;
 
-    // Box fill + border
     doc.setFillColor(13, 27, 42);
     doc.setDrawColor(...TEAL);
     doc.setLineWidth(1);
-    doc.roundedRect(bx, boxY, boxW, boxH, 6, 6, 'FD');
+    doc.roundedRect(bx, yBoxTop, BOX_W, BOX_H, 6, 6, 'FD');
 
-    // Label
+    // Label — 15px from top inner edge
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
+    doc.setFontSize(13);
     doc.setTextColor(...SLATE);
-    doc.text(stat.label, bCx, boxY + 26, { align: 'center' });
+    doc.text(stat.label, bCx, yBoxTop + 32, { align: 'center' });
 
-    // Value
+    // Value — centered vertically in lower half
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(22);
+    doc.setFontSize(26);
     doc.setTextColor(...stat.color);
-    doc.text(stat.value, bCx, boxY + 64, { align: 'center' });
+    doc.text(stat.value, bCx, yBoxTop + 82, { align: 'center' });
   });
 
   // ── 8. QUOTE ──
-  const quoteY = boxY + boxH + 44;
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(13);
   doc.setTextColor(...SLATE);
-  doc.text(`"${L.quote}"`, cx, quoteY, { align: 'center' });
+  doc.text(`"${L.quote}"`, cx, yQuote, { align: 'center' });
 
-  // ── 9. SEAL (bottom-left) ──
-  const sealX = 150;
-  const sealY = H - 100;
-  const sealR = 62;
-
+  // ── 9. SEAL (left, below quote) ──
+  const sealX = MARGIN + SEAL_R + 20;
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(2.5);
-  doc.circle(sealX, sealY, sealR, 'S');
+  doc.circle(sealX, ySeal, SEAL_R, 'S');
   doc.setDrawColor(...GOLD_DIM);
   doc.setLineWidth(0.8);
-  doc.circle(sealX, sealY, sealR - 8, 'S');
+  doc.circle(sealX, ySeal, SEAL_R - 9, 'S');
   doc.setFillColor(10, 18, 30);
-  doc.circle(sealX, sealY, sealR - 9, 'F');
+  doc.circle(sealX, ySeal, SEAL_R - 10, 'F');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(...GOLD);
-  doc.text(L.verified, sealX, sealY - 18, { align: 'center' });
+  doc.text(L.verified, sealX, ySeal - 20, { align: 'center' });
   doc.setFontSize(14);
-  doc.text(L.trader, sealX, sealY + 2, { align: 'center' });
+  doc.text(L.trader, ySeal > 0 ? sealX : sealX, ySeal + 2, { align: 'center' });
   doc.setFontSize(8);
   doc.setTextColor(...SLATE2);
-  doc.text('TradeSmartDz', sealX, sealY + 18, { align: 'center' });
-  doc.text('2026', sealX, sealY + 30, { align: 'center' });
+  doc.text('TradeSmartDz', sealX, ySeal + 20, { align: 'center' });
+  doc.text('2026', sealX, ySeal + 33, { align: 'center' });
 
-  // ── 10. SIGNATURE (bottom-right) ──
-  const sigX = W - 200;
-  const sigY = H - 90;
+  // ── 10. SIGNATURE (right, aligned with seal vertically) ──
+  const sigX = W - MARGIN - 110;
   doc.setDrawColor(...SLATE2);
   doc.setLineWidth(0.7);
-  doc.line(sigX - 110, sigY, sigX + 110, sigY);
+  doc.line(sigX - 110, ySigLine, sigX + 110, ySigLine);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(12);
   doc.setTextColor(...SLATE2);
-  doc.text(L.founder, sigX, sigY + 20, { align: 'center' });
+  doc.text(L.founder, sigX, ySigText1, { align: 'center' });
 
   const dateStr = new Date().toLocaleDateString(
     lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
     { year: 'numeric', month: 'long', day: 'numeric' }
   );
   doc.setFontSize(11);
-  doc.text(`${L.issuedOn} ${dateStr}`, sigX, sigY + 36, { align: 'center' });
+  doc.text(`${L.issuedOn} ${dateStr}`, sigX, ySigText2, { align: 'center' });
 
   // ── Save ──
   const date = new Date().toISOString().slice(0, 10);
