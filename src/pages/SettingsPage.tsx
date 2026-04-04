@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Loader2, Send, CheckCircle2 } from 'lucide-react';
+import { Trash2, Loader2, Send, CheckCircle2, Link2, LinkOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { Language } from '@/lib/i18n';
 import { Tables } from '@/integrations/supabase/types';
@@ -28,8 +28,9 @@ const SettingsPage = () => {
 
   // Telegram
   const [telegramChatId, setTelegramChatId] = useState('');
-  const [savingTelegram, setSavingTelegram] = useState(false);
-  const [testingSend, setTestingSend] = useState(false);
+  const [polling, setPolling] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -62,46 +63,51 @@ const SettingsPage = () => {
     }
   };
 
-  const saveTelegramChatId = async () => {
-    if (!user) return;
-    setSavingTelegram(true);
-    const { error } = await supabase
-      .from('user_preferences')
-      .upsert({ user_id: user.id, telegram_chat_id: telegramChatId.trim() || null }, { onConflict: 'user_id' });
-    setSavingTelegram(false);
-    if (error) { toast.error('Failed to save'); return; }
-    toast.success(lang === 'ar' ? 'تم الحفظ!' : lang === 'fr' ? 'Sauvegardé !' : 'Saved!');
+  const stopPolling = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    setPolling(false);
   };
 
-  const sendTestMessage = async () => {
-    const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-    if (!botToken) { toast.error('VITE_TELEGRAM_BOT_TOKEN not configured'); return; }
-    if (!telegramChatId.trim()) {
-      toast.error(lang === 'ar' ? 'أدخل Chat ID أولاً' : lang === 'fr' ? 'Entrez un Chat ID d\'abord' : 'Enter a Chat ID first');
-      return;
-    }
-    setTestingSend(true);
-    const text = lang === 'ar'
-      ? '✅ مرحباً من TradeSmartDz! الإشعارات تعمل بشكل صحيح.'
-      : lang === 'fr'
-      ? '✅ Bonjour de TradeSmartDz ! Les notifications fonctionnent correctement.'
-      : '✅ Hello from TradeSmartDz! Notifications are working correctly.';
-    try {
-      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: telegramChatId.trim(), text }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        toast.success(lang === 'ar' ? 'تم الإرسال! تحقق من Telegram' : lang === 'fr' ? 'Envoyé ! Vérifiez Telegram' : 'Sent! Check your Telegram');
-      } else {
-        toast.error('Telegram error: ' + (data.description ?? 'Unknown'));
+  // Clean up interval on unmount
+  useEffect(() => () => stopPolling(), []);
+
+  const startPolling = () => {
+    if (!user || pollIntervalRef.current) return;
+    setPolling(true);
+    pollIntervalRef.current = setInterval(async () => {
+      const { data } = await supabase
+        .from('user_preferences')
+        .select('telegram_chat_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const chatId = data?.telegram_chat_id;
+      if (chatId) {
+        setTelegramChatId(chatId);
+        stopPolling();
+        toast.success(lang === 'ar' ? '✅ تم ربط Telegram بنجاح!' : lang === 'fr' ? '✅ Telegram connecté avec succès !' : '✅ Telegram connected successfully!');
       }
-    } catch (e: any) {
-      toast.error('Failed to send: ' + e.message);
-    }
-    setTestingSend(false);
+    }, 5000);
+  };
+
+  const connectTelegram = () => {
+    if (!user) return;
+    window.open(`https://t.me/Tradesmartdzbot?start=${user.id}`, '_blank');
+    startPolling();
+  };
+
+  const disconnectTelegram = async () => {
+    if (!user) return;
+    stopPolling();
+    setDisconnecting(true);
+    await supabase
+      .from('user_preferences')
+      .upsert({ user_id: user.id, telegram_chat_id: null }, { onConflict: 'user_id' });
+    setTelegramChatId('');
+    setDisconnecting(false);
+    toast.success(lang === 'ar' ? 'تم قطع الاتصال' : lang === 'fr' ? 'Déconnecté' : 'Disconnected');
   };
 
   return (
@@ -210,45 +216,54 @@ const SettingsPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* How-to instruction */}
-              <div className="rounded-lg border border-border bg-secondary/40 p-4 text-sm text-muted-foreground leading-relaxed">
-                {lang === 'ar'
-                  ? 'افتح Telegram وابحث عن @userinfobot وأرسل له /start للحصول على Chat ID الخاص بك.'
-                  : lang === 'fr'
-                  ? 'Ouvrez Telegram, cherchez @userinfobot et envoyez /start pour obtenir votre Chat ID.'
-                  : 'Open Telegram, search @userinfobot and send /start to get your Chat ID.'}
-              </div>
 
-              {/* Chat ID input */}
-              <div className="space-y-2">
-                <Label>
-                  {lang === 'ar' ? 'معرّف المحادثة (Chat ID)' : lang === 'fr' ? 'Chat ID Telegram' : 'Telegram Chat ID'}
-                </Label>
-                <Input
-                  placeholder="123456789"
-                  value={telegramChatId}
-                  onChange={e => setTelegramChatId(e.target.value)}
-                />
-              </div>
+              {/* Connection status */}
+              {telegramChatId ? (
+                <div className="flex items-center justify-between rounded-lg border border-profit/30 bg-profit/10 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-profit" />
+                    <span className="font-medium text-profit">
+                      {lang === 'ar' ? 'تم ربط Telegram بنجاح!' : lang === 'fr' ? 'Telegram connecté !' : 'Telegram Connected!'}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={disconnectTelegram}
+                    disabled={disconnecting}
+                    className="gap-1.5 text-muted-foreground hover:text-destructive hover:border-destructive/50"
+                  >
+                    {disconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LinkOff className="h-3.5 w-3.5" />}
+                    {lang === 'ar' ? 'قطع الاتصال' : lang === 'fr' ? 'Déconnecter' : 'Disconnect'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Button
+                    className="gradient-primary text-primary-foreground gap-2"
+                    onClick={connectTelegram}
+                    disabled={polling}
+                  >
+                    {polling
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Send className="h-4 w-4" />}
+                    {lang === 'ar' ? 'ربط Telegram' : lang === 'fr' ? 'Connecter Telegram' : 'Connect Telegram'}
+                  </Button>
 
-              <div className="flex gap-2">
-                <Button
-                  className="gradient-primary text-primary-foreground"
-                  onClick={saveTelegramChatId}
-                  disabled={savingTelegram}
-                >
-                  {savingTelegram ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="me-2 h-4 w-4" />}
-                  {lang === 'ar' ? 'حفظ' : lang === 'fr' ? 'Enregistrer' : 'Save'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={sendTestMessage}
-                  disabled={testingSend || !telegramChatId.trim()}
-                >
-                  {testingSend ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Send className="me-2 h-4 w-4" />}
-                  {lang === 'ar' ? 'إرسال رسالة تجريبية' : lang === 'fr' ? 'Envoyer un test' : 'Send Test Message'}
-                </Button>
-              </div>
+                  {polling && (
+                    <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                      <span>
+                        {lang === 'ar'
+                          ? 'انقر على Start في Telegram لإتمام الربط...'
+                          : lang === 'fr'
+                          ? 'Cliquez sur Start dans Telegram pour finaliser la connexion...'
+                          : 'Click Start in Telegram to complete the connection...'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* What triggers notifications */}
               <div className="space-y-2">
@@ -257,18 +272,9 @@ const SettingsPage = () => {
                 </p>
                 <div className="space-y-1.5">
                   {[
-                    {
-                      icon: '✅',
-                      text: lang === 'ar' ? 'عند تسجيل صفقة رابحة' : lang === 'fr' ? 'Lors d\'un trade gagnant' : 'When a winning trade is saved',
-                    },
-                    {
-                      icon: '❌',
-                      text: lang === 'ar' ? 'عند تسجيل صفقة خاسرة' : lang === 'fr' ? 'Lors d\'un trade perdant' : 'When a losing trade is saved',
-                    },
-                    {
-                      icon: '⚠️',
-                      text: lang === 'ar' ? 'عند اقتراب حد الخسارة اليومي (70%)' : lang === 'fr' ? 'Quand la limite de perte quotidienne approche (70%)' : 'When daily loss limit approaches 70%',
-                    },
+                    { icon: '✅', text: lang === 'ar' ? 'عند تسجيل صفقة رابحة' : lang === 'fr' ? 'Lors d\'un trade gagnant' : 'When a winning trade is saved' },
+                    { icon: '❌', text: lang === 'ar' ? 'عند تسجيل صفقة خاسرة' : lang === 'fr' ? 'Lors d\'un trade perdant' : 'When a losing trade is saved' },
+                    { icon: '⚠️', text: lang === 'ar' ? 'عند اقتراب حد الخسارة اليومي (70%)' : lang === 'fr' ? 'Quand la limite de perte quotidienne approche (70%)' : 'When daily loss limit approaches 70%' },
                   ].map(item => (
                     <div key={item.text} className="flex items-start gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-sm text-muted-foreground">
                       <span>{item.icon}</span>
