@@ -48,19 +48,19 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
   const SLATE:    RGB = [148, 163, 184];
   const SLATE2:   RGB = [100, 116, 139];
 
-  // ── Labels ──
+  // ── Labels — Arabic falls back to English (jsPDF cannot render RTL/Arabic) ──
   const L = {
     ar: {
-      congrats:     'تُمنح هذه الشهادة بفخر إلى',
-      tagline:      'لأداء متميز وانضباط في التداول',
-      totalTrades:  'إجمالي الصفقات',
-      winRate:      'نسبة الربح',
-      totalPnl:     'إجمالي الربح',
-      bestTrade:    'أفضل صفقة',
-      profitFactor: 'معامل الربح',
-      quote:        'الانضباط والاتساق هما أساس النجاح في التداول.',
-      founder:      'Founder, TradeSmartDz',
-      issuedOn:     'صدر بتاريخ:',
+      congrats:     'This certificate is proudly awarded to',
+      tagline:      'For outstanding performance and discipline in trading',
+      totalTrades:  'Total Trades',
+      winRate:      'Win Rate',
+      totalPnl:     'Total PnL',
+      bestTrade:    'Best Trade',
+      profitFactor: 'Profit Factor',
+      quote:        'Discipline and consistency are the foundation of trading success.',
+      founder:      'Founder & CEO, TradeSmartDz',
+      issuedOn:     'Issued on:',
     },
     fr: {
       congrats:     'Ce certificat est fièrement décerné à',
@@ -71,7 +71,7 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
       bestTrade:    'Meilleur trade',
       profitFactor: 'Facteur de profit',
       quote:        'La discipline et la constance sont les bases du succès en trading.',
-      founder:      'Founder, TradeSmartDz',
+      founder:      'Founder & CEO, TradeSmartDz',
       issuedOn:     'Issued on:',
     },
     en: {
@@ -83,7 +83,7 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
       bestTrade:    'Best Trade',
       profitFactor: 'Profit Factor',
       quote:        'Discipline and consistency are the foundation of trading success.',
-      founder:      'Founder, TradeSmartDz',
+      founder:      'Founder & CEO, TradeSmartDz',
       issuedOn:     'Issued on:',
     },
   }[lang];
@@ -138,7 +138,7 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
   const BM = 46;               // box left/right margin
   const BOX_H = 110, BOX_GAP = 14;
   const BOX1_W = (W - BM * 2 - BOX_GAP * 2) / 3;  // 3 boxes row1
-  const SEAL_R = 65;
+  const SEAL_R = 70;
 
   // ── Vertical anchors ──
   const Y_TITLE    = 98;
@@ -290,43 +290,62 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
   doc.setTextColor(...SLATE2);
   doc.text(`"${L.quote}"`, cx, Y_QUOTE, { align: 'center' });
 
-  // ── 11. SEAL — centered ──
+  // ── 11. SEAL — centered horizontally on cx ──
+  // Outer gold ring (radius 70)
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(2);
   doc.circle(cx, Y_SEAL, SEAL_R, 'S');
+  // Inner teal ring (radius 58)
   doc.setDrawColor(...TEAL);
   doc.setLineWidth(1);
-  doc.circle(cx, Y_SEAL, SEAL_R - 10, 'S');
+  doc.circle(cx, Y_SEAL, 58, 'S');
+  // Dark fill inside inner ring
   doc.setFillColor(10, 15, 28);
-  doc.circle(cx, Y_SEAL, SEAL_R - 11, 'F');
-  // Checkmark (drawn, not Unicode)
+  doc.circle(cx, Y_SEAL, 57, 'F');
+
+  // Drawn checkmark centered in top half of seal
+  const ckY = Y_SEAL - 22;   // vertical center of checkmark
   doc.setDrawColor(...TEAL);
-  doc.setLineWidth(2.5);
-  doc.line(cx - 14, Y_SEAL - 3, cx - 4, Y_SEAL + 10);
-  doc.line(cx - 4, Y_SEAL + 10, cx + 18, Y_SEAL - 14);
-  doc.setFont('helvetica', 'bold');
+  doc.setLineWidth(2.8);
+  doc.line(cx - 13, ckY + 2,  cx - 3,  ckY + 14);   // left leg
+  doc.line(cx - 3,  ckY + 14, cx + 16, ckY - 10);   // right leg
+
+  // "VERIFIED" — size 9, gold, below checkmark
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(...GOLD);
-  doc.text('VERIFIED TRADER', cx, Y_SEAL + 22, { align: 'center' });
-  doc.setFontSize(7);
+  doc.text('VERIFIED', cx, Y_SEAL + 10, { align: 'center' });
+
+  // "TRADER" — size 11, gold, bold
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...GOLD);
+  doc.text('TRADER', cx, Y_SEAL + 25, { align: 'center' });
+
+  // "TradeSmartDz" — size 8, teal
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
   doc.setTextColor(...TEAL);
-  doc.text('TradeSmartDz', cx, Y_SEAL + 33, { align: 'center' });
+  doc.text('TradeSmartDz', cx, Y_SEAL + 39, { align: 'center' });
+
+  // "2026" — size 8, gray
   doc.setTextColor(...SLATE2);
-  doc.text('2026', cx, Y_SEAL + 43, { align: 'center' });
+  doc.text('2026', cx, Y_SEAL + 51, { align: 'center' });
 
   // ── 12. SIGNATURE — bottom right ──
   const sigX = W - 185;
+  // "TradeSmartDz" italic teal as stylized signature
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(17);
   doc.setTextColor(...TEAL);
-  doc.text('Mxiche', sigX, Y_SIG_LINE - 10, { align: 'center' });
+  doc.text('TradeSmartDz', sigX, Y_SIG_LINE - 10, { align: 'center' });
   doc.setDrawColor(...SLATE2);
   doc.setLineWidth(0.7);
   doc.line(sigX - 65, Y_SIG_LINE, sigX + 65, Y_SIG_LINE);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(11);
   doc.setTextColor(...SLATE2);
-  doc.text(L.founder, sigX, Y_SIG_T1, { align: 'center' });
+  doc.text('Founder & CEO', sigX, Y_SIG_T1, { align: 'center' });
   const dateStr = new Date().toLocaleDateString(
     lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
     { year: 'numeric', month: 'long', day: 'numeric' }
