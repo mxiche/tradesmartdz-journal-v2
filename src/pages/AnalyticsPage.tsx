@@ -54,35 +54,35 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
     const isFr = lang === 'fr';
 
     const L = isAr ? {
-      congrats: 'يُقدَّم هذا الشهادة بفخر إلى',
-      tagline: 'للأداء المتميز والانضباط في التداول',
-      totalTrades: 'إجمالي الصفقات',
-      winRate: 'نسبة الفوز',
-      totalPnl: 'إجمالي الربح',
-      bestTrade: 'أفضل صفقة',
+      congrats:     'يُقدَّم هذا الشهادة بفخر إلى',
+      tagline:      'للأداء المتميز والانضباط في التداول',
+      totalTrades:  'إجمالي الصفقات',
+      winRate:      'نسبة الفوز',
+      totalPnl:     'إجمالي الربح',
+      bestTrade:    'أفضل صفقة',
       profitFactor: 'معامل الربح',
-      quote: 'الانضباط والاتساق هما أساس النجاح في التداول.',
-      issuedOn: 'صدر بتاريخ:',
+      quote:        'الانضباط والاتساق هما أساس النجاح في التداول.',
+      issuedOn:     'صدر بتاريخ:',
     } : isFr ? {
-      congrats: 'Ce certificat est fièrement décerné à',
-      tagline: 'Pour une performance exceptionnelle et de la discipline en trading',
-      totalTrades: 'Total trades',
-      winRate: 'Taux de réussite',
-      totalPnl: 'PnL total',
-      bestTrade: 'Meilleur trade',
+      congrats:     'Ce certificat est fièrement décerné à',
+      tagline:      'Pour une performance exceptionnelle et de la discipline en trading',
+      totalTrades:  'Total trades',
+      winRate:      'Taux de réussite',
+      totalPnl:     'PnL total',
+      bestTrade:    'Meilleur trade',
       profitFactor: 'Facteur de profit',
-      quote: 'La discipline et la constance sont les bases du succès en trading.',
-      issuedOn: 'Émis le :',
+      quote:        'La discipline et la constance sont les bases du succès en trading.',
+      issuedOn:     'Émis le :',
     } : {
-      congrats: 'This certificate is proudly awarded to',
-      tagline: 'For outstanding performance and discipline in trading',
-      totalTrades: 'Total Trades',
-      winRate: 'Win Rate',
-      totalPnl: 'Total PnL',
-      bestTrade: 'Best Trade',
+      congrats:     'This certificate is proudly awarded to',
+      tagline:      'For outstanding performance and discipline in trading',
+      totalTrades:  'Total Trades',
+      winRate:      'Win Rate',
+      totalPnl:     'Total PnL',
+      bestTrade:    'Best Trade',
       profitFactor: 'Profit Factor',
-      quote: 'Discipline and consistency are the foundation of trading success.',
-      issuedOn: 'Issued on:',
+      quote:        'Discipline and consistency are the foundation of trading success.',
+      issuedOn:     'Issued on:',
     };
 
     const dateStr = new Date().toLocaleDateString(
@@ -103,27 +103,52 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
     const GOLD  = '#d4af37';
     const TEAL  = '#00e0b8';
     const SLATE = '#94a3b8';
+    const GRAY  = '#64748b';
     const DARK  = '#0a0f1c';
     const DARK2 = '#0d1b2a';
     const W = 1200, H = 850;
+    const CX = W / 2; // = 600 — horizontal center
 
-    // ── Stats layout: 340×110, 20px gap ──
+    // ── Stats layout: 340 × 110, 20px gap ──
     const BW = 340, BH = 110, BG = 20;
-    const row1Left = (W - 3 * BW - 2 * BG) / 2;  // = 70
-    const row2Left = (W - 2 * BW - 1 * BG) / 2;  // = 250
+    const row1Left = (W - 3 * BW - 2 * BG) / 2; // = 70
+    const row2Left = (W - 2 * BW - 1 * BG) / 2; // = 250
 
-    // All text uses center alignment — works for both LTR and RTL
     const fontFamily = isAr ? "'Tajawal', Arial, sans-serif" : "Helvetica, Arial, sans-serif";
     const mono = "Helvetica, Arial, sans-serif";
 
-    // Helper: horizontal divider with teal diamond at center
+    // Divider: teal 14×14 diamond at center, dark lines on each side
     const Divider = ({ top, lx, rx }: { top: number; lx: number; rx: number }) => (
       <>
-        <div style={{ position: 'absolute', top, left: lx, width: W / 2 - lx - 14, height: 1, background: '#2a4050' }} />
-        <div style={{ position: 'absolute', top: top - 6, left: W / 2 - 7, width: 14, height: 14, background: TEAL, transform: 'rotate(45deg)' }} />
-        <div style={{ position: 'absolute', top, left: W / 2 + 14, width: rx - W / 2 - 14, height: 1, background: '#2a4050' }} />
+        {/* left line */}
+        <div style={{ position: 'absolute', top, left: lx, width: CX - lx - 11, height: 1, background: '#253545' }} />
+        {/* center diamond 14×14 rotated 45° */}
+        <div style={{ position: 'absolute', top: top - 7, left: CX - 7, width: 14, height: 14, background: TEAL, transform: 'rotate(45deg)' }} />
+        {/* right line */}
+        <div style={{ position: 'absolute', top, left: CX + 11, width: rx - CX - 11, height: 1, background: '#253545' }} />
       </>
     );
+
+    // ── Vertical layout anchors ──
+    // Header
+    const Y_TITLE    = 48;   // title baseline area
+    const Y_SUBTITLE = 100;
+    const Y_DIV1     = 122;
+    const Y_CONGRATS = 140;
+    const Y_NAME     = 160;  // 52px bold → visual bottom ≈ 220
+    const Y_TAGLINE  = 235;
+    const Y_DIV2     = 260;
+    // Stats
+    const Y_ROW1     = 278;  // top of row 1
+    const Y_ROW2     = Y_ROW1 + BH + BG;  // = 408
+    const Y_DIV3     = Y_ROW2 + BH + 18;  // = 536
+    const Y_QUOTE    = Y_DIV3 + 16;       // = 552
+    // Bottom — seal center at 60px above inner-border bottom (y=822)
+    const SEAL_R     = 65;   // diameter = 130px
+    const SEAL_CY    = 822 - 60 - SEAL_R; // = 697
+    const SEAL_CX    = CX;               // = 600
+    // Signature bottom aligns with seal bottom (697+65=762), height ≈ 68px
+    const Y_SIG      = 762 - 68;         // = 694
 
     return (
       <div
@@ -137,7 +162,6 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
           height: H,
           overflow: 'hidden',
           fontFamily,
-          // Explicit pixel dimensions for html2canvas
           minWidth: W,
           maxWidth: W,
           minHeight: H,
@@ -148,179 +172,160 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
         <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, background: DARK }} />
         <div style={{ position: 'absolute', top: 0, left: 540, width: 660, height: H, background: DARK2 }} />
 
-        {/* ── Gold outer border (explicit w/h so it's never clipped) ── */}
+        {/* ── Borders (explicit dimensions — no inset shorthand) ── */}
+        {/* Gold outer 3px */}
         <div style={{ position: 'absolute', top: 15, left: 15, width: W - 30, height: H - 30, border: `3px solid ${GOLD}`, boxSizing: 'border-box' }} />
-
-        {/* ── Teal inner border ── */}
+        {/* Teal inner 1px */}
         <div style={{ position: 'absolute', top: 28, left: 28, width: W - 56, height: H - 56, border: `1px solid ${TEAL}`, boxSizing: 'border-box' }} />
 
-        {/* ── Corner L-ornaments (explicitly sized) ── */}
-        <div style={{ position: 'absolute', top: 15, left: 15,      width: 50, height: 50, borderTop: `2.5px solid ${GOLD}`, borderLeft:  `2.5px solid ${GOLD}` }} />
-        <div style={{ position: 'absolute', top: 15, left: W-65,    width: 50, height: 50, borderTop: `2.5px solid ${GOLD}`, borderRight: `2.5px solid ${GOLD}` }} />
-        <div style={{ position: 'absolute', top: H-65, left: 15,    width: 50, height: 50, borderBottom: `2.5px solid ${GOLD}`, borderLeft: `2.5px solid ${GOLD}` }} />
-        <div style={{ position: 'absolute', top: H-65, left: W-65,  width: 50, height: 50, borderBottom: `2.5px solid ${GOLD}`, borderRight: `2.5px solid ${GOLD}` }} />
+        {/* ── Corner L-ornaments ── */}
+        <div style={{ position: 'absolute', top: 15, left: 15,        width: 50, height: 50, borderTop:    `2.5px solid ${GOLD}`, borderLeft:   `2.5px solid ${GOLD}` }} />
+        <div style={{ position: 'absolute', top: 15, left: W - 65,    width: 50, height: 50, borderTop:    `2.5px solid ${GOLD}`, borderRight:  `2.5px solid ${GOLD}` }} />
+        <div style={{ position: 'absolute', top: H - 65, left: 15,    width: 50, height: 50, borderBottom: `2.5px solid ${GOLD}`, borderLeft:   `2.5px solid ${GOLD}` }} />
+        <div style={{ position: 'absolute', top: H - 65, left: W - 65,width: 50, height: 50, borderBottom: `2.5px solid ${GOLD}`, borderRight:  `2.5px solid ${GOLD}` }} />
 
-        {/* ── Corner stars ── */}
-        {([[ 10, 10],[ W-22, 10],[ 10, H-22],[ W-22, H-22]] as [number,number][]).map(([x,y],i) => (
-          <span key={i} style={{ position: 'absolute', left: x, top: y, color: GOLD, fontSize: 12, lineHeight: '1', userSelect: 'none', fontFamily: mono }}>✦</span>
+        {/* ── Corner stars 20px gold ── */}
+        {([[10, 8],[W - 28, 8],[10, H - 28],[W - 28, H - 28]] as [number,number][]).map(([x,y],i) => (
+          <span key={i} style={{ position: 'absolute', left: x, top: y, color: GOLD, fontSize: 20, lineHeight: '1', fontFamily: mono }}>✦</span>
         ))}
 
-        {/* ── Stars flanking title ── */}
-        <span style={{ position: 'absolute', left: 352, top: 57, color: GOLD, fontSize: 13, userSelect: 'none', fontFamily: mono }}>✦</span>
-        <span style={{ position: 'absolute', left: W - 365, top: 57, color: GOLD, fontSize: 13, userSelect: 'none', fontFamily: mono }}>✦</span>
+        {/* ── Stars flanking title (20px gold) ── */}
+        <span style={{ position: 'absolute', left: 236, top: Y_TITLE + 4, color: GOLD, fontSize: 20, lineHeight: '1', fontFamily: mono }}>✦</span>
+        <span style={{ position: 'absolute', left: W - 256, top: Y_TITLE + 4, color: GOLD, fontSize: 20, lineHeight: '1', fontFamily: mono }}>✦</span>
 
-        {/* ── Title (single line, whiteSpace nowrap) ── */}
+        {/* ── TITLE: 36px, letterSpacing 4px, single line ── */}
         <div style={{
-          position: 'absolute', top: 44, left: 0, width: W,
-          textAlign: 'center', fontSize: 32, fontWeight: 'bold',
-          color: GOLD, letterSpacing: 3, whiteSpace: 'nowrap', fontFamily: mono,
+          position: 'absolute', top: Y_TITLE, left: 0, width: W,
+          textAlign: 'center', fontSize: 36, fontWeight: 'bold',
+          color: GOLD, letterSpacing: 4, whiteSpace: 'nowrap', fontFamily: mono,
         }}>
           CERTIFICATE OF PERFORMANCE
         </div>
 
-        {/* Gold rule */}
-        <div style={{ position: 'absolute', top: 88, left: 80, width: W - 160, height: 1, background: '#7a6520' }} />
-
         {/* Subtitle */}
-        <div style={{ position: 'absolute', top: 98, left: 0, width: W, textAlign: 'center', fontSize: 12, color: '#8899aa', fontFamily: mono }}>
+        <div style={{ position: 'absolute', top: Y_SUBTITLE, left: 0, width: W, textAlign: 'center', fontSize: 12, color: '#7a8a9a', fontFamily: mono }}>
           Presented by TradeSmartDz
         </div>
 
         {/* ── Divider 1 ── */}
-        <Divider top={121} lx={200} rx={1000} />
+        <Divider top={Y_DIV1} lx={180} rx={1020} />
 
         {/* Congrats */}
-        <div style={{ position: 'absolute', top: 136, left: 0, width: W, textAlign: 'center', fontSize: 13, color: SLATE }}>
+        <div style={{ position: 'absolute', top: Y_CONGRATS, left: 0, width: W, textAlign: 'center', fontSize: 13, color: SLATE }}>
           {L.congrats}
         </div>
 
         {/* ── User name ── */}
         <div style={{
-          position: 'absolute', top: 162, left: 60, width: W - 120,
+          position: 'absolute', top: Y_NAME, left: 60, width: W - 120,
           textAlign: 'center', fontSize: 52, fontWeight: 'bold',
           color: '#ffffff', lineHeight: '1.1',
           textShadow: '2px 2px 0 #6b4f00, -1px -1px 0 #6b4f00',
-          textDecoration: 'underline', textDecorationColor: GOLD,
-          textUnderlineOffset: '10px', textDecorationThickness: '1px',
         }}>
           {userName}
         </div>
 
         {/* Tagline */}
-        <div style={{ position: 'absolute', top: 238, left: 60, width: W - 120, textAlign: 'center', fontSize: 13, fontStyle: 'italic', color: '#b0bec8' }}>
+        <div style={{ position: 'absolute', top: Y_TAGLINE, left: 60, width: W - 120, textAlign: 'center', fontSize: 13, fontStyle: 'italic', color: '#a0b0c0' }}>
           {L.tagline}
         </div>
 
         {/* ── Divider 2 ── */}
-        <Divider top={263} lx={80} rx={1120} />
+        <Divider top={Y_DIV2} lx={80} rx={1120} />
 
-        {/* ── Stats row 1 — 3 × 340px ── */}
+        {/* ── Stats row 1 — 3 × 340 × 110 ── */}
         {stats.slice(0, 3).map((s, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              top: 280,
-              left: row1Left + i * (BW + BG),
-              width: BW,
-              height: BH,
-              boxSizing: 'border-box',
-              border: `1.5px solid ${s.color}`,
-              borderRadius: 10,
-              background: DARK2,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-            }}
-          >
-            <div style={{ fontSize: 11, color: SLATE, textAlign: 'center', fontFamily: mono }}>{s.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 'bold', color: s.color, textAlign: 'center', fontFamily: mono }}>{s.value}</div>
+          <div key={i} style={{
+            position: 'absolute',
+            top: Y_ROW1,
+            left: row1Left + i * (BW + BG),
+            width: BW, height: BH,
+            boxSizing: 'border-box',
+            border: `1.5px solid ${s.color}`,
+            borderRadius: 10,
+            background: DARK2,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            padding: 16, gap: 8,
+          }}>
+            <div style={{ fontSize: 14, color: '#ffffff', fontWeight: 600, textAlign: 'center', fontFamily: mono }}>{s.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 'bold', color: s.color, textAlign: 'center', fontFamily: mono }}>{s.value}</div>
           </div>
         ))}
 
-        {/* ── Stats row 2 — 2 × 340px centered ── */}
+        {/* ── Stats row 2 — 2 × 340 × 110 centered ── */}
         {stats.slice(3).map((s, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              top: 406,
-              left: row2Left + i * (BW + BG),
-              width: BW,
-              height: BH,
-              boxSizing: 'border-box',
-              border: `1.5px solid ${s.color}`,
-              borderRadius: 10,
-              background: DARK2,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-            }}
-          >
-            <div style={{ fontSize: 11, color: SLATE, textAlign: 'center', fontFamily: mono }}>{s.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 'bold', color: s.color, textAlign: 'center', fontFamily: mono }}>{s.value}</div>
+          <div key={i} style={{
+            position: 'absolute',
+            top: Y_ROW2,
+            left: row2Left + i * (BW + BG),
+            width: BW, height: BH,
+            boxSizing: 'border-box',
+            border: `1.5px solid ${s.color}`,
+            borderRadius: 10,
+            background: DARK2,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            padding: 16, gap: 8,
+          }}>
+            <div style={{ fontSize: 14, color: '#ffffff', fontWeight: 600, textAlign: 'center', fontFamily: mono }}>{s.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 'bold', color: s.color, textAlign: 'center', fontFamily: mono }}>{s.value}</div>
           </div>
         ))}
 
         {/* ── Divider 3 ── */}
-        <Divider top={534} lx={80} rx={1120} />
+        <Divider top={Y_DIV3} lx={80} rx={1120} />
 
         {/* Quote */}
-        <div style={{ position: 'absolute', top: 549, left: 100, width: W - 200, textAlign: 'center', fontSize: 12, fontStyle: 'italic', color: '#506070' }}>
+        <div style={{ position: 'absolute', top: Y_QUOTE, left: 100, width: W - 200, textAlign: 'center', fontSize: 12, fontStyle: 'italic', color: '#4a5a6a' }}>
           "{L.quote}"
         </div>
 
-        {/* ── Seal — centered at (600, 660), r_outer=68, r_inner=56 ── */}
+        {/* ── SEAL — bottom-center, diameter 130px ── */}
         {/* Outer gold ring */}
         <div style={{
           position: 'absolute',
-          left: 600 - 68, top: 660 - 68,
-          width: 136, height: 136,
-          borderRadius: '50%',
-          border: `2px solid ${GOLD}`,
-          boxSizing: 'border-box',
+          left: SEAL_CX - SEAL_R, top: SEAL_CY - SEAL_R,
+          width: SEAL_R * 2, height: SEAL_R * 2,
+          borderRadius: '50%', border: `2px solid ${GOLD}`, boxSizing: 'border-box',
         }} />
         {/* Inner teal ring */}
         <div style={{
           position: 'absolute',
-          left: 600 - 56, top: 660 - 56,
-          width: 112, height: 112,
-          borderRadius: '50%',
-          border: `1px solid ${TEAL}`,
-          boxSizing: 'border-box',
+          left: SEAL_CX - 53, top: SEAL_CY - 53,
+          width: 106, height: 106,
+          borderRadius: '50%', border: `1px solid ${TEAL}`, boxSizing: 'border-box',
         }} />
-        {/* Seal fill + content */}
+        {/* Seal dark fill + content */}
         <div style={{
           position: 'absolute',
-          left: 600 - 55, top: 660 - 55,
-          width: 110, height: 110,
-          borderRadius: '50%',
-          background: DARK,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 1,
+          left: SEAL_CX - 52, top: SEAL_CY - 52,
+          width: 104, height: 104,
+          borderRadius: '50%', background: DARK,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 2, paddingTop: 6,
         }}>
-          <svg width="30" height="20" viewBox="0 0 30 20" fill="none">
-            <polyline points="2,11 9,18 28,2" stroke={TEAL} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Checkmark SVG — 24px teal */}
+          <svg width="28" height="22" viewBox="0 0 28 22" fill="none" style={{ display: 'block' }}>
+            <polyline points="2,12 10,20 26,2" stroke={TEAL} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <div style={{ fontSize: 8,  color: GOLD, letterSpacing: 1, fontFamily: mono, marginTop: 1 }}>VERIFIED</div>
-          <div style={{ fontSize: 10, fontWeight: 'bold', color: GOLD, letterSpacing: 1, fontFamily: mono }}>TRADER</div>
-          <div style={{ fontSize: 7,  color: TEAL, fontFamily: mono }}>TradeSmartDz</div>
-          <div style={{ fontSize: 7,  color: '#556070', fontFamily: mono }}>2026</div>
+          <div style={{ fontSize: 10, color: '#ffffff', letterSpacing: 1, fontFamily: mono }}>VERIFIED</div>
+          <div style={{ fontSize: 14, fontWeight: 'bold', color: GOLD, letterSpacing: 1, fontFamily: mono }}>TRADER</div>
+          <div style={{ fontSize: 9, color: TEAL, fontFamily: mono }}>TradeSmartDz</div>
+          <div style={{ fontSize: 9, color: '#506070', fontFamily: mono }}>2026</div>
         </div>
 
-        {/* ── Signature — bottom right ── */}
-        <div style={{ position: 'absolute', top: 756, left: W - 290, width: 200, textAlign: 'center' }}>
-          <div style={{ fontSize: 16, fontStyle: 'italic', color: TEAL, fontFamily: mono }}>TradeSmartDz</div>
-          <div style={{ height: 1, background: '#3a4a5a', margin: '6px 20px' }} />
-          <div style={{ fontSize: 10, color: SLATE, fontFamily: mono }}>Founder &amp; CEO</div>
-          <div style={{ fontSize: 9, color: SLATE, marginTop: 3, fontFamily }}>{L.issuedOn} {dateStr}</div>
+        {/* ── SIGNATURE — bottom-right, 60px from inner border ── */}
+        {/* Inner border right = W-28=1172, bottom = H-28=822 */}
+        {/* Sig width=200, right margin 60px → left = 1172-60-200 = 912 */}
+        {/* Sig bottom = 822-60 = 762 */}
+        <div style={{ position: 'absolute', top: Y_SIG, left: 912, width: 200, textAlign: 'center' }}>
+          <div style={{ fontSize: 18, fontStyle: 'italic', color: TEAL, fontFamily: mono }}>TradeSmartDz</div>
+          {/* 100px wide centered signature line */}
+          <div style={{ height: 1, background: GRAY, margin: '7px auto', width: 100 }} />
+          <div style={{ fontSize: 12, color: SLATE, fontFamily: mono }}>Founder &amp; CEO</div>
+          <div style={{ fontSize: 11, color: GRAY, marginTop: 4, fontFamily }}>{L.issuedOn} {dateStr}</div>
         </div>
       </div>
     );
@@ -411,8 +416,8 @@ const AnalyticsPage = () => {
     el.style.zIndex = '9999';
     try {
       await document.fonts.ready;
-      const canvas = await html2canvas(el, { useCORS: true, scale: 1, width: 1200, height: 850 });
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: null, width: 1200, height: 850 });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1200, 850] });
       pdf.addImage(imgData, 'JPEG', 0, 0, 1200, 850);
       const date = new Date().toISOString().slice(0, 10);
