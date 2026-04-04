@@ -15,7 +15,8 @@ interface CalendarEvent {
   actual?: string;
 }
 
-const CALENDAR_URL = 'https://vikqwycjqqoobteslbxp.supabase.co/functions/v1/forex-calendar';
+const CALENDAR_URL      = 'https://vikqwycjqqoobteslbxp.supabase.co/functions/v1/forex-calendar';
+const CALENDAR_NEXT_URL = 'https://vikqwycjqqoobteslbxp.supabase.co/functions/v1/forex-calendar-next';
 const TZ = 'Africa/Algiers';
 const LS_KEY = 'tradesmartdz_calendar_filters';
 const ALL_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD'];
@@ -152,10 +153,20 @@ export function ForexCalendar({ lang }: ForexCalendarProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(CALENDAR_URL);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setEvents(Array.isArray(data) ? data : []);
+      const [thisRes, nextRes] = await Promise.all([
+        fetch(CALENDAR_URL),
+        fetch(CALENDAR_NEXT_URL),
+      ]);
+      if (!thisRes.ok) throw new Error(`HTTP ${thisRes.status}`);
+      const [thisData, nextData] = await Promise.all([
+        thisRes.json(),
+        nextRes.ok ? nextRes.json() : Promise.resolve([]),
+      ]);
+      const combined = [
+        ...(Array.isArray(thisData) ? thisData : []),
+        ...(Array.isArray(nextData) ? nextData : []),
+      ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      setEvents(combined);
     } catch (e: any) {
       setError(e.message ?? 'Unknown error');
     } finally {
