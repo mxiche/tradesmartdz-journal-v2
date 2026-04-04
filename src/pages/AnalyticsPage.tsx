@@ -116,39 +116,21 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
   const grossLoss   = Math.abs(losses.reduce((s, tr) => s + (tr.profit ?? 0), 0));
   const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : '∞';
 
-  const stats = [
-    { label: L.totalTrades,   value: String(closed.length) },
-    { label: L.winRate,       value: `${winRate}%` },
-    { label: L.totalPnl,     value: `$${totalPnl.toFixed(2)}` },
-    { label: L.bestTrade,    value: bestTrade >= 0 ? `+$${bestTrade.toFixed(2)}` : `$${bestTrade.toFixed(2)}` },
-    { label: L.profitFactor, value: profitFactor },
+  const stats: Array<{ label: string; value: string; color: RGB }> = [
+    { label: L.totalTrades,  value: String(closed.length),                                                   color: [96, 165, 250]  }, // blue
+    { label: L.winRate,      value: `${winRate}%`,                                                           color: [0, 224, 184]   }, // teal
+    { label: L.totalPnl,    value: `$${totalPnl.toFixed(2)}`,                                               color: totalPnl >= 0 ? [34, 197, 94] : [239, 68, 68] }, // green / red
+    { label: L.bestTrade,   value: bestTrade >= 0 ? `+$${bestTrade.toFixed(2)}` : `$${bestTrade.toFixed(2)}`, color: [245, 158, 11] }, // amber
+    { label: L.profitFactor, value: profitFactor,                                                            color: [167, 139, 250] }, // purple
   ];
 
-  // ── 1. Background gradient (two rects blending) ──
+  // ── 1. Background ──
   doc.setFillColor(10, 15, 28);
   doc.rect(0, 0, W, H, 'F');
   doc.setFillColor(13, 27, 42);
-  doc.rect(0, H * 0.4, W, H * 0.6, 'F');
+  doc.rect(0, H * 0.5, W, H * 0.5, 'F');
 
-  // ── 2. Radial center glow (stacked semi-transparent circles) ──
-  const glowColors: RGB[] = [
-    [15, 50, 45],
-    [12, 40, 36],
-    [10, 30, 28],
-  ];
-  const glowRadii = [320, 220, 140];
-  glowColors.forEach((c, i) => {
-    doc.setFillColor(...c);
-    doc.circle(cx, H * 0.42, glowRadii[i], 'F');
-  });
-
-  // ── 3. Watermark behind everything ──
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(110);
-  doc.setTextColor(18, 42, 38);
-  doc.text('TradeSmartDz', cx, H / 2 + 40, { align: 'center', angle: 330 });
-
-  // ── 4. Outer border (teal, thick + glow layer) ──
+  // ── 2. Outer border: teal glow layer + teal border ──
   doc.setDrawColor(0, 140, 115);
   doc.setLineWidth(6);
   doc.rect(18, 18, W - 36, H - 36, 'S');
@@ -156,114 +138,105 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
   doc.setLineWidth(3);
   doc.rect(20, 20, W - 40, H - 40, 'S');
 
-  // ── 5. Inner border (gold, thin) ──
+  // ── 3. Inner border: gold ──
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(1);
   doc.rect(35, 35, W - 70, H - 70, 'S');
 
-  // ── 6. Corner ornaments (gold L-shapes) ──
+  // ── 4. Corner ornaments: gold L-shapes ──
   const arm = 40;
   const off = 35;
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(2.5);
-  // Top-left
-  doc.line(off, off, off + arm, off);
-  doc.line(off, off, off, off + arm);
-  // Top-right
-  doc.line(W - off, off, W - off - arm, off);
-  doc.line(W - off, off, W - off, off + arm);
-  // Bottom-left
-  doc.line(off, H - off, off + arm, H - off);
-  doc.line(off, H - off, off, H - off - arm);
-  // Bottom-right
-  doc.line(W - off, H - off, W - off - arm, H - off);
-  doc.line(W - off, H - off, W - off, H - off - arm);
+  doc.line(off, off, off + arm, off);         doc.line(off, off, off, off + arm);
+  doc.line(W-off, off, W-off-arm, off);       doc.line(W-off, off, W-off, off+arm);
+  doc.line(off, H-off, off+arm, H-off);       doc.line(off, H-off, off, H-off-arm);
+  doc.line(W-off, H-off, W-off-arm, H-off);   doc.line(W-off, H-off, W-off, H-off-arm);
 
-  // ── 7. HEADER ──
+  // ── 5. HEADER ──
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(36);
   doc.setTextColor(...GOLD);
-  doc.text(L.heading, cx, 108, { align: 'center' });
+  doc.text(L.heading, cx, 105, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(14);
   doc.setTextColor(...SLATE);
-  doc.text(L.subHeading, cx, 135, { align: 'center' });
+  doc.text(L.subHeading, cx, 132, { align: 'center' });
 
-  // Gold divider line under header
   doc.setDrawColor(...GOLD_DIM);
   doc.setLineWidth(0.8);
   doc.line(200, 148, W - 200, 148);
 
-  // ── 8. RECIPIENT SECTION ──
+  // ── 6. RECIPIENT ──
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(14);
   doc.setTextColor(...SLATE);
-  doc.text(L.congrats, cx, 182, { align: 'center' });
+  doc.text(L.congrats, cx, 188, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(42);
+  doc.setFontSize(52);
   doc.setTextColor(...WHITE);
-  doc.text(userName, cx, 230, { align: 'center' });
+  doc.text(userName, cx, 248, { align: 'center' });
 
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(14);
   doc.setTextColor(203, 213, 225);
-  doc.text(L.tagline, cx, 258, { align: 'center' });
+  doc.text(L.tagline, cx, 278, { align: 'center' });
 
-  // Teal divider
   doc.setDrawColor(...TEAL);
   doc.setLineWidth(0.6);
-  doc.line(250, 272, W - 250, 272);
+  doc.line(250, 296, W - 250, 296);
 
-  // ── 9. STATS — clean 2-column list, centered ──
-  const statColLabelX = cx - 160;
-  const statColValueX = cx + 160;
-  let sy = 308;
-  const statRowH = 46;
+  // ── 7. STATS — 5 boxes evenly spaced in one row ──
+  const boxW = 190;
+  const boxH = 90;
+  const totalBoxW = stats.length * boxW;
+  const totalGap = W - 120 - totalBoxW;   // 60px margin each side
+  const gap = totalGap / (stats.length - 1);
+  const boxY = 316;
 
   stats.forEach((stat, i) => {
-    // Thin divider between rows (not before first)
-    if (i > 0) {
-      doc.setDrawColor(...DIVIDER);
-      doc.setLineWidth(0.5);
-      doc.line(statColLabelX - 20, sy - 14, statColValueX + 20, sy - 14);
-    }
+    const bx = 60 + i * (boxW + gap);
+    const bCx = bx + boxW / 2;
 
+    // Box fill + border
+    doc.setFillColor(13, 27, 42);
+    doc.setDrawColor(...TEAL);
+    doc.setLineWidth(1);
+    doc.roundedRect(bx, boxY, boxW, boxH, 6, 6, 'FD');
+
+    // Label
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(13);
+    doc.setFontSize(11);
     doc.setTextColor(...SLATE);
-    doc.text(stat.label, statColLabelX, sy, { align: 'right' });
+    doc.text(stat.label, bCx, boxY + 26, { align: 'center' });
 
+    // Value
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.setTextColor(...TEAL);
-    doc.text(stat.value, statColValueX, sy, { align: 'left' });
-
-    sy += statRowH;
+    doc.setFontSize(22);
+    doc.setTextColor(...stat.color);
+    doc.text(stat.value, bCx, boxY + 64, { align: 'center' });
   });
 
-  // ── 10. QUOTE ──
-  const quoteY = sy + 10;
+  // ── 8. QUOTE ──
+  const quoteY = boxY + boxH + 44;
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(12);
-  doc.setTextColor(...SLATE2);
+  doc.setFontSize(13);
+  doc.setTextColor(...SLATE);
   doc.text(`"${L.quote}"`, cx, quoteY, { align: 'center' });
 
-  // ── 11. SEAL (bottom-left) ──
-  const sealX = 155;
-  const sealY = H - 110;
+  // ── 9. SEAL (bottom-left) ──
+  const sealX = 150;
+  const sealY = H - 100;
   const sealR = 62;
 
-  // Outer gold ring
   doc.setDrawColor(...GOLD);
   doc.setLineWidth(2.5);
   doc.circle(sealX, sealY, sealR, 'S');
-  // Inner ring
   doc.setDrawColor(...GOLD_DIM);
   doc.setLineWidth(0.8);
   doc.circle(sealX, sealY, sealR - 8, 'S');
-  // Dark fill
   doc.setFillColor(10, 18, 30);
   doc.circle(sealX, sealY, sealR - 9, 'F');
 
@@ -278,25 +251,24 @@ function generatePDF(trades: Trade[], lang: Lang, userName: string) {
   doc.text('TradeSmartDz', sealX, sealY + 18, { align: 'center' });
   doc.text('2026', sealX, sealY + 30, { align: 'center' });
 
-  // ── 12. SIGNATURE SECTION (bottom-right) ──
+  // ── 10. SIGNATURE (bottom-right) ──
   const sigX = W - 200;
   const sigY = H - 90;
   doc.setDrawColor(...SLATE2);
   doc.setLineWidth(0.7);
-  doc.line(sigX - 100, sigY, sigX + 100, sigY);
+  doc.line(sigX - 110, sigY, sigX + 110, sigY);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(12);
   doc.setTextColor(...SLATE2);
-  doc.text(L.founder, sigX, sigY + 18, { align: 'center' });
+  doc.text(L.founder, sigX, sigY + 20, { align: 'center' });
 
   const dateStr = new Date().toLocaleDateString(
     lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
     { year: 'numeric', month: 'long', day: 'numeric' }
   );
   doc.setFontSize(11);
-  doc.setTextColor(...SLATE2);
-  doc.text(`${L.issuedOn} ${dateStr}`, sigX, sigY + 34, { align: 'center' });
+  doc.text(`${L.issuedOn} ${dateStr}`, sigX, sigY + 36, { align: 'center' });
 
   // ── Save ──
   const date = new Date().toISOString().slice(0, 10);
