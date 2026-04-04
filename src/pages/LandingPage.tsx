@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Logo } from '@/components/Logo';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -186,6 +187,7 @@ const LandingPage = () => {
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
+            <ThemeToggle />
             <div className="hidden items-center gap-2 sm:flex">
               <Link to="/login"><Button variant="outline" size="sm" className="min-h-[44px]">{t('login')}</Button></Link>
               <Link to="/register"><Button size="sm" className="min-h-[44px] gradient-primary text-primary-foreground">{t('getStarted')}</Button></Link>

@@ -1,11 +1,11 @@
 export function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
-  const sizes     = { sm: 'text-sm',  md: 'text-base', lg: 'text-xl' };
-  const iconSizes = { sm: 'h-8 w-20', md: 'h-10 w-24', lg: 'h-14 w-32' };
+  const iconSizes = { sm: 'h-7 w-7', md: 'h-8 w-8', lg: 'h-10 w-10' };
+  const textSizes = { sm: 'text-base', md: 'text-lg', lg: 'text-2xl' };
   return (
-    <div className="relative flex items-center justify-center" style={{ width: 'fit-content' }}>
-      <img src="/logo-icon.png" alt="" className={iconSizes[size]} />
-      <span className={`absolute ${sizes[size]} font-bold text-foreground drop-shadow-md`}>
-        Trade<span className="text-white">Smart</span><span className="text-primary">Dz</span>
+    <div className="flex items-center gap-2">
+      <img src="/logo-icon.png" alt="TradeSmartDz" className={iconSizes[size]} />
+      <span className={`${textSizes[size]} font-bold`}>
+        <span className="text-foreground">TradeSmart</span><span className="text-primary">Dz</span>
       </span>
     </div>
   );
