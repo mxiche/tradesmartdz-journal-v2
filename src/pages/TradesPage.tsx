@@ -159,62 +159,103 @@ interface Mt5ParsedTrade {
   commission: number;
 }
 
-function parseMt5Date(s: string): string | null {
-  const m = s.trim().match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
-  if (!m) return null;
-  return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}`;
+function parseMt5CellDate(s: string): string | null {
+  // "2024.01.15 14:30:00" or "2024.01.15 14:30"
+  const m = s.trim().match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6] ?? '00'}`;
+  // ISO "2024-01-15 14:30:00"
+  const m2 = s.trim().match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}(?::\d{2})?)$/);
+  if (m2) return `${m2[1]}T${m2[2]}`;
+  return null;
 }
+
+const SKIP_TYPES = new Set(['balance', 'deposit', 'withdrawal', 'credit', 'correction']);
+const DIR_SKIP   = new Set(['BUY', 'SELL', 'IN', 'OUT', 'BUY LIMIT', 'SELL LIMIT', 'BUY STOP', 'SELL STOP']);
 
 function parseMt5Html(html: string): Mt5ParsedTrade[] {
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  const rows = Array.from(doc.querySelectorAll('tr'));
-
-  type OpenDeal = { dateStr: string; symbol: string; dirType: string; volume: number; price: number; commission: number };
-  const openDeals = new Map<string, OpenDeal>();
+  const tables = doc.querySelectorAll('table');
   const trades: Mt5ParsedTrade[] = [];
 
-  const NON_TRADE = new Set(['balance', 'credit', 'deposit', 'withdrawal', 'correction']);
+  for (const table of tables) {
+    const rows = table.querySelectorAll('tr');
 
-  for (const row of rows) {
-    const cells = Array.from(row.querySelectorAll('td')).map(td => (td.textContent ?? '').trim());
-    if (cells.length < 8) continue;
+    for (const row of rows) {
+      const cells = Array.from(row.querySelectorAll('td')).map(td => (td.textContent ?? '').trim());
+      if (cells.length < 8) continue;
 
-    const dateStr = parseMt5Date(cells[0]);
-    if (!dateStr) continue;
+      const rowText = cells.join(' ').toLowerCase();
 
-    const type = cells[3].toLowerCase();
-    const dirCol = cells[4].toLowerCase();
+      // Must contain buy or sell
+      if (!rowText.includes('buy') && !rowText.includes('sell')) continue;
 
-    if (NON_TRADE.has(type)) continue;
+      // Skip non-trade rows
+      if (SKIP_TYPES.has(cells[3]?.toLowerCase() ?? '')) continue;
+      if (rowText.includes('balance') || rowText.includes('deposit') ||
+          rowText.includes('withdrawal') || rowText.includes('credit')) continue;
 
-    const symbol = cells[2].trim();
-    if (!symbol || symbol.length < 2) continue;
-
-    const volume = parseFloat(cells[5]) || 0;
-    const price = parseFloat(cells[6].replace(',', '.')) || 0;
-    const orderNum = cells[7].trim();
-    const commission = parseFloat(cells[8]) || 0;
-    const profit = parseFloat(cells[10]) || 0;
-
-    if (dirCol === 'in') {
-      openDeals.set(orderNum, { dateStr, symbol, dirType: type, volume, price, commission });
-    } else if (dirCol === 'out') {
-      const open = openDeals.get(orderNum);
-      if (open) {
-        const isBuy = open.dirType === 'buy' || open.dirType === 'buy limit' || open.dirType === 'buy stop' || open.dirType === 'buy stop limit';
-        trades.push({
-          symbol: open.symbol || symbol,
-          direction: isBuy ? 'BUY' : 'SELL',
-          volume: open.volume || volume,
-          entry: open.price,
-          exit_price: price,
-          open_time: open.dateStr,
-          close_time: dateStr,
-          profit,
-          commission: (open.commission || 0) + commission,
-        });
-        openDeals.delete(orderNum);
+      // Find direction
+      let direction: 'BUY' | 'SELL' | '' = '';
+      for (const cell of cells) {
+        const c = cell.toLowerCase();
+        if (c === 'buy' || c === 'buy limit' || c === 'buy stop' || c === 'buy stop limit') { direction = 'BUY'; break; }
+        if (c === 'sell' || c === 'sell limit' || c === 'sell stop' || c === 'sell stop limit') { direction = 'SELL'; break; }
       }
+      if (!direction) continue;
+
+      // Find symbol: uppercase 2–10 chars (exclude direction keywords)
+      let symbol = '';
+      for (const cell of cells) {
+        if (DIR_SKIP.has(cell.toUpperCase())) continue;
+        if (/^[A-Z]{2,10}$/.test(cell) ||
+            /^[A-Z]{2,6}USD$/.test(cell) ||
+            /^(XAU|XAG|BTC|ETH|NQ|ES|YM|GC|CL|NASDAQ|SP500)/.test(cell)) {
+          symbol = cell;
+          break;
+        }
+      }
+      if (!symbol || symbol.length < 2) continue;
+
+      // Collect all dates in the row
+      const dates: string[] = [];
+      for (const cell of cells) {
+        const d = parseMt5CellDate(cell);
+        if (d) dates.push(d);
+      }
+      if (dates.length === 0) continue;
+
+      const open_time  = dates[0];
+      const close_time = dates[1] ?? dates[0];
+
+      // Find profit: last valid number (can be negative, skip blanks)
+      let profit = 0;
+      for (let i = cells.length - 1; i >= 0; i--) {
+        const raw = cells[i].replace(/\s/g, '').replace(',', '.');
+        if (!raw || raw === '0') continue;
+        const val = parseFloat(raw);
+        if (!isNaN(val) && /^-?\d/.test(raw) && Math.abs(val) < 1_000_000) { profit = val; break; }
+      }
+
+      // Find volume: small decimal like 0.01–100
+      let volume = 0;
+      for (const cell of cells) {
+        const val = parseFloat(cell.replace(',', '.'));
+        if (!isNaN(val) && val > 0 && val <= 100 && /^\d+\.\d+$/.test(cell)) { volume = val; break; }
+      }
+
+      // Find entry/exit prices (exclude dates, skip cells with colons for times)
+      const prices: number[] = [];
+      for (const cell of cells) {
+        if (cell.includes(':')) continue;
+        // Skip date-like cells (4-digit year portion)
+        if (/^\d{4}[.\-]/.test(cell)) continue;
+        const val = parseFloat(cell.replace(',', '.'));
+        if (!isNaN(val) && val > 0.5 && val < 1_000_000) prices.push(val);
+      }
+      const entry      = prices[0] ?? 0;
+      const exit_price = prices.length >= 2 ? prices[prices.length - 2] : (prices[0] ?? 0);
+
+      trades.push({ symbol, direction, volume, entry, exit_price, open_time, close_time, profit, commission: 0 });
     }
   }
 
@@ -249,6 +290,7 @@ function Mt5ImportModal({
   const [importedCount, setImportedCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [htmlDebug, setHtmlDebug] = useState<string | null>(null);
   const [showNewAccount, setShowNewAccount] = useState(false);
   const [newAccFirm, setNewAccFirm] = useState('');
   const [newAccLogin, setNewAccLogin] = useState('');
@@ -256,12 +298,16 @@ function Mt5ImportModal({
   const [creatingAcc, setCreatingAcc] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const isMobile = typeof window !== 'undefined' && (
+    window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
+  );
+
   // Reset when closed
   useEffect(() => {
     if (!open) {
       setStep(1); setParsedTrades([]); setDuplicateCount(0);
       setSelectedAccountId(''); setImportProgress(0); setImportTotal(0);
-      setImportedCount(0); setSkippedCount(0); setFileError(null);
+      setImportedCount(0); setSkippedCount(0); setFileError(null); setHtmlDebug(null);
       setShowNewAccount(false); setNewAccFirm(''); setNewAccLogin(''); setNewAccName('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -277,6 +323,7 @@ function Mt5ImportModal({
 
   const handleFile = async (file: File) => {
     setFileError(null);
+    setHtmlDebug(null);
     if (!file.name.match(/\.(html?|htm)$/i)) {
       setFileError(t('importInvalidFile'));
       return;
@@ -284,7 +331,11 @@ function Mt5ImportModal({
     let html: string;
     try { html = await file.text(); } catch { setFileError(t('importInvalidFile')); return; }
     const trades = parseMt5Html(html);
-    if (trades.length === 0) { setFileError(t('importNoTrades')); return; }
+    if (trades.length === 0) {
+      setFileError(t('importNoTrades'));
+      setHtmlDebug(html.slice(0, 500));
+      return;
+    }
 
     // Duplicate check preview
     const { data: existing } = await supabase
@@ -379,8 +430,48 @@ function Mt5ImportModal({
         {/* ── Step 1: Upload ── */}
         {step === 1 && (
           <div className="space-y-4">
+            {/* Mobile warning */}
+            {isMobile && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-400">
+                {lang === 'ar' ? (
+                  <div className="space-y-1">
+                    <p className="font-semibold">⚠️ تصدير MT5 يعمل فقط على الكمبيوتر</p>
+                    <p className="text-amber-300/80">👉 استخدم MT5 على الكمبيوتر:</p>
+                    <ol className="list-decimal mr-4 space-y-0.5 text-amber-300/70 text-xs">
+                      <li>اذهب إلى سجل المعاملات</li>
+                      <li>انقر بزر الأيمن ← حفظ كتقرير</li>
+                      <li>ارفع الملف هنا</li>
+                    </ol>
+                    <p className="text-xs text-amber-300/50 mt-1">يمكنك رفع الملف من هاتفك إذا نقلته من الكمبيوتر</p>
+                  </div>
+                ) : lang === 'fr' ? (
+                  <div className="space-y-1">
+                    <p className="font-semibold">⚠️ L'export MT5 fonctionne uniquement sur PC</p>
+                    <p className="text-amber-300/80">👉 Utilisez MT5 sur ordinateur :</p>
+                    <ol className="list-decimal ml-4 space-y-0.5 text-amber-300/70 text-xs">
+                      <li>Allez dans Historique</li>
+                      <li>Clic droit → Enregistrer en rapport</li>
+                      <li>Uploadez le fichier ici</li>
+                    </ol>
+                    <p className="text-xs text-amber-300/50 mt-1">Vous pouvez quand même uploader si vous avez transféré le fichier</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="font-semibold">⚠️ MT5 export only works on desktop</p>
+                    <p className="text-amber-300/80">👉 Use MT5 on desktop:</p>
+                    <ol className="list-decimal ml-4 space-y-0.5 text-amber-300/70 text-xs">
+                      <li>Go to History</li>
+                      <li>Right-click → Save as Report</li>
+                      <li>Upload the file here</li>
+                    </ol>
+                    <p className="text-xs text-amber-300/50 mt-1">You can still upload if you transferred the file to your phone</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div
-              className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-10 text-center transition-colors ${
+              className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
                 isDragging ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50 hover:bg-secondary/30'
               }`}
               onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
@@ -399,8 +490,20 @@ function Mt5ImportModal({
             </div>
 
             {fileError && (
-              <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                <X className="h-4 w-4 shrink-0" />{fileError}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <X className="h-4 w-4 shrink-0" />{fileError}
+                </div>
+                {htmlDebug && (
+                  <details className="rounded-lg border border-border bg-secondary/30 text-xs">
+                    <summary className="cursor-pointer px-3 py-2 text-muted-foreground hover:text-foreground">
+                      {lang === 'ar' ? 'عرض تفاصيل الملف (للإبلاغ عن المشكلة)' : lang === 'fr' ? 'Voir les données du fichier (pour signaler)' : 'Show file debug info (for bug report)'}
+                    </summary>
+                    <pre className="overflow-x-auto whitespace-pre-wrap break-all px-3 pb-3 text-muted-foreground/70 leading-relaxed">
+                      {htmlDebug}
+                    </pre>
+                  </details>
+                )}
               </div>
             )}
 

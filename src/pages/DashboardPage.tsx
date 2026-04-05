@@ -383,7 +383,7 @@ function DashDayCell({ d, lang, onClick }: { d: DashDayData; lang: 'ar'|'fr'|'en
 
   return (
     <div
-      className={`relative flex min-h-[90px] flex-col rounded-lg border p-2 transition-all duration-150 select-none
+      className={`relative flex min-h-[50px] sm:min-h-[90px] flex-col rounded-lg border p-1.5 sm:p-2 transition-all duration-150 select-none
         ${bg} ${border || 'border-border/40'}
         ${d.isCurrentMonth ? 'cursor-pointer hover:border-primary/40 hover:brightness-110' : ''}
       `}
@@ -392,20 +392,22 @@ function DashDayCell({ d, lang, onClick }: { d: DashDayData; lang: 'ar'|'fr'|'en
       onMouseLeave={() => setHovered(false)}
     >
       {/* Day number */}
-      <span className={`text-[11px] font-medium leading-none ${d.isToday ? 'font-bold text-primary' : 'text-muted-foreground'}`}>
+      <span className={`text-[10px] sm:text-[11px] font-medium leading-none ${d.isToday ? 'font-bold text-primary' : 'text-muted-foreground'}`}>
         {d.date.getDate()}
       </span>
 
       {/* Trade data */}
       {hasTrades && d.isCurrentMonth && (
-        <div className="mt-1 flex flex-1 flex-col items-center justify-center gap-0.5">
-          <span className={`text-base font-bold leading-tight ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+        <div className="mt-0.5 sm:mt-1 flex flex-1 flex-col items-center justify-center gap-0.5">
+          <span className={`text-[11px] sm:text-base font-bold leading-tight ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
             {fmtPnlCal(d.pnl)}
           </span>
-          <span className="text-[10px] text-muted-foreground">
-            {d.tradeCount} {lang === 'ar' ? 'صفقة' : lang === 'fr' ? (d.tradeCount > 1 ? 'trades' : 'trade') : (d.tradeCount !== 1 ? 'trades' : 'trade')}
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground">
+            {d.tradeCount}
+            <span className="hidden sm:inline"> {lang === 'ar' ? 'صفقة' : lang === 'fr' ? (d.tradeCount > 1 ? 'trades' : 'trade') : (d.tradeCount !== 1 ? 'trades' : 'trade')}</span>
           </span>
-          <span className={`text-[10px] font-medium ${wr >= 50 ? 'text-[#22c55e]/80' : 'text-[#ef4444]/80'}`}>
+          {/* Win rate: hidden on mobile */}
+          <span className={`hidden sm:inline text-[10px] font-medium ${wr >= 50 ? 'text-[#22c55e]/80' : 'text-[#ef4444]/80'}`}>
             {wr}%
           </span>
         </div>
@@ -471,12 +473,12 @@ function DayDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-xl shadow-2xl"
+        className="w-full sm:max-w-md overflow-hidden rounded-t-2xl sm:rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto"
         style={{
           backgroundColor: '#1a1d27',
           border: '1px solid rgba(0,212,170,0.3)',
@@ -676,7 +678,7 @@ function TradingCalendar({
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <h2 className="min-w-[170px] text-center text-xl font-bold text-foreground">
+          <h2 className="min-w-[110px] sm:min-w-[170px] text-center text-base sm:text-xl font-bold text-foreground">
             {CAL_MONTH_NAMES[lang][month]} {year}
           </h2>
           <button onClick={nextMonth}
@@ -702,26 +704,26 @@ function TradingCalendar({
             <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'أيام التداول' : lang === 'fr' ? 'Jours' : 'Trading Days'}</span>
             <span className="text-sm font-bold text-foreground">{monthStats.tradingDays}</span>
           </div>
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+          <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
             <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'نسبة الفوز' : lang === 'fr' ? 'Réussite' : 'Win Rate'}</span>
             <span className={`text-sm font-bold ${monthStats.winRate >= 50 ? 'text-[#22c55e]' : monthStats.totalTrades === 0 ? 'text-foreground' : 'text-[#ef4444]'}`}>
               {monthStats.totalTrades === 0 ? '—' : `${monthStats.winRate}%`}
             </span>
           </div>
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+          <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
             <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'ربح/خسارة' : lang === 'fr' ? 'G/P' : 'W/L days'}</span>
             <span className="text-sm font-bold text-[#22c55e]">{monthStats.profitDays}</span>
             <span className="text-xs text-muted-foreground">/</span>
             <span className="text-sm font-bold text-[#ef4444]">{monthStats.tradingDays - monthStats.profitDays}</span>
           </div>
           {monthStats.bestDay && monthStats.bestDay.pnl > 0 && (
-            <div className="flex items-center gap-2 rounded-lg border border-[rgba(34,197,94,0.3)] bg-[rgba(34,197,94,0.08)] px-3 py-1.5">
+            <div className="hidden sm:flex items-center gap-2 rounded-lg border border-[rgba(34,197,94,0.3)] bg-[rgba(34,197,94,0.08)] px-3 py-1.5">
               <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'أفضل' : lang === 'fr' ? 'Meilleur' : 'Best'}</span>
               <span className="text-sm font-bold text-[#22c55e]">{fmtPnlCal(monthStats.bestDay.pnl)}</span>
             </div>
           )}
           {monthStats.worstDay && monthStats.worstDay.pnl < 0 && (
-            <div className="flex items-center gap-2 rounded-lg border border-[rgba(239,68,68,0.3)] bg-[rgba(239,68,68,0.08)] px-3 py-1.5">
+            <div className="hidden sm:flex items-center gap-2 rounded-lg border border-[rgba(239,68,68,0.3)] bg-[rgba(239,68,68,0.08)] px-3 py-1.5">
               <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'أسوأ' : lang === 'fr' ? 'Pire' : 'Worst'}</span>
               <span className="text-sm font-bold text-[#ef4444]">{fmtPnlCal(monthStats.worstDay.pnl)}</span>
             </div>
@@ -737,7 +739,8 @@ function TradingCalendar({
           <div className="mb-1 grid grid-cols-7 gap-1">
             {CAL_DAY_NAMES[lang].map((name, i) => (
               <div key={i} className={`py-1.5 text-center text-xs font-semibold ${i === 0 || i === 6 ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
-                {name}
+                <span className="hidden sm:inline">{name}</span>
+                <span className="sm:hidden">{name.charAt(0)}</span>
               </div>
             ))}
           </div>
