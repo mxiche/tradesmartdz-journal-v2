@@ -684,6 +684,25 @@ const TradesPage = () => {
     return selectedTrade?.duration ?? '—';
   }, [editOpenTime, editCloseTime, selectedTrade]);
 
+  // Safe trade object — guarantees all optional fields have fallback values
+  // so the detail panel never crashes on old trades missing new columns
+  const safeTrade = useMemo(() => {
+    if (!selectedTrade) return null;
+    return {
+      ...selectedTrade,
+      rating:         (selectedTrade as any).rating         ?? 0,
+      reviewed:       (selectedTrade as any).reviewed       ?? false,
+      screenshot_url: selectedTrade.screenshot_url          ?? null,
+      setup_tag:      selectedTrade.setup_tag               ?? '',
+      notes:          selectedTrade.notes                   ?? '',
+      session:        selectedTrade.session                 ?? '',
+      entry:          selectedTrade.entry                   ?? null,
+      exit_price:     selectedTrade.exit_price              ?? null,
+      duration:       selectedTrade.duration                ?? null,
+      profit:         selectedTrade.profit                  ?? 0,
+    };
+  }, [selectedTrade]);
+
   // Screenshot upload
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -1802,10 +1821,13 @@ const TradesPage = () => {
       {/* ── Detail Panel ── */}
       <Sheet open={!!selectedTrade} onOpenChange={() => setSelectedTrade(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-          {selectedTrade && (
+          {selectedTrade && safeTrade && (
               <>
                 <SheetHeader className="pb-2">
-                  <SheetTitle className="flex items-center gap-3">
+                  {/* SheetTitle must be a plain text node (renders as h2) — no inputs/buttons inside */}
+                  <SheetTitle className="sr-only">{editSymbol || selectedTrade.symbol} — Trade Detail</SheetTitle>
+                  {/* Visual header row */}
+                  <div className="flex items-center gap-3">
                     <span className={`rounded-full px-3 py-0.5 text-sm font-bold ${editDirection === 'BUY' ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss'}`}>
                       {editDirection}
                     </span>
@@ -1832,7 +1854,7 @@ const TradesPage = () => {
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                  </SheetTitle>
+                  </div>
                 </SheetHeader>
 
                 <div className="space-y-5 pt-2">
@@ -1895,8 +1917,8 @@ const TradesPage = () => {
                     {/* Duration read-only */}
                     <p className="text-xs text-muted-foreground">
                       {t('duration')}: <span className="font-medium text-foreground">{durCalc}</span>
-                      {selectedTrade.entry && <span className="ms-3">{t('entry')}: {selectedTrade.entry}</span>}
-                      {selectedTrade.exit_price && <span className="ms-3">{t('exit')}: {selectedTrade.exit_price}</span>}
+                      {safeTrade.entry != null && safeTrade.entry > 0 && <span className="ms-3">{t('entry')}: {safeTrade.entry}</span>}
+                      {safeTrade.exit_price != null && safeTrade.exit_price > 0 && <span className="ms-3">{t('exit')}: {safeTrade.exit_price}</span>}
                     </p>
                   </div>
 
@@ -2023,10 +2045,10 @@ const TradesPage = () => {
                       <div ref={shareCardRef} style={{ width: 480, background: 'linear-gradient(135deg,#0f1117 0%,#1a1d27 100%)', borderRadius: 16, padding: 28, fontFamily: 'system-ui,sans-serif', color: '#e2e8f0' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: '#00d4aa', letterSpacing: '0.08em' }}>TRADESMARTDZ</span>
-                          <span style={{ fontSize: 12, color: '#64748b' }}>{selectedTrade.close_time ? new Date(selectedTrade.close_time).toLocaleDateString() : ''}</span>
+                          <span style={{ fontSize: 12, color: '#64748b' }}>{safeTrade.close_time ? new Date(safeTrade.close_time).toLocaleDateString() : ''}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-                          <span style={{ fontSize: 32, fontWeight: 800, color: '#f1f5f9' }}>{editSymbol || selectedTrade.symbol}</span>
+                          <span style={{ fontSize: 32, fontWeight: 800, color: '#f1f5f9' }}>{editSymbol || safeTrade.symbol}</span>
                           <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 700, background: editDirection === 'BUY' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', color: editDirection === 'BUY' ? '#22c55e' : '#ef4444' }}>{editDirection}</span>
                           {editResult && <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'rgba(100,116,139,0.2)', color: '#94a3b8' }}>{editResult}</span>}
                         </div>
@@ -2053,7 +2075,7 @@ const TradesPage = () => {
                         const canvas = await html2canvas(shareCardRef.current, { scale: 2, backgroundColor: null, useCORS: true });
                         const a = document.createElement('a');
                         a.href = canvas.toDataURL('image/png');
-                        a.download = `trade-${editSymbol || selectedTrade.symbol}-${new Date().toISOString().slice(0,10)}.png`;
+                        a.download = `trade-${editSymbol || safeTrade.symbol}-${new Date().toISOString().slice(0,10)}.png`;
                         a.click();
                       }}>
                         <Download className="me-2 h-4 w-4" />{t('shareDownload')}
