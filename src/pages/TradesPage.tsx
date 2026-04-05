@@ -1048,7 +1048,7 @@ const TradesPage = () => {
     // Extract risk from notes metadata line
     const riskMatch = (trade.notes ?? '').match(/Risk \$([0-9.]+)/);
     setEditRisk(riskMatch ? riskMatch[1] : '');
-    setEditSession(session ?? '');
+    setEditSession(session ?? 'none');
     setEditSetupTag(setup ?? '');
     setEditOpenTime(trade.open_time ? new Date(trade.open_time).toISOString().slice(0,16) : '');
     setEditCloseTime(trade.close_time ? new Date(trade.close_time).toISOString().slice(0,16) : '');
@@ -1100,7 +1100,8 @@ const TradesPage = () => {
     setSaving(true);
 
     // Rebuild setup_tag from result + session + custom tags
-    const tagParts = [editResult, editSession, ...editTags.filter(t => !RESULT_VALUES.includes(t) && !SESSION_VALUES.includes(t)), editSetupTag.trim()].filter(Boolean);
+    const sessionVal = (editSession && editSession !== 'none') ? editSession : '';
+    const tagParts = [editResult, sessionVal, ...editTags.filter(t => !RESULT_VALUES.includes(t) && !SESSION_VALUES.includes(t)), editSetupTag.trim()].filter(Boolean);
     const setupTag = [...new Set(tagParts)].join(', ') || null;
 
     // Rebuild notes: meta line + user notes
@@ -1123,7 +1124,7 @@ const TradesPage = () => {
       profit:    finalProfit,
       setup_tag: setupTag,
       notes:     finalNotes,
-      session:   editSession || null,
+      session:   (editSession && editSession !== 'none') ? editSession : null,
       rating:    editRating || null,
       reviewed:  editReviewed,
       open_time: editOpenTime ? new Date(editOpenTime).toISOString() : selectedTrade.open_time,
@@ -1930,7 +1931,7 @@ const TradesPage = () => {
                       <Select value={editSession} onValueChange={setEditSession}>
                         <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">{t('all')}</SelectItem>
+                          <SelectItem value="none">{lang === 'ar' ? 'لا شيء' : lang === 'fr' ? 'Aucune' : 'None'}</SelectItem>
                           {SESSION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label[lang]}</SelectItem>)}
                         </SelectContent>
                       </Select>
