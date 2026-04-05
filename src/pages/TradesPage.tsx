@@ -161,22 +161,28 @@ interface Mt5ParsedTrade {
 }
 
 function parseMt5CellDate(s: string): string | null {
-  const m = s.trim().match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  const t = s.trim();
+  // "2026.03.31 21:55:16"
+  const m = t.match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6] ?? '00'}`;
-  const m2 = s.trim().match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}(?::\d{2})?)$/);
+  // "2026-03-31 21:55:16"
+  const m2 = t.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}(?::\d{2})?)$/);
   if (m2) return `${m2[1]}T${m2[2]}`;
   return null;
 }
 
-// Position-based trade type detection — language-agnostic (EN/FR/AR/ES)
+// Header row keywords (any language) — skip these rows
+const HEADER_WORDS = ['time', 'heure', 'hora', 'время', 'open', 'ouverture', 'ticket', 'position', 'deal'];
+// Trade type keywords
 const BUY_WORDS  = ['buy', 'achat', 'شراء', 'compra'];
 const SELL_WORDS = ['sell', 'vente', 'بيع', 'venta'];
 const SKIP_WORDS = ['balance', 'solde', 'رصيد', 'deposit', 'dépôt', 'withdrawal', 'retrait', 'credit', 'correction'];
 
-// MT5 Detailed Report column order (same regardless of MT5 language):
-//  0: Open Time   1: Type    2: Volume   3: Symbol   4: Open Price
-//  5: S/L         6: T/P     7: Close Time           8: Close Price
-//  9: Commission  10: Swap   11: Profit
+// MT5 "Trades" tab — 14 column layout (verified from real export):
+//  0: Open Time      1: Ticket/Position  2: Symbol   3: Type (buy/sell/…)
+//  4: empty          5: Volume           6: Entry Price  7: S/L
+//  8: empty          9: Close Time       10: Close Price
+//  11: Commission    12: Swap            13: Profit
 function parseMt5Html(html: string): Mt5ParsedTrade[] {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const tables = doc.querySelectorAll('table');
@@ -187,50 +193,78 @@ function parseMt5Html(html: string): Mt5ParsedTrade[] {
 
     for (const row of rows) {
       const cells = Array.from(row.querySelectorAll('td')).map(td => (td.textContent ?? '').trim());
-      // Need at least 12 columns for a full trade row
-      if (cells.length < 12) continue;
 
-      // Col 1 = Type — detect direction in any language
-      const typeCell = cells[1].toLowerCase().trim();
+      // ── 14-column format (MT5 Trades tab) ─────────────────────────
+      if (cells.length === 14) {
+        const col0 = cells[0].toLowerCase();
 
-      // Skip balance/deposit/withdrawal rows
-      if (SKIP_WORDS.some(w => typeCell.includes(w))) continue;
+        // Skip header row (col 0 contains "time", "heure", etc.)
+        if (HEADER_WORDS.some(w => col0.includes(w))) continue;
 
-      let direction: 'BUY' | 'SELL' | null = null;
-      if (BUY_WORDS.some(w => typeCell.includes(w)))        direction = 'BUY';
-      else if (SELL_WORDS.some(w => typeCell.includes(w))) direction = 'SELL';
-      if (!direction) continue;
+        // Col 3 = Type
+        const typeCell = cells[3].toLowerCase().trim();
+        if (SKIP_WORDS.some(w => typeCell.includes(w))) continue;
 
-      // Col 0 = Open Time — must be a valid MT5 date
-      const open_time = parseMt5CellDate(cells[0]);
-      if (!open_time) continue;
+        let direction: 'BUY' | 'SELL' | null = null;
+        if (BUY_WORDS.some(w => typeCell.includes(w)))        direction = 'BUY';
+        else if (SELL_WORDS.some(w => typeCell.includes(w))) direction = 'SELL';
+        if (!direction) continue;
 
-      // Col 7 = Close Time
-      const close_time = parseMt5CellDate(cells[7]) ?? open_time;
+        // Col 0 = Open Time
+        const open_time = parseMt5CellDate(cells[0]);
+        if (!open_time) continue;
 
-      // Col 3 = Symbol
-      const symbol = cells[3].trim();
-      if (!symbol || symbol.length < 2) continue;
+        // Col 2 = Symbol (must be non-empty and not a pure number)
+        const symbol = cells[2].trim();
+        if (!symbol || symbol.length < 2 || /^\d+$/.test(symbol)) continue;
 
-      // Col 2 = Volume (lots)
-      const volume = parseFloat(cells[2].replace(',', '.')) || 0;
+        // Col 1 = Ticket — must look like a number
+        if (cells[1] && !/^\d+$/.test(cells[1].trim()) && cells[1].trim() !== '') {
+          // might be a sub-header — skip
+          if (isNaN(parseFloat(cells[1]))) continue;
+        }
 
-      // Col 4 = Open Price (entry)
-      const entry = parseFloat(cells[4].replace(',', '.')) || 0;
+        const volume      = parseFloat(cells[5].replace(',', '.'))                         || 0;
+        const entry       = parseFloat(cells[6].replace(',', '.'))                         || 0;
+        const close_time  = parseMt5CellDate(cells[9])                                     ?? open_time;
+        const exit_price  = parseFloat(cells[10].replace(',', '.'))                        || 0;
+        const commission  = parseFloat(cells[11].replace(/\s/g, '').replace(',', '.'))     || 0;
+        const profit      = parseFloat(cells[13].replace(/\s/g, '').replace(',', '.'))     || 0;
 
-      // Col 8 = Close Price (exit)
-      const exit_price = parseFloat(cells[8].replace(',', '.')) || 0;
+        trades.push({ symbol, direction, volume, entry, exit_price, open_time, close_time, profit, commission });
+        continue;
+      }
 
-      // Col 11 = Profit
-      const profit = parseFloat(cells[11].replace(/\s/g, '').replace(',', '.')) || 0;
+      // ── Generic fallback: ≥12 columns, col 1 = Type ───────────────
+      if (cells.length >= 12) {
+        const typeCell = cells[1].toLowerCase().trim();
+        if (SKIP_WORDS.some(w => typeCell.includes(w))) continue;
 
-      trades.push({ symbol, direction, volume, entry, exit_price, open_time, close_time, profit, commission: 0 });
+        let direction: 'BUY' | 'SELL' | null = null;
+        if (BUY_WORDS.some(w => typeCell.includes(w)))        direction = 'BUY';
+        else if (SELL_WORDS.some(w => typeCell.includes(w))) direction = 'SELL';
+        if (!direction) continue;
+
+        const open_time = parseMt5CellDate(cells[0]);
+        if (!open_time) continue;
+
+        const symbol = cells[3].trim();
+        if (!symbol || symbol.length < 2) continue;
+
+        const volume     = parseFloat(cells[2].replace(',', '.'))                      || 0;
+        const entry      = parseFloat(cells[4].replace(',', '.'))                      || 0;
+        const close_time = parseMt5CellDate(cells[7])                                  ?? open_time;
+        const exit_price = parseFloat(cells[8].replace(',', '.'))                      || 0;
+        const profit     = parseFloat(cells[11].replace(/\s/g, '').replace(',', '.')) || 0;
+
+        trades.push({ symbol, direction, volume, entry, exit_price, open_time, close_time, profit, commission: 0 });
+      }
     }
   }
 
-  // Debug: if nothing parsed, log all rows to console to help diagnose format issues
+  // Debug: if nothing parsed, log rows so the user can file a bug report
   if (trades.length === 0) {
-    console.warn('[MT5 parser] 0 trades found. Logging all table rows for debugging:');
+    console.warn('[MT5 parser] 0 trades found. Table row dump:');
     for (const tbl of tables) {
       Array.from(tbl.querySelectorAll('tr')).forEach((row, ri) => {
         const cells = Array.from(row.querySelectorAll('td')).map(td => (td.textContent ?? '').trim());
@@ -308,8 +342,24 @@ function Mt5ImportModal({
       setFileError(t('importInvalidFile'));
       return;
     }
+
+    // Read as ArrayBuffer so we can detect UTF-16 BOM (MT5 exports UTF-16LE on Windows)
     let html: string;
-    try { html = await file.text(); } catch { setFileError(t('importInvalidFile')); return; }
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      if ((bytes[0] === 0xFF && bytes[1] === 0xFE) || (bytes[0] === 0xFE && bytes[1] === 0xFF)) {
+        // UTF-16 (little-endian FF FE  or  big-endian FE FF)
+        const enc = bytes[0] === 0xFF ? 'utf-16le' : 'utf-16be';
+        html = new TextDecoder(enc).decode(buffer);
+      } else {
+        // UTF-8 (or ASCII — TextDecoder handles both)
+        html = new TextDecoder('utf-8').decode(buffer);
+      }
+    } catch {
+      setFileError(t('importInvalidFile'));
+      return;
+    }
     const trades = parseMt5Html(html);
     if (trades.length === 0) {
       setFileError(t('importNoTrades'));
