@@ -115,6 +115,12 @@ const translations = {
     currentPasswordIncorrect: 'كلمة المرور الحالية غير صحيحة',
     passwordChanged: 'تم تغيير كلمة المرور بنجاح',
     setNewPassword: 'تعيين كلمة مرور جديدة',
+    tradesmartScore: 'نقاط TradeSmartDz',
+    scoreNeedsWork: 'يحتاج تحسين',
+    scoreAverage: 'متوسط',
+    scoreGood: 'جيد',
+    scoreExcellent: 'ممتاز',
+    scoreMinTrades: 'أضف 5 صفقات على الأقل لرؤية نقاطك',
   },
   fr: {
     dashboard: 'Tableau de bord',
@@ -230,6 +236,12 @@ const translations = {
     currentPasswordIncorrect: 'Mot de passe actuel incorrect',
     passwordChanged: 'Mot de passe modifié avec succès',
     setNewPassword: 'Définir un nouveau mot de passe',
+    tradesmartScore: 'Score TradeSmartDz',
+    scoreNeedsWork: 'À améliorer',
+    scoreAverage: 'Moyen',
+    scoreGood: 'Bon',
+    scoreExcellent: 'Excellent',
+    scoreMinTrades: 'Ajoutez au moins 5 trades pour voir votre score',
   },
   en: {
     dashboard: 'Dashboard',
@@ -345,6 +357,12 @@ const translations = {
     currentPasswordIncorrect: 'Current password is incorrect',
     passwordChanged: 'Password changed successfully',
     setNewPassword: 'Set New Password',
+    tradesmartScore: 'TradeSmartDz Score',
+    scoreNeedsWork: 'Needs improvement',
+    scoreAverage: 'Average',
+    scoreGood: 'Good',
+    scoreExcellent: 'Excellent',
+    scoreMinTrades: 'Add at least 5 trades to see your score',
   },
 } as const;
 

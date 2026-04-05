@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, ReferenceLine,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
 
@@ -128,6 +129,201 @@ function WinRateDonut({ wins, total, lang }: { wins: number; total: number; lang
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── TradeSmartDz Score ───────────────────────────────────────
+function TradesmartScore({
+  closedTrades, wins, losses, profitFactor, avgWin, avgLoss, lang,
+}: {
+  closedTrades: Trade[]; wins: Trade[]; losses: Trade[];
+  profitFactor: number | null; avgWin: number; avgLoss: number;
+  lang: 'ar'|'fr'|'en';
+}) {
+  const scores = useMemo(() => {
+    if (closedTrades.length < 5) return null;
+
+    // 1. Win Rate (0–100)
+    const winRateScore = (wins.length / closedTrades.length) * 100;
+
+    // 2. Profit Factor (0–100): PF ≥ 3 → 100
+    const pfScore = profitFactor === null ? 100
+      : profitFactor === 0 ? 0
+      : Math.min((profitFactor / 3) * 100, 100);
+
+    // 3. Consistency: low daily-PnL variance → high score
+    const byDay: Record<string, number> = {};
+    for (const tr of closedTrades) {
+      if (!tr.close_time) continue;
+      const k = new Date(tr.close_time).toLocaleDateString('en-CA');
+      byDay[k] = (byDay[k] ?? 0) + (tr.profit ?? 0);
+    }
+    const dailyPnls = Object.values(byDay);
+    let consistencyScore = 50;
+    if (dailyPnls.length >= 2) {
+      const mean = dailyPnls.reduce((s, v) => s + v, 0) / dailyPnls.length;
+      const stddev = Math.sqrt(dailyPnls.reduce((s, v) => s + (v - mean) ** 2, 0) / dailyPnls.length);
+      const cv = Math.abs(mean) > 0 ? stddev / Math.abs(mean) : stddev;
+      consistencyScore = Math.max(0, Math.min(100, 100 - cv * 30));
+    }
+
+    // 4. Avg Win/Loss Ratio (0–100): ratio ≥ 2 → 100
+    let rrScore = 50;
+    if (wins.length > 0 && losses.length === 0) {
+      rrScore = 100;
+    } else if (wins.length > 0 && losses.length > 0 && avgLoss > 0) {
+      rrScore = Math.min((avgWin / avgLoss) * 50, 100);
+    }
+
+    // 5. Max Drawdown from equity curve (lower drawdown → higher score)
+    const sorted = [...closedTrades].sort((a, b) => new Date(a.close_time!).getTime() - new Date(b.close_time!).getTime());
+    let running = 0, peak = 0, maxDd = 0;
+    for (const tr of sorted) {
+      running += tr.profit ?? 0;
+      if (running > peak) peak = running;
+      const dd = peak - running;
+      if (dd > maxDd) maxDd = dd;
+    }
+    const maxDdPct = peak > 0 ? (maxDd / peak) * 100 : 0;
+    const drawdownScore = Math.max(0, 100 - maxDdPct * 5); // 20% DD → 0
+
+    // 6. Recovery Factor: totalPnL / maxDrawdown × 50, capped at 100
+    const totalPnl = closedTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
+    let recoveryScore = 50;
+    if (maxDd > 0) {
+      recoveryScore = Math.max(0, Math.min((totalPnl / maxDd) * 50, 100));
+    } else if (totalPnl > 0) {
+      recoveryScore = 100;
+    }
+
+    const dims = [
+      Math.round(winRateScore),
+      Math.round(pfScore),
+      Math.round(consistencyScore),
+      Math.round(rrScore),
+      Math.round(drawdownScore),
+      Math.round(recoveryScore),
+    ];
+    const total = Math.round((dims.reduce((s, v) => s + v, 0) / dims.length) * 10) / 10;
+    return { dims, total };
+  }, [closedTrades, wins, losses, profitFactor, avgWin, avgLoss]);
+
+  const axisLabels: Record<'ar'|'fr'|'en', string[]> = {
+    ar: ['نسبة الفوز', 'معامل الربح', 'الاتساق', 'R:R', 'الحد الأقصى', 'الاسترداد'],
+    fr: ['Win Rate', 'Profit Factor', 'Régularité', 'Ratio R:R', 'Drawdown', 'Récupération'],
+    en: ['Win Rate', 'Profit Factor', 'Consistency', 'R:R Ratio', 'Drawdown', 'Recovery'],
+  };
+
+  const L = {
+    title:    lang === 'ar' ? 'نقاط TradeSmartDz'  : lang === 'fr' ? 'Score TradeSmartDz' : 'TradeSmartDz Score',
+    minTrades:lang === 'ar' ? 'أضف 5 صفقات على الأقل لرؤية نقاطك' : lang === 'fr' ? 'Ajoutez au moins 5 trades pour voir votre score' : 'Add at least 5 trades to see your score',
+  };
+
+  const interp = (s: number) => s >= 81
+    ? { text: lang === 'ar' ? 'ممتاز'      : lang === 'fr' ? 'Excellent'    : 'Excellent',         color: '#22c55e' }
+    : s >= 61
+    ? { text: lang === 'ar' ? 'جيد'         : lang === 'fr' ? 'Bon'          : 'Good',               color: '#eab308' }
+    : s >= 41
+    ? { text: lang === 'ar' ? 'متوسط'       : lang === 'fr' ? 'Moyen'        : 'Average',            color: '#f97316' }
+    : { text: lang === 'ar' ? 'يحتاج تحسين' : lang === 'fr' ? 'À améliorer' : 'Needs improvement',  color: '#ef4444' };
+
+  if (!scores) {
+    return (
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-1">
+          <CardTitle className="text-base">{L.title}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <p className="mb-2 text-3xl">📊</p>
+            <p className="text-sm text-muted-foreground">{L.minTrades}</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { dims, total } = scores;
+  const { text: interpText, color: interpColor } = interp(total);
+  const labels = axisLabels[lang];
+  const radarData = labels.map((label, i) => ({ label, value: dims[i], fullMark: 100 }));
+
+  return (
+    <Card className="border-border bg-card">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">{L.title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* ── Radar chart ── */}
+          <div className="flex items-center justify-center">
+            <ResponsiveContainer width="100%" height={280}>
+              <RadarChart data={radarData} margin={{ top: 8, right: 28, bottom: 8, left: 28 }}>
+                <PolarGrid stroke="hsl(225,15%,22%)" />
+                <PolarAngleAxis
+                  dataKey="label"
+                  tick={{ fill: 'hsl(220,10%,55%)', fontSize: 11, fontWeight: 500 }}
+                />
+                <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
+                <Radar
+                  dataKey="value"
+                  stroke="#00d4aa"
+                  fill="rgba(0,212,170,0.18)"
+                  strokeWidth={2}
+                  dot={{ fill: '#00d4aa', r: 4, strokeWidth: 0 }}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* ── Score display ── */}
+          <div className="flex flex-col items-center justify-center gap-5">
+            {/* Big number */}
+            <div className="text-center">
+              <p className="text-6xl font-bold leading-none tabular-nums text-[#00d4aa]">
+                {total.toFixed(1)}
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">{L.title}</p>
+              <p className="mt-1 text-base font-semibold" style={{ color: interpColor }}>
+                {interpText}
+              </p>
+            </div>
+
+            {/* Gradient color bar with marker */}
+            <div className="w-full max-w-xs">
+              <div
+                className="relative h-3 w-full overflow-hidden rounded-full"
+                style={{ background: 'linear-gradient(to right, #ef4444 0%, #f97316 30%, #eab308 55%, #22c55e 80%, #16a34a 100%)' }}
+              >
+                <div
+                  className="absolute top-1/2 h-5 w-2 -translate-y-1/2 rounded-full bg-white shadow-lg"
+                  style={{ left: `${Math.min(Math.max(total, 0), 100)}%`, transform: 'translate(-50%, -50%)' }}
+                />
+              </div>
+              <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+                <span>0</span><span>40</span><span>60</span><span>80</span><span>100</span>
+              </div>
+            </div>
+
+            {/* Dimension bars */}
+            <div className="w-full max-w-xs space-y-2">
+              {labels.map((label, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-20 shrink-0 truncate text-[10px] text-muted-foreground">{label}</span>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-border/40">
+                    <div
+                      className="h-full rounded-full bg-[#00d4aa] transition-[width] duration-700"
+                      style={{ width: `${dims[i]}%` }}
+                    />
+                  </div>
+                  <span className="w-7 shrink-0 text-right text-[10px] font-semibold text-foreground">{dims[i]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1119,6 +1315,13 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── SCORE CARD ── */}
+      <TradesmartScore
+        closedTrades={closedTrades} wins={wins} losses={losses}
+        profitFactor={typeof profitFactor === 'number' ? profitFactor : 0}
+        avgWin={avgWin} avgLoss={avgLoss} lang={lang}
+      />
 
       {/* ── SECOND ROW: Win Rate + Equity ── */}
       <div className="grid gap-5 lg:grid-cols-5">
