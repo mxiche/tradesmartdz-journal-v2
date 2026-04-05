@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, KeyboardEvent, DragEvent } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo, KeyboardEvent, DragEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -168,17 +168,15 @@ function parseMt5CellDate(s: string): string | null {
   return null;
 }
 
-// Header-name → canonical key mapping
-const HDR_MAP: Record<string, string> = {
-  time: 'time', deal: 'deal', symbol: 'symbol', type: 'type', direction: 'direction',
-  volume: 'volume', price: 'price', order: 'order', commission: 'commission',
-  swap: 'swap', profit: 'profit', balance: 'balance', comment: 'comment',
-  's/l': 'sl', 't/p': 'tp',
-};
-const BUY_TYPES  = new Set(['buy','buy limit','buy stop','buy stop limit','buy stop market']);
-const SELL_TYPES = new Set(['sell','sell limit','sell stop','sell stop limit','sell stop market']);
-const SKIP_TYPES = new Set(['balance','deposit','withdrawal','credit','correction','']);
+// Position-based trade type detection — language-agnostic (EN/FR/AR/ES)
+const BUY_WORDS  = ['buy', 'achat', 'شراء', 'compra'];
+const SELL_WORDS = ['sell', 'vente', 'بيع', 'venta'];
+const SKIP_WORDS = ['balance', 'solde', 'رصيد', 'deposit', 'dépôt', 'withdrawal', 'retrait', 'credit', 'correction'];
 
+// MT5 Detailed Report column order (same regardless of MT5 language):
+//  0: Open Time   1: Type    2: Volume   3: Symbol   4: Open Price
+//  5: S/L         6: T/P     7: Close Time           8: Close Price
+//  9: Commission  10: Swap   11: Profit
 function parseMt5Html(html: string): Mt5ParsedTrade[] {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const tables = doc.querySelectorAll('table');
@@ -186,124 +184,58 @@ function parseMt5Html(html: string): Mt5ParsedTrade[] {
 
   for (const table of tables) {
     const rows = Array.from(table.querySelectorAll('tr'));
-    if (rows.length < 2) continue;
 
-    // ── Step 1: find the header row ──────────────────────────────────
-    let colMap: Record<string, number[]> = {};  // key → list of col indices (Time appears twice)
-    let headerRowIdx = -1;
-
-    for (let ri = 0; ri < Math.min(rows.length, 6); ri++) {
-      const ths = Array.from(rows[ri].querySelectorAll('th,td'))
-        .map(el => (el.textContent ?? '').trim().toLowerCase());
-      if (ths.some(h => h === 'profit' || h === 'symbol')) {
-        colMap = {};
-        ths.forEach((h, ci) => {
-          const key = HDR_MAP[h] ?? h;
-          if (!colMap[key]) colMap[key] = [];
-          colMap[key].push(ci);
-        });
-        headerRowIdx = ri;
-        break;
-      }
-    }
-
-    // ── Step 2: parse data rows ──────────────────────────────────────
-    const dataRows = headerRowIdx >= 0 ? rows.slice(headerRowIdx + 1) : rows;
-    const hasHeaders = headerRowIdx >= 0;
-
-    for (const row of dataRows) {
+    for (const row of rows) {
       const cells = Array.from(row.querySelectorAll('td')).map(td => (td.textContent ?? '').trim());
-      if (cells.length < 4) continue;
+      // Need at least 12 columns for a full trade row
+      if (cells.length < 12) continue;
 
-      const rowText = cells.join(' ').toLowerCase();
-      if (!rowText.includes('buy') && !rowText.includes('sell')) continue;
-      if (rowText.includes('balance') || rowText.includes('deposit') ||
-          rowText.includes('withdrawal') || rowText.includes('credit')) continue;
+      // Col 1 = Type — detect direction in any language
+      const typeCell = cells[1].toLowerCase().trim();
 
-      let direction: 'BUY' | 'SELL' | '' = '';
-      let symbol = '';
-      let open_time = '';
-      let close_time = '';
-      let profit = 0;
-      let volume = 0;
-      let entry = 0;
-      let exit_price = 0;
+      // Skip balance/deposit/withdrawal rows
+      if (SKIP_WORDS.some(w => typeCell.includes(w))) continue;
 
-      if (hasHeaders && Object.keys(colMap).length > 0) {
-        // Header-guided extraction ────────────────────────────────
-        const get = (key: string, nth = 0) => cells[colMap[key]?.[nth]] ?? '';
+      let direction: 'BUY' | 'SELL' | null = null;
+      if (BUY_WORDS.some(w => typeCell.includes(w)))        direction = 'BUY';
+      else if (SELL_WORDS.some(w => typeCell.includes(w))) direction = 'SELL';
+      if (!direction) continue;
 
-        const typeStr = get('type').toLowerCase();
-        if (SKIP_TYPES.has(typeStr)) continue;
-        if (BUY_TYPES.has(typeStr))       direction = 'BUY';
-        else if (SELL_TYPES.has(typeStr)) direction = 'SELL';
-
-        // Direction column (e.g. "in"/"out") not needed if type has buy/sell
-        if (!direction) {
-          const dirStr = get('direction').toLowerCase();
-          // For paired in/out format: type col has buy/sell, direction has in/out
-          // Try 'in' on earlier column for combined row approach
-          if (BUY_TYPES.has(typeStr) || dirStr === 'in') direction = 'BUY';
-          else if (SELL_TYPES.has(typeStr) || dirStr === 'out') direction = 'SELL';
-        }
-        if (!direction) continue;
-
-        symbol    = get('symbol').trim();
-        const times = (colMap['time'] ?? []).map(ci => parseMt5CellDate(cells[ci] ?? '')).filter(Boolean) as string[];
-        open_time  = times[0] ?? '';
-        close_time = times[1] ?? times[0] ?? '';
-
-        const profitRaw = get('profit').replace(/\s/g, '').replace(',', '.');
-        profit = parseFloat(profitRaw) || 0;
-
-        const volRaw = get('volume').replace(',', '.');
-        volume = parseFloat(volRaw) || 0;
-
-        const priceIndices = colMap['price'] ?? [];
-        entry      = parseFloat((cells[priceIndices[0]] ?? '').replace(',', '.')) || 0;
-        exit_price = parseFloat((cells[priceIndices[1]] ?? cells[priceIndices[0]] ?? '').replace(',', '.')) || 0;
-
-      } else {
-        // Fallback: heuristic extraction ──────────────────────────
-        for (const cell of cells) {
-          const c = cell.toLowerCase();
-          if (BUY_TYPES.has(c))  { direction = 'BUY';  break; }
-          if (SELL_TYPES.has(c)) { direction = 'SELL'; break; }
-        }
-        if (!direction) continue;
-
-        for (const cell of cells) {
-          if (/^[A-Z]{2,10}$/.test(cell) && !['BUY','SELL','IN','OUT'].includes(cell)) { symbol = cell; break; }
-        }
-
-        const dates: string[] = [];
-        for (const cell of cells) { const d = parseMt5CellDate(cell); if (d) dates.push(d); }
-        open_time  = dates[0] ?? '';
-        close_time = dates[1] ?? dates[0] ?? '';
-
-        // Profit: last numeric value that is not clearly a price or volume
-        for (let i = cells.length - 1; i >= 0; i--) {
-          if (parseMt5CellDate(cells[i])) continue;
-          const raw = cells[i].replace(/\s/g, '').replace(',', '.');
-          const val = parseFloat(raw);
-          if (!isNaN(val) && /^-?\d/.test(raw) && Math.abs(val) < 100_000) { profit = val; break; }
-        }
-
-        const prices: number[] = [];
-        for (const cell of cells) {
-          if (parseMt5CellDate(cell) || cell.includes(':')) continue;
-          const val = parseFloat(cell.replace(',', '.'));
-          if (!isNaN(val) && val > 0.5 && val < 1_000_000) prices.push(val);
-        }
-        entry      = prices[0] ?? 0;
-        exit_price = prices.length >= 2 ? prices[1] : (prices[0] ?? 0);
-        volume     = 0;
-      }
-
-      if (!symbol || symbol.length < 2) continue;
+      // Col 0 = Open Time — must be a valid MT5 date
+      const open_time = parseMt5CellDate(cells[0]);
       if (!open_time) continue;
 
-      trades.push({ symbol, direction, volume, entry, exit_price, open_time, close_time: close_time || open_time, profit, commission: 0 });
+      // Col 7 = Close Time
+      const close_time = parseMt5CellDate(cells[7]) ?? open_time;
+
+      // Col 3 = Symbol
+      const symbol = cells[3].trim();
+      if (!symbol || symbol.length < 2) continue;
+
+      // Col 2 = Volume (lots)
+      const volume = parseFloat(cells[2].replace(',', '.')) || 0;
+
+      // Col 4 = Open Price (entry)
+      const entry = parseFloat(cells[4].replace(',', '.')) || 0;
+
+      // Col 8 = Close Price (exit)
+      const exit_price = parseFloat(cells[8].replace(',', '.')) || 0;
+
+      // Col 11 = Profit
+      const profit = parseFloat(cells[11].replace(/\s/g, '').replace(',', '.')) || 0;
+
+      trades.push({ symbol, direction, volume, entry, exit_price, open_time, close_time, profit, commission: 0 });
+    }
+  }
+
+  // Debug: if nothing parsed, log all rows to console to help diagnose format issues
+  if (trades.length === 0) {
+    console.warn('[MT5 parser] 0 trades found. Logging all table rows for debugging:');
+    for (const tbl of tables) {
+      Array.from(tbl.querySelectorAll('tr')).forEach((row, ri) => {
+        const cells = Array.from(row.querySelectorAll('td')).map(td => (td.textContent ?? '').trim());
+        if (cells.length > 0) console.log(`  row[${ri}] (${cells.length} cols):`, cells);
+      });
     }
   }
 
@@ -739,6 +671,18 @@ const TradesPage = () => {
   const [deletingBulk, setDeletingBulk] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const shareCardRef = useRef<HTMLDivElement>(null);
+
+  // Derived values for the detail panel — computed from edit state
+  const pnlNum  = useMemo(() => parseFloat(editProfit) || 0, [editProfit]);
+  const riskNum = useMemo(() => parseFloat(editRisk) || 0, [editRisk]);
+  const rrCalc  = useMemo(
+    () => riskNum > 0 ? (pnlNum / riskNum).toFixed(2) : '—',
+    [pnlNum, riskNum]
+  );
+  const durCalc = useMemo(() => {
+    if (editOpenTime && editCloseTime) return computeDuration(editOpenTime, editCloseTime) || '—';
+    return selectedTrade?.duration ?? '—';
+  }, [editOpenTime, editCloseTime, selectedTrade]);
 
   // Screenshot upload
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
@@ -1858,12 +1802,7 @@ const TradesPage = () => {
       {/* ── Detail Panel ── */}
       <Sheet open={!!selectedTrade} onOpenChange={() => setSelectedTrade(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-          {selectedTrade && (() => {
-            const pnlNum = parseFloat(editProfit) || 0;
-            const riskNum = parseFloat(editRisk) || 0;
-            const rrCalc  = riskNum > 0 ? (pnlNum / riskNum).toFixed(2) : '—';
-            const durCalc = (editOpenTime && editCloseTime) ? computeDuration(editOpenTime, editCloseTime) : (selectedTrade.duration ?? '—');
-            return (
+          {selectedTrade && (
               <>
                 <SheetHeader className="pb-2">
                   <SheetTitle className="flex items-center gap-3">
@@ -2129,8 +2068,7 @@ const TradesPage = () => {
                   </Button>
                 </div>
               </>
-            );
-          })()}
+            )}
         </SheetContent>
       </Sheet>
     </div>
