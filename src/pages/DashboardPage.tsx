@@ -131,7 +131,122 @@ function WinRateDonut({ wins, total, lang }: { wins: number; total: number; lang
   );
 }
 
-// ---- Day Detail Modal ----
+// ─── Calendar helpers (shared by DashDayCell, DayDetailModal, TradingCalendar) ───
+function isoDay(d: Date) { return d.toLocaleDateString('en-CA'); } // YYYY-MM-DD
+
+function fmtPnlCal(val: number): string {
+  const abs = Math.abs(val);
+  const sign = val >= 0 ? '+' : '-';
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000)     return `${sign}$${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(2)}`;
+}
+
+const CAL_MONTH_NAMES: Record<'ar'|'fr'|'en', string[]> = {
+  en: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+  fr: ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
+  ar: ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
+};
+const CAL_DAY_NAMES: Record<'ar'|'fr'|'en', string[]> = {
+  en: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
+  fr: ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'],
+  ar: ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'],
+};
+
+// ─── DashDayData ─────────────────────────────────────────────
+interface DashDayData {
+  date: Date;
+  pnl: number;
+  tradeCount: number;
+  wins: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  isWeekend: boolean;
+  dayTrades: Trade[];
+}
+
+// ─── DashDayCell ─────────────────────────────────────────────
+function DashDayCell({ d, lang, onClick }: { d: DashDayData; lang: 'ar'|'fr'|'en'; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  const hasTrades = d.tradeCount > 0;
+  const wr = d.tradeCount > 0 ? Math.round((d.wins / d.tradeCount) * 100) : 0;
+
+  let bg = '';
+  let border = '';
+  if (!d.isCurrentMonth) {
+    bg = 'bg-transparent opacity-25';
+  } else if (hasTrades) {
+    bg    = d.pnl >= 0 ? 'bg-[rgba(34,197,94,0.12)]'  : 'bg-[rgba(239,68,68,0.12)]';
+    border = d.pnl >= 0 ? 'border-[rgba(34,197,94,0.25)]' : 'border-[rgba(239,68,68,0.25)]';
+  } else if (d.isWeekend) {
+    bg = 'bg-secondary/20';
+  } else {
+    bg = 'bg-card';
+  }
+  if (d.isToday) border = 'border-primary border-2';
+
+  return (
+    <div
+      className={`relative flex min-h-[90px] flex-col rounded-lg border p-2 transition-all duration-150 select-none
+        ${bg} ${border || 'border-border/40'}
+        ${d.isCurrentMonth ? 'cursor-pointer hover:border-primary/40 hover:brightness-110' : ''}
+      `}
+      onClick={() => d.isCurrentMonth && onClick()}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Day number */}
+      <span className={`text-[11px] font-medium leading-none ${d.isToday ? 'font-bold text-primary' : 'text-muted-foreground'}`}>
+        {d.date.getDate()}
+      </span>
+
+      {/* Trade data */}
+      {hasTrades && d.isCurrentMonth && (
+        <div className="mt-1 flex flex-1 flex-col items-center justify-center gap-0.5">
+          <span className={`text-base font-bold leading-tight ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+            {fmtPnlCal(d.pnl)}
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            {d.tradeCount} {lang === 'ar' ? 'صفقة' : lang === 'fr' ? (d.tradeCount > 1 ? 'trades' : 'trade') : (d.tradeCount !== 1 ? 'trades' : 'trade')}
+          </span>
+          <span className={`text-[10px] font-medium ${wr >= 50 ? 'text-[#22c55e]/80' : 'text-[#ef4444]/80'}`}>
+            {wr}%
+          </span>
+        </div>
+      )}
+
+      {/* Empty day hover hint */}
+      {!hasTrades && d.isCurrentMonth && !d.isWeekend && (
+        <div className={`flex flex-1 items-center justify-center transition-opacity duration-150 ${hovered ? 'opacity-50' : 'opacity-0'}`}>
+          <span className="text-xl font-thin text-muted-foreground">+</span>
+        </div>
+      )}
+
+      {/* Hover tooltip (trade days only) */}
+      {hovered && hasTrades && d.isCurrentMonth && (
+        <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 w-44 -translate-x-1/2 rounded-lg border border-border bg-popover p-2.5 shadow-xl text-xs">
+          <p className="mb-1 font-semibold text-foreground">
+            {d.date.toLocaleDateString(
+              lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
+              { weekday: 'short', month: 'short', day: 'numeric' }
+            )}
+          </p>
+          <div className="space-y-0.5 text-muted-foreground">
+            <p>P&L: <span className={d.pnl >= 0 ? 'font-semibold text-[#22c55e]' : 'font-semibold text-[#ef4444]'}>{fmtPnlCal(d.pnl)}</span></p>
+            <p>{lang === 'ar' ? 'صفقات' : lang === 'fr' ? 'Trades' : 'Trades'}: <span className="text-foreground">{d.tradeCount}</span></p>
+            <p>{lang === 'ar' ? 'نسبة الفوز' : lang === 'fr' ? 'Réussite' : 'Win rate'}: <span className="text-foreground">{wr}%</span></p>
+            <p>{lang === 'ar' ? 'ربح/خسارة' : 'W/L'}: <span className="text-[#22c55e]">{d.wins}</span> / <span className="text-[#ef4444]">{d.tradeCount - d.wins}</span></p>
+          </div>
+          <p className="mt-1 text-[9px] text-muted-foreground/50">
+            {lang === 'ar' ? 'انقر للتفاصيل' : lang === 'fr' ? 'Cliquer pour détails' : 'Click for details'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Day Detail Modal ─────────────────────────────────────────
 function DayDetailModal({
   day, month, year, dayTrades, lang, onClose,
 }: {
@@ -247,7 +362,7 @@ function DayDetailModal({
   );
 }
 
-// ---- Trading Calendar (full-width, premium) ----
+// ─── Trading Calendar (CalendarPage style + improvements) ────
 function TradingCalendar({
   trades, lang, accounts, user, onTradeSaved,
 }: {
@@ -255,300 +370,233 @@ function TradingCalendar({
   accounts: Account[]; user: any; onTradeSaved: () => void;
 }) {
   const [calMonth, setCalMonth] = useState(() => {
-    const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() };
+    const n = new Date();
+    return { year: n.getFullYear(), month: n.getMonth() };
   });
   const { year, month } = calMonth;
-  const today = new Date();
-  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+  const now = new Date();
+  const isCurrentMonth = now.getFullYear() === year && now.getMonth() === month;
 
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
 
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const leadingBlanks = (firstDay + 6) % 7;
+  const { grid, weekSummaries, monthStats, visibleWeeks } = useMemo(() => {
+    const todayKey = isoDay(new Date());
+    const firstOfMonth = new Date(year, month, 1);
 
-  const dayData = useMemo(() => {
-    return Array.from({ length: daysInMonth }, (_, i) => {
-      const day = i + 1;
-      const dayTrades = trades.filter(tr => {
-        if (!tr.close_time) return false;
-        const d = new Date(tr.close_time);
-        return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+    // Group trades by ISO day key
+    const byDay: Record<string, { pnl: number; count: number; wins: number; dayTrades: Trade[] }> = {};
+    for (const tr of trades) {
+      if (!tr.close_time || tr.profit === null) continue;
+      const k = isoDay(new Date(tr.close_time));
+      if (!byDay[k]) byDay[k] = { pnl: 0, count: 0, wins: 0, dayTrades: [] };
+      byDay[k].pnl   += tr.profit;
+      byDay[k].count += 1;
+      byDay[k].dayTrades.push(tr);
+      if (tr.profit > 0) byDay[k].wins += 1;
+    }
+
+    // Start grid on Sunday of the week containing the 1st (same as CalendarPage)
+    const startDow = firstOfMonth.getDay();
+    const gridStart = new Date(firstOfMonth);
+    gridStart.setDate(gridStart.getDate() - startDow);
+
+    // 42 cells (6 weeks × 7)
+    const cells: DashDayData[] = [];
+    const cur = new Date(gridStart);
+    for (let i = 0; i < 42; i++) {
+      const k = isoDay(cur);
+      const data = byDay[k];
+      cells.push({
+        date: new Date(cur),
+        pnl:          data?.pnl ?? 0,
+        tradeCount:   data?.count ?? 0,
+        wins:         data?.wins ?? 0,
+        isCurrentMonth: cur.getMonth() === month && cur.getFullYear() === year,
+        isToday:      k === todayKey,
+        isWeekend:    cur.getDay() === 0 || cur.getDay() === 6,
+        dayTrades:    data?.dayTrades ?? [],
       });
-      const pnl = dayTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
-      const wins = dayTrades.filter(tr => (tr.profit ?? 0) > 0).length;
-      return { day, pnl, count: dayTrades.length, wins, dayTrades };
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    // Week summaries
+    const weekSummaries = Array.from({ length: 6 }, (_, w) => {
+      const wk = cells.slice(w * 7, w * 7 + 7);
+      const active = wk.filter(d => d.tradeCount > 0 && d.isCurrentMonth);
+      return {
+        weekNum: w + 1,
+        pnl: active.reduce((s, d) => s + d.pnl, 0),
+        tradingDays: active.length,
+        hasData: active.length > 0,
+      };
     });
+
+    // Monthly stats
+    const monthCells = cells.filter(d => d.isCurrentMonth && d.tradeCount > 0);
+    const totalPnl    = monthCells.reduce((s, d) => s + d.pnl, 0);
+    const tradingDays = monthCells.length;
+    const profitDays  = monthCells.filter(d => d.pnl > 0).length;
+    const totalTrades = monthCells.reduce((s, d) => s + d.tradeCount, 0);
+    const totalWins   = monthCells.reduce((s, d) => s + d.wins, 0);
+    const winRate     = totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100) : 0;
+    const bestDay     = monthCells.length > 0 ? monthCells.reduce((b, d) => d.pnl > b.pnl ? d : b, monthCells[0]) : null;
+    const worstDay    = monthCells.length > 0 ? monthCells.reduce((b, d) => d.pnl < b.pnl ? d : b, monthCells[0]) : null;
+
+    // Trim trailing empty weeks (same as CalendarPage)
+    let last = 5;
+    while (last > 0 && weekSummaries[last].tradingDays === 0 && cells.slice(last * 7, last * 7 + 7).every(d => !d.isCurrentMonth)) last--;
+    const visibleWeeks = last + 1;
+
+    return { grid: cells, weekSummaries, monthStats: { totalPnl, tradingDays, profitDays, winRate, totalTrades, bestDay, worstDay }, visibleWeeks };
   }, [trades, year, month]);
 
-  const weeks = useMemo(() => {
-    type Cell = { day: number | null; pnl: number; count: number; wins: number; dayTrades: Trade[] };
-    const cells: Cell[] = [
-      ...Array.from({ length: leadingBlanks }, () => ({ day: null, pnl: 0, count: 0, wins: 0, dayTrades: [] as Trade[] })),
-      ...dayData,
-    ];
-    while (cells.length % 7 !== 0) cells.push({ day: null, pnl: 0, count: 0, wins: 0, dayTrades: [] });
-    const result = [];
-    for (let i = 0; i < cells.length; i += 7) {
-      const wk = cells.slice(i, i + 7);
-      const active = wk.filter(c => c.day !== null && c.count > 0);
-      result.push({ cells: wk, pnl: active.reduce((s, c) => s + c.pnl, 0), tradingDays: active.length });
-    }
-    return result;
-  }, [leadingBlanks, dayData]);
-
-  const maxAbsWeekPnl = useMemo(() => Math.max(...weeks.map(w => Math.abs(w.pnl)), 1), [weeks]);
-
+  // Current week index
   const todayWeekIdx = useMemo(() => {
     if (!isCurrentMonth) return -1;
-    return weeks.findIndex(w => w.cells.some(c => c.day === today.getDate()));
-  }, [weeks, isCurrentMonth, today]);
+    return weekSummaries.findIndex((_, w) => grid.slice(w * 7, w * 7 + 7).some(d => d.isToday));
+  }, [grid, weekSummaries, isCurrentMonth]);
 
-  const monthStats = useMemo(() => {
-    const active = dayData.filter(d => d.count > 0);
-    const totalPnl = active.reduce((s, d) => s + d.pnl, 0);
-    const profitDays = active.filter(d => d.pnl > 0).length;
-    const totalTrades = active.reduce((s, d) => s + d.count, 0);
-    const totalWins = active.reduce((s, d) => s + d.wins, 0);
-    const bestDay  = active.length > 0 ? active.reduce((b, d) => d.pnl > b.pnl ? d : b, active[0]) : null;
-    const worstDay = active.length > 0 ? active.reduce((b, d) => d.pnl < b.pnl ? d : b, active[0]) : null;
-    return {
-      tradingDays: active.length, profitDays, totalPnl, totalTrades,
-      winRate: totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100) : 0,
-      bestDay, worstDay,
-    };
-  }, [dayData]);
+  // Max abs week PnL for the bar
+  const maxAbsWeekPnl = Math.max(...weekSummaries.slice(0, visibleWeeks).map(w => Math.abs(w.pnl)), 1);
 
-  const monthLabel = new Date(year, month, 1).toLocaleDateString(
-    lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
-    { month: 'long', year: 'numeric' }
-  );
-  const dayNames = lang === 'ar'
-    ? ['إث','ثل','أر','خم','جم','سب','أح']
-    : lang === 'fr'
-    ? ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
-    : ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-
-  const fmtPnl = (v: number) => {
-    const abs = Math.abs(v);
-    const s = abs >= 1000 ? `${(abs / 1000).toFixed(1)}k` : abs.toFixed(2);
-    return `${v >= 0 ? '+' : '-'}$${s}`;
-  };
-  const fmtShort = (v: number) => {
-    const abs = Math.abs(v);
-    const s = abs >= 1000 ? `${(abs / 1000).toFixed(1)}k` : abs.toFixed(0);
-    return `${v >= 0 ? '+' : '-'}$${s}`;
-  };
-
-  const selectedDayTrades = selectedDay !== null
-    ? (dayData.find(d => d.day === selectedDay)?.dayTrades ?? [])
-    : [];
+  const prevMonth = () => setCalMonth(p => p.month === 0 ? { year: p.year - 1, month: 11 } : { ...p, month: p.month - 1 });
+  const nextMonth = () => setCalMonth(p => p.month === 11 ? { year: p.year + 1, month: 0 } : { ...p, month: p.month + 1 });
+  const goToday   = () => { const n = new Date(); setCalMonth({ year: n.getFullYear(), month: n.getMonth() }); };
 
   const pad2 = (n: number) => String(n).padStart(2, '0');
 
+  const selectedDayData = selectedDay !== null
+    ? grid.find(d => d.isCurrentMonth && d.isToday === (selectedDay === now.getDate() && isCurrentMonth) || (d.isCurrentMonth && d.date.getDate() === selectedDay))
+    : null;
+
   return (
-    <>
-      <style>{`
-        @keyframes calPopIn {
-          from { opacity:0; transform:scale(0.92) translateY(10px); }
-          to   { opacity:1; transform:scale(1) translateY(0); }
-        }
-        @keyframes calCellIn {
-          from { opacity:0; transform:translateY(5px); }
-          to   { opacity:1; transform:translateY(0); }
-        }
-      `}</style>
-
-      <div className="space-y-4">
-        {/* ── Monthly stats bar ── */}
-        <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-secondary/30 p-4 sm:grid-cols-5">
-          {[
-            {
-              label: lang === 'ar' ? 'P&L الشهري'    : lang === 'fr' ? 'P&L mensuel'       : 'Monthly P&L',
-              val:   fmtPnl(monthStats.totalPnl),
-              color: monthStats.totalPnl >= 0 ? '#22c55e' : '#ef4444',
-            },
-            {
-              label: lang === 'ar' ? 'أيام التداول'  : lang === 'fr' ? 'Jours actifs'       : 'Trading Days',
-              val:   String(monthStats.tradingDays),
-              color: 'inherit' as const,
-            },
-            {
-              label: lang === 'ar' ? 'نسبة الفوز'    : lang === 'fr' ? 'Taux de réussite'   : 'Win Rate',
-              val:   `${monthStats.winRate}%`,
-              color: monthStats.winRate >= 50 ? '#22c55e' : monthStats.winRate === 0 ? '#94A3B8' : '#ef4444',
-            },
-            {
-              label: lang === 'ar' ? 'أفضل يوم'      : lang === 'fr' ? 'Meilleur jour'       : 'Best Day',
-              val:   monthStats.bestDay ? fmtPnl(monthStats.bestDay.pnl) : '—',
-              color: '#22c55e',
-            },
-            {
-              label: lang === 'ar' ? 'أسوأ يوم'      : lang === 'fr' ? 'Pire jour'           : 'Worst Day',
-              val:   monthStats.worstDay && monthStats.worstDay.pnl < 0 ? fmtPnl(monthStats.worstDay.pnl) : '—',
-              color: '#ef4444',
-            },
-          ].map((s, i) => (
-            <div key={i}>
-              <p style={{ fontSize: 11, color: '#94A3B8', marginBottom: 5 }}>{s.label}</p>
-              <p style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, color: s.color }}>{s.val}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Calendar header ── */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setCalMonth(p => p.month === 0 ? { year: p.year - 1, month: 11 } : { ...p, month: p.month - 1 })}
-            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:34, height:34, borderRadius:8, backgroundColor:'rgba(0,212,170,0.1)', color:'#00d4aa', border:'1px solid rgba(0,212,170,0.22)', flexShrink:0, transition:'background 0.15s' }}
-            className="hover:bg-[#00d4aa]/20"
-          >
+    <div className="space-y-5">
+      {/* ── Header: nav + monthly stats pills ── */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        {/* Navigation */}
+        <div className="flex items-center gap-2">
+          <button onClick={prevMonth}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <div className="flex flex-1 items-center justify-center gap-3">
-            <span style={{ fontSize:18, fontWeight:700 }}>{monthLabel}</span>
-            {!isCurrentMonth && (
-              <button
-                onClick={() => setCalMonth({ year: today.getFullYear(), month: today.getMonth() })}
-                style={{ padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:600, backgroundColor:'rgba(0,212,170,0.1)', color:'#00d4aa', border:'1px solid rgba(0,212,170,0.25)', transition:'background 0.15s' }}
-                className="hover:bg-[#00d4aa]/20"
-              >
-                {lang === 'ar' ? 'اليوم' : lang === 'fr' ? "Aujourd'hui" : 'Today'}
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => setCalMonth(p => p.month === 11 ? { year: p.year + 1, month: 0 } : { ...p, month: p.month + 1 })}
-            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:34, height:34, borderRadius:8, backgroundColor:'rgba(0,212,170,0.1)', color:'#00d4aa', border:'1px solid rgba(0,212,170,0.22)', flexShrink:0, transition:'background 0.15s' }}
-            className="hover:bg-[#00d4aa]/20"
-          >
+          <h2 className="min-w-[170px] text-center text-xl font-bold text-foreground">
+            {CAL_MONTH_NAMES[lang][month]} {year}
+          </h2>
+          <button onClick={nextMonth}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
             <ChevronRight className="h-4 w-4" />
           </button>
+          {!isCurrentMonth && (
+            <Button variant="outline" size="sm" onClick={goToday} className="h-8 text-xs">
+              {lang === 'ar' ? 'هذا الشهر' : lang === 'fr' ? 'Ce mois' : 'This month'}
+            </Button>
+          )}
         </div>
 
-        {/* ── Grid + weekly sidebar ── */}
-        <div className="flex gap-2">
-          {/* Main grid */}
-          <div className="min-w-0 flex-1">
-            {/* Day-of-week headers */}
-            <div className="mb-1.5 grid grid-cols-7 gap-1">
-              {dayNames.map(d => (
-                <div key={d} style={{ padding:'4px 0', textAlign:'center', fontSize:11, fontWeight:600, color:'#64748B' }}>{d}</div>
-              ))}
-            </div>
-            {/* Week rows */}
-            <div className="space-y-1">
-              {weeks.map((week, wi) => (
-                <div key={wi} className="grid grid-cols-7 gap-1">
-                  {week.cells.map((cell, ci) => {
-                    if (cell.day === null) {
-                      return <div key={ci} style={{ minHeight:90 }} />;
-                    }
-                    const isTodayCell = isCurrentMonth && today.getDate() === cell.day;
-                    const hasData = cell.count > 0;
-                    const winRatePct = cell.count > 0 ? (cell.wins / cell.count) * 100 : 0;
-                    const animDelay = (wi * 7 + ci) * 12;
-
-                    let bgColor = 'rgba(30,35,50,0.55)';
-                    if (hasData) {
-                      bgColor = cell.pnl > 0 ? 'rgba(34,197,94,0.1)' : cell.pnl < 0 ? 'rgba(239,68,68,0.1)' : 'rgba(234,179,8,0.08)';
-                    }
-
-                    return (
-                      <div
-                        key={ci}
-                        onClick={() => {
-                          if (hasData) {
-                            setSelectedDay(cell.day!);
-                          } else {
-                            setQuickAddDate(`${year}-${pad2(month + 1)}-${pad2(cell.day!)}`);
-                          }
-                        }}
-                        className="group cursor-pointer transition-[filter] hover:brightness-125"
-                        style={{
-                          minHeight: 90,
-                          backgroundColor: bgColor,
-                          borderRadius: 8,
-                          padding: '6px 8px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          border: isTodayCell ? '2px solid #00d4aa' : '1px solid rgba(255,255,255,0.04)',
-                          animation: `calCellIn 0.28s ease-out ${animDelay}ms both`,
-                          position: 'relative',
-                        }}
-                      >
-                        {/* Day number */}
-                        <span style={{ fontSize:13, color: isTodayCell ? '#00d4aa' : '#64748B', fontWeight: isTodayCell ? 700 : 400, lineHeight:1 }}>
-                          {cell.day}
-                        </span>
-
-                        {hasData ? (
-                          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, marginTop:2 }}>
-                            {/* PnL */}
-                            <span style={{ fontSize:18, fontWeight:700, color: cell.pnl >= 0 ? '#22c55e' : '#ef4444', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>
-                              {cell.pnl >= 0 ? '+' : '-'}{Math.abs(cell.pnl) >= 1000 ? `${(Math.abs(cell.pnl)/1000).toFixed(1)}k` : Math.abs(cell.pnl).toFixed(0)}
-                            </span>
-                            {/* Trade count */}
-                            <span style={{ fontSize:12, color:'#94A3B8', lineHeight:1 }}>
-                              {cell.count} {lang === 'ar' ? 'صفقة' : 'trade' + (cell.count !== 1 ? 's' : '')}
-                            </span>
-                            {/* Win rate */}
-                            <span style={{ fontSize:12, color:'#94A3B8', lineHeight:1 }}>
-                              {winRatePct.toFixed(1)}%
-                            </span>
-                          </div>
-                        ) : (
-                          /* Empty day hover hint */
-                          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}
-                               className="opacity-0 transition-opacity group-hover:opacity-60">
-                            <span style={{ fontSize:22, color:'#64748B', fontWeight:300, lineHeight:1 }}>+</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
+        {/* Stats pills */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+            <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'P&L الشهري' : lang === 'fr' ? 'P&L mensuel' : 'Monthly P&L'}</span>
+            <span className={`text-sm font-bold ${monthStats.totalPnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+              {monthStats.totalTrades === 0 ? '—' : fmtPnlCal(monthStats.totalPnl)}
+            </span>
           </div>
-
-          {/* Weekly sidebar */}
-          <div className="hidden w-[76px] flex-col gap-1 sm:flex">
-            <div style={{ padding:'4px 0', textAlign:'center', fontSize:11, fontWeight:600, color:'#64748B', marginBottom:2 }}>
-              {lang === 'ar' ? 'الأسبوع' : lang === 'fr' ? 'Sem.' : 'Week'}
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+            <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'أيام التداول' : lang === 'fr' ? 'Jours' : 'Trading Days'}</span>
+            <span className="text-sm font-bold text-foreground">{monthStats.tradingDays}</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+            <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'نسبة الفوز' : lang === 'fr' ? 'Réussite' : 'Win Rate'}</span>
+            <span className={`text-sm font-bold ${monthStats.winRate >= 50 ? 'text-[#22c55e]' : monthStats.totalTrades === 0 ? 'text-foreground' : 'text-[#ef4444]'}`}>
+              {monthStats.totalTrades === 0 ? '—' : `${monthStats.winRate}%`}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+            <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'ربح/خسارة' : lang === 'fr' ? 'G/P' : 'W/L days'}</span>
+            <span className="text-sm font-bold text-[#22c55e]">{monthStats.profitDays}</span>
+            <span className="text-xs text-muted-foreground">/</span>
+            <span className="text-sm font-bold text-[#ef4444]">{monthStats.tradingDays - monthStats.profitDays}</span>
+          </div>
+          {monthStats.bestDay && monthStats.bestDay.pnl > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-[rgba(34,197,94,0.3)] bg-[rgba(34,197,94,0.08)] px-3 py-1.5">
+              <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'أفضل' : lang === 'fr' ? 'Meilleur' : 'Best'}</span>
+              <span className="text-sm font-bold text-[#22c55e]">{fmtPnlCal(monthStats.bestDay.pnl)}</span>
             </div>
-            {weeks.map((week, wi) => {
-              const isCurWeek = wi === todayWeekIdx;
-              const barPct = maxAbsWeekPnl > 0 ? Math.abs(week.pnl) / maxAbsWeekPnl : 0;
+          )}
+          {monthStats.worstDay && monthStats.worstDay.pnl < 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-[rgba(239,68,68,0.3)] bg-[rgba(239,68,68,0.08)] px-3 py-1.5">
+              <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'أسوأ' : lang === 'fr' ? 'Pire' : 'Worst'}</span>
+              <span className="text-sm font-bold text-[#ef4444]">{fmtPnlCal(monthStats.worstDay.pnl)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Calendar grid + weekly sidebar ── */}
+      <div className="flex gap-3">
+        {/* Main grid */}
+        <div className="min-w-0 flex-1">
+          {/* Day name headers */}
+          <div className="mb-1 grid grid-cols-7 gap-1">
+            {CAL_DAY_NAMES[lang].map((name, i) => (
+              <div key={i} className={`py-1.5 text-center text-xs font-semibold ${i === 0 || i === 6 ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
+                {name}
+              </div>
+            ))}
+          </div>
+          {/* Grid rows */}
+          <div className="space-y-1">
+            {Array.from({ length: visibleWeeks }, (_, w) => (
+              <div key={w} className="grid grid-cols-7 gap-1">
+                {grid.slice(w * 7, w * 7 + 7).map((d, i) => (
+                  <DashDayCell
+                    key={i} d={d} lang={lang}
+                    onClick={() => {
+                      if (!d.isCurrentMonth) return;
+                      if (d.tradeCount > 0) {
+                        setSelectedDay(d.date.getDate());
+                      } else {
+                        setQuickAddDate(`${year}-${pad2(month + 1)}-${pad2(d.date.getDate())}`);
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Weekly sidebar */}
+        <div className="hidden w-32 shrink-0 xl:flex xl:flex-col">
+          <div className="mb-1 py-1.5" />{/* Spacer aligns with day-name row */}
+          <div className="space-y-1">
+            {Array.from({ length: visibleWeeks }, (_, w) => {
+              const wk = weekSummaries[w];
+              const isCurWeek = w === todayWeekIdx;
+              const barPct = maxAbsWeekPnl > 0 ? Math.abs(wk.pnl) / maxAbsWeekPnl : 0;
               return (
-                <div key={wi} style={{
-                  minHeight: 90,
-                  display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4,
-                  borderRadius:8,
-                  backgroundColor: isCurWeek ? 'rgba(0,212,170,0.07)' : 'rgba(30,35,50,0.5)',
-                  border: isCurWeek ? '1px solid rgba(0,212,170,0.22)' : '1px solid rgba(255,255,255,0.03)',
-                  padding:'6px 4px',
-                }}>
-                  <span style={{ fontSize:11, color: isCurWeek ? '#00d4aa' : '#64748B', fontWeight:600 }}>
-                    {lang === 'ar' ? `أ${wi+1}` : `W${wi+1}`}
+                <div key={w} className={`flex min-h-[90px] flex-col justify-center gap-1.5 rounded-lg border px-3 py-2 ${isCurWeek ? 'border-primary/30 bg-primary/5' : 'border-border/30 bg-secondary/20'}`}>
+                  <span className={`text-[10px] font-semibold uppercase tracking-wide ${isCurWeek ? 'text-primary' : 'text-muted-foreground'}`}>
+                    {lang === 'ar' ? `أسبوع ${wk.weekNum}` : lang === 'fr' ? `Sem. ${wk.weekNum}` : `Week ${wk.weekNum}`}
                   </span>
-                  {week.tradingDays > 0 ? (
+                  {wk.hasData ? (
                     <>
-                      <span style={{ fontSize:12, fontWeight:700, color: week.pnl >= 0 ? '#22c55e' : '#ef4444', lineHeight:1, fontVariantNumeric:'tabular-nums', textAlign:'center' }}>
-                        {fmtShort(week.pnl)}
+                      <span className={`text-sm font-bold leading-tight ${wk.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                        {fmtPnlCal(wk.pnl)}
                       </span>
-                      {/* Mini performance bar */}
-                      <div style={{ width:'80%', height:4, borderRadius:2, backgroundColor:'rgba(255,255,255,0.06)' }}>
-                        <div style={{ width:`${barPct*100}%`, height:'100%', borderRadius:2, backgroundColor: week.pnl >= 0 ? '#22c55e' : '#ef4444', transition:'width 0.4s ease' }} />
+                      <div className="h-1 w-full overflow-hidden rounded-full bg-border/40">
+                        <div
+                          className={`h-full rounded-full transition-[width] duration-500 ${wk.pnl >= 0 ? 'bg-[#22c55e]' : 'bg-[#ef4444]'}`}
+                          style={{ width: `${barPct * 100}%` }}
+                        />
                       </div>
-                      <span style={{ fontSize:10, color:'#64748B' }}>
-                        {week.tradingDays}{lang === 'ar' ? 'ي' : 'd'}
+                      <span className="text-[10px] text-muted-foreground">
+                        {wk.tradingDays} {lang === 'ar' ? 'يوم' : lang === 'fr' ? 'j.' : 'd.'}
                       </span>
                     </>
                   ) : (
-                    <span style={{ fontSize:12, color:'#64748B' }}>—</span>
+                    <span className="text-[10px] text-muted-foreground/50">—</span>
                   )}
                 </div>
               );
@@ -558,15 +606,15 @@ function TradingCalendar({
       </div>
 
       {/* Day detail modal */}
-      {selectedDay !== null && selectedDayTrades.length > 0 && (
+      {selectedDay !== null && selectedDayData && selectedDayData.dayTrades.length > 0 && (
         <DayDetailModal
           day={selectedDay} month={month} year={year}
-          dayTrades={selectedDayTrades} lang={lang}
+          dayTrades={selectedDayData.dayTrades} lang={lang}
           onClose={() => setSelectedDay(null)}
         />
       )}
 
-      {/* Quick add trade modal (empty day click) */}
+      {/* Quick add trade (empty day click) */}
       {quickAddDate !== null && (
         <QuickAddTrade
           open
@@ -576,7 +624,7 @@ function TradingCalendar({
           initialDate={quickAddDate}
         />
       )}
-    </>
+    </div>
   );
 }
 
