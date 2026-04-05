@@ -131,17 +131,143 @@ function WinRateDonut({ wins, total, lang }: { wins: number; total: number; lang
   );
 }
 
-// ---- Trading Calendar (full-width, large cells) ----
-function TradingCalendar({ trades, lang }: { trades: Trade[]; lang: 'ar'|'fr'|'en' }) {
+// ---- Day Detail Modal ----
+function DayDetailModal({
+  day, month, year, dayTrades, lang, onClose,
+}: {
+  day: number; month: number; year: number;
+  dayTrades: Trade[]; lang: 'ar'|'fr'|'en'; onClose: () => void;
+}) {
+  const totalPnl = dayTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
+  const wins = dayTrades.filter(tr => (tr.profit ?? 0) > 0).length;
+  const winRate = dayTrades.length > 0 ? ((wins / dayTrades.length) * 100).toFixed(1) : '0';
+  const sorted = [...dayTrades].sort((a, b) => (b.profit ?? 0) - (a.profit ?? 0));
+  const best = sorted[0];
+  const worst = sorted[sorted.length - 1];
+
+  const dateStr = new Date(year, month, day).toLocaleDateString(
+    lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
+    { weekday: 'long', month: 'long', day: 'numeric' }
+  );
+  const L = {
+    trades:    lang === 'ar' ? 'الصفقات'    : lang === 'fr' ? 'Trades'     : 'Trades',
+    winRate:   lang === 'ar' ? 'نسبة الفوز' : lang === 'fr' ? 'Réussite'   : 'Win Rate',
+    winners:   lang === 'ar' ? 'رابحة'       : lang === 'fr' ? 'Gagnants'   : 'Winners',
+    best:      lang === 'ar' ? 'أفضل صفقة'  : lang === 'fr' ? 'Meilleur'   : 'Best Trade',
+    worst:     lang === 'ar' ? 'أسوأ صفقة'  : lang === 'fr' ? 'Pire trade' : 'Worst Trade',
+    tradeList: lang === 'ar' ? 'قائمة الصفقات' : lang === 'fr' ? 'Liste des trades' : 'Trades',
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md overflow-hidden rounded-xl shadow-2xl"
+        style={{
+          backgroundColor: '#1a1d27',
+          border: '1px solid rgba(0,212,170,0.3)',
+          animation: 'calPopIn 0.18s cubic-bezier(0.175,0.885,0.32,1.275)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between p-4" style={{ borderBottom: '1px solid #2a2d3a' }}>
+          <div>
+            <p style={{ fontSize: 12, color: '#94A3B8', marginBottom: 4 }}>{dateStr}</p>
+            <p style={{ fontSize: 26, fontWeight: 700, color: totalPnl >= 0 ? '#22c55e' : '#ef4444', lineHeight: 1 }}>
+              {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[#2a2d3a]"
+            style={{ color: '#64748B', flexShrink: 0 }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid #2a2d3a' }}>
+          {[
+            { label: L.trades,  val: String(dayTrades.length), color: '#e2e8f0' },
+            { label: L.winRate, val: `${winRate}%`,            color: parseFloat(winRate) >= 50 ? '#22c55e' : '#ef4444' },
+            { label: L.winners, val: String(wins),             color: '#22c55e' },
+          ].map((s, i) => (
+            <div key={i} style={{ padding: '12px 16px', textAlign: 'center', borderRight: i < 2 ? '1px solid #2a2d3a' : undefined }}>
+              <p style={{ fontSize: 11, color: '#64748B', marginBottom: 4 }}>{s.label}</p>
+              <p style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.val}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Best / Worst */}
+        {dayTrades.length > 1 && best && worst && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '12px 16px', borderBottom: '1px solid #2a2d3a' }}>
+            <div style={{ padding: '8px 12px', borderRadius: 8, backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.15)' }}>
+              <p style={{ fontSize: 10, color: '#94A3B8', marginBottom: 2 }}>{L.best}</p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#22c55e' }}>+${Math.abs(best.profit ?? 0).toFixed(2)}</p>
+              <p style={{ fontSize: 11, color: '#64748B' }}>{best.symbol}</p>
+            </div>
+            <div style={{ padding: '8px 12px', borderRadius: 8, backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
+              <p style={{ fontSize: 10, color: '#94A3B8', marginBottom: 2 }}>{L.worst}</p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#ef4444' }}>${(worst.profit ?? 0).toFixed(2)}</p>
+              <p style={{ fontSize: 11, color: '#64748B' }}>{worst.symbol}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Trade list */}
+        <div style={{ maxHeight: 220, overflowY: 'auto', padding: '12px 16px' }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{L.tradeList}</p>
+          <div className="space-y-1.5">
+            {dayTrades.map(tr => {
+              const pnl = tr.profit ?? 0;
+              return (
+                <div key={tr.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, backgroundColor: '#242836' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontWeight: 700, color: '#e2e8f0', fontSize: 14 }}>{tr.symbol}</span>
+                    <span style={{ padding: '2px 7px', borderRadius: 12, fontSize: 10, fontWeight: 600, backgroundColor: tr.direction === 'BUY' ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)', color: tr.direction === 'BUY' ? '#22c55e' : '#ef4444' }}>
+                      {tr.direction}
+                    </span>
+                  </div>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: pnl >= 0 ? '#22c55e' : '#ef4444', fontVariantNumeric: 'tabular-nums' }}>
+                    {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- Trading Calendar (full-width, premium) ----
+function TradingCalendar({
+  trades, lang, accounts, user, onTradeSaved,
+}: {
+  trades: Trade[]; lang: 'ar'|'fr'|'en';
+  accounts: Account[]; user: any; onTradeSaved: () => void;
+}) {
   const [calMonth, setCalMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
   const { year, month } = calMonth;
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const leadingBlanks = (firstDay + 6) % 7; // Mon-start
+  const leadingBlanks = (firstDay + 6) % 7;
 
   const dayData = useMemo(() => {
     return Array.from({ length: daysInMonth }, (_, i) => {
@@ -153,17 +279,17 @@ function TradingCalendar({ trades, lang }: { trades: Trade[]; lang: 'ar'|'fr'|'e
       });
       const pnl = dayTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
       const wins = dayTrades.filter(tr => (tr.profit ?? 0) > 0).length;
-      return { day, pnl, count: dayTrades.length, wins };
+      return { day, pnl, count: dayTrades.length, wins, dayTrades };
     });
   }, [trades, year, month]);
 
-  // Build weeks (pad to multiples of 7)
   const weeks = useMemo(() => {
-    const cells = [
-      ...Array.from({ length: leadingBlanks }, () => ({ day: null as number | null, pnl: 0, count: 0, wins: 0 })),
+    type Cell = { day: number | null; pnl: number; count: number; wins: number; dayTrades: Trade[] };
+    const cells: Cell[] = [
+      ...Array.from({ length: leadingBlanks }, () => ({ day: null, pnl: 0, count: 0, wins: 0, dayTrades: [] as Trade[] })),
       ...dayData,
     ];
-    while (cells.length % 7 !== 0) cells.push({ day: null, pnl: 0, count: 0, wins: 0 });
+    while (cells.length % 7 !== 0) cells.push({ day: null, pnl: 0, count: 0, wins: 0, dayTrades: [] });
     const result = [];
     for (let i = 0; i < cells.length; i += 7) {
       const wk = cells.slice(i, i + 7);
@@ -173,19 +299,25 @@ function TradingCalendar({ trades, lang }: { trades: Trade[]; lang: 'ar'|'fr'|'e
     return result;
   }, [leadingBlanks, dayData]);
 
-  // Monthly stats
+  const maxAbsWeekPnl = useMemo(() => Math.max(...weeks.map(w => Math.abs(w.pnl)), 1), [weeks]);
+
+  const todayWeekIdx = useMemo(() => {
+    if (!isCurrentMonth) return -1;
+    return weeks.findIndex(w => w.cells.some(c => c.day === today.getDate()));
+  }, [weeks, isCurrentMonth, today]);
+
   const monthStats = useMemo(() => {
     const active = dayData.filter(d => d.count > 0);
     const totalPnl = active.reduce((s, d) => s + d.pnl, 0);
     const profitDays = active.filter(d => d.pnl > 0).length;
     const totalTrades = active.reduce((s, d) => s + d.count, 0);
     const totalWins = active.reduce((s, d) => s + d.wins, 0);
+    const bestDay  = active.length > 0 ? active.reduce((b, d) => d.pnl > b.pnl ? d : b, active[0]) : null;
+    const worstDay = active.length > 0 ? active.reduce((b, d) => d.pnl < b.pnl ? d : b, active[0]) : null;
     return {
-      tradingDays: active.length,
-      profitDays,
-      totalPnl,
-      totalTrades,
+      tradingDays: active.length, profitDays, totalPnl, totalTrades,
       winRate: totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100) : 0,
+      bestDay, worstDay,
     };
   }, [dayData]);
 
@@ -199,140 +331,258 @@ function TradingCalendar({ trades, lang }: { trades: Trade[]; lang: 'ar'|'fr'|'e
     ? ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
     : ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
-  const fmtPnl = (v: number, short = false) => {
+  const fmtPnl = (v: number) => {
     const abs = Math.abs(v);
-    if (short && abs >= 1000) return `${v >= 0 ? '+' : '-'}$${(abs / 1000).toFixed(1)}k`;
-    return `${v >= 0 ? '+' : '-'}$${abs.toFixed(short ? 0 : 2)}`;
+    const s = abs >= 1000 ? `${(abs / 1000).toFixed(1)}k` : abs.toFixed(2);
+    return `${v >= 0 ? '+' : '-'}$${s}`;
+  };
+  const fmtShort = (v: number) => {
+    const abs = Math.abs(v);
+    const s = abs >= 1000 ? `${(abs / 1000).toFixed(1)}k` : abs.toFixed(0);
+    return `${v >= 0 ? '+' : '-'}$${s}`;
   };
 
-  const statLabel = (key: string) => {
-    const m: Record<string, Record<string, string>> = {
-      monthlyPnl:   { ar: 'P&L الشهري', fr: 'P&L mensuel', en: 'Monthly P&L' },
-      tradingDays:  { ar: 'أيام التداول', fr: 'Jours actifs', en: 'Trading Days' },
-      winDays:      { ar: 'أيام رابحة', fr: 'Jours gagnants', en: 'Win Days' },
-      totalTrades:  { ar: 'إجمالي الصفقات', fr: 'Total trades', en: 'Total Trades' },
-      winRate:      { ar: 'نسبة الفوز', fr: 'Taux de réussite', en: 'Win Rate' },
-    };
-    return m[key]?.[lang] ?? key;
-  };
+  const selectedDayTrades = selectedDay !== null
+    ? (dayData.find(d => d.day === selectedDay)?.dayTrades ?? [])
+    : [];
+
+  const pad2 = (n: number) => String(n).padStart(2, '0');
 
   return (
-    <div className="space-y-4">
-      {/* Monthly stats bar */}
-      <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-secondary/30 p-3 sm:grid-cols-5">
-        {[
-          { key: 'monthlyPnl',  val: fmtPnl(monthStats.totalPnl), color: monthStats.totalPnl >= 0 ? 'text-profit' : 'text-loss' },
-          { key: 'tradingDays', val: String(monthStats.tradingDays), color: 'text-foreground' },
-          { key: 'winDays',     val: String(monthStats.profitDays), color: 'text-profit' },
-          { key: 'totalTrades', val: String(monthStats.totalTrades), color: 'text-foreground' },
-          { key: 'winRate',     val: `${monthStats.winRate}%`, color: monthStats.winRate >= 50 ? 'text-profit' : monthStats.winRate === 0 ? 'text-muted-foreground' : 'text-loss' },
-        ].map(s => (
-          <div key={s.key} className="flex flex-col gap-0.5">
-            <p className="text-[11px] text-muted-foreground">{statLabel(s.key)}</p>
-            <p className={`text-lg font-bold leading-none ${s.color}`}>{s.val}</p>
-          </div>
-        ))}
-      </div>
+    <>
+      <style>{`
+        @keyframes calPopIn {
+          from { opacity:0; transform:scale(0.92) translateY(10px); }
+          to   { opacity:1; transform:scale(1) translateY(0); }
+        }
+        @keyframes calCellIn {
+          from { opacity:0; transform:translateY(5px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+      `}</style>
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => setCalMonth(p => p.month === 0 ? { year: p.year - 1, month: 11 } : { ...p, month: p.month - 1 })}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-base font-semibold text-foreground">{monthLabel}</span>
-        <button
-          onClick={() => setCalMonth(p => p.month === 11 ? { year: p.year + 1, month: 0 } : { ...p, month: p.month + 1 })}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Grid + weekly sidebar */}
-      <div className="flex gap-2">
-        {/* Main grid */}
-        <div className="min-w-0 flex-1">
-          {/* Day-of-week headers */}
-          <div className="mb-1 grid grid-cols-7 gap-1">
-            {dayNames.map(d => (
-              <div key={d} className="truncate py-1 text-center text-[11px] font-medium text-muted-foreground">{d}</div>
-            ))}
-          </div>
-          {/* Week rows */}
-          <div className="space-y-1">
-            {weeks.map((week, wi) => (
-              <div key={wi} className="grid grid-cols-7 gap-1">
-                {week.cells.map((cell, ci) => {
-                  if (cell.day === null) {
-                    return <div key={ci} className="min-h-[60px] md:min-h-[80px]" />;
-                  }
-                  const today = new Date();
-                  const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === cell.day;
-                  const hasData = cell.count > 0;
-                  const winRate = cell.count > 0 ? Math.round((cell.wins / cell.count) * 100) : 0;
-                  let bg = 'bg-secondary/30 hover:bg-secondary/50';
-                  if (hasData) bg = cell.pnl > 0 ? 'bg-profit/15 hover:bg-profit/22' : cell.pnl < 0 ? 'bg-loss/15 hover:bg-loss/22' : 'bg-yellow-500/10 hover:bg-yellow-500/20';
-                  return (
-                    <div
-                      key={ci}
-                      className={`relative flex min-h-[60px] flex-col rounded-md p-1.5 transition-colors md:min-h-[80px] ${bg} ${isToday ? 'ring-1 ring-primary ring-offset-1 ring-offset-card' : ''}`}
-                    >
-                      {/* Day number — top left */}
-                      <span className="text-[10px] leading-none text-muted-foreground">{cell.day}</span>
-                      {/* Trade data — centered */}
-                      {hasData && (
-                        <div className="flex flex-1 flex-col items-center justify-center gap-[3px]">
-                          <span className={`text-xs font-bold leading-none tabular-nums sm:text-sm ${cell.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                            {cell.pnl >= 0 ? '+' : ''}{Math.abs(cell.pnl) >= 1000 ? `${(cell.pnl / 1000).toFixed(1)}k` : cell.pnl.toFixed(0)}
-                          </span>
-                          <span className="text-[9px] leading-none text-muted-foreground">{cell.count}{lang === 'ar' ? 'ص' : 't'}</span>
-                          <span className={`text-[9px] leading-none ${winRate >= 50 ? 'text-profit' : 'text-loss'}`}>{winRate}%</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Weekly sidebar */}
-        <div className="hidden w-[72px] flex-col gap-1 sm:flex">
-          <div className="py-1 text-center text-[11px] font-medium text-muted-foreground">
-            {lang === 'ar' ? 'الأسبوع' : lang === 'fr' ? 'Sem.' : 'Week'}
-          </div>
-          {weeks.map((week, wi) => (
-            <div key={wi} className="flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-md bg-secondary/20 px-1 md:min-h-[80px]">
-              <span className="text-[10px] text-muted-foreground">
-                {lang === 'ar' ? `أ${wi + 1}` : `W${wi + 1}`}
-              </span>
-              {week.tradingDays > 0 ? (
-                <>
-                  <span className={`text-[11px] font-bold leading-none tabular-nums ${week.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {fmtPnl(week.pnl, true)}
-                  </span>
-                  <span className="text-[9px] text-muted-foreground">
-                    {week.tradingDays}{lang === 'ar' ? 'ي' : 'd'}
-                  </span>
-                </>
-              ) : (
-                <span className="text-[10px] text-muted-foreground">—</span>
-              )}
+      <div className="space-y-4">
+        {/* ── Monthly stats bar ── */}
+        <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-secondary/30 p-4 sm:grid-cols-5">
+          {[
+            {
+              label: lang === 'ar' ? 'P&L الشهري'    : lang === 'fr' ? 'P&L mensuel'       : 'Monthly P&L',
+              val:   fmtPnl(monthStats.totalPnl),
+              color: monthStats.totalPnl >= 0 ? '#22c55e' : '#ef4444',
+            },
+            {
+              label: lang === 'ar' ? 'أيام التداول'  : lang === 'fr' ? 'Jours actifs'       : 'Trading Days',
+              val:   String(monthStats.tradingDays),
+              color: 'inherit' as const,
+            },
+            {
+              label: lang === 'ar' ? 'نسبة الفوز'    : lang === 'fr' ? 'Taux de réussite'   : 'Win Rate',
+              val:   `${monthStats.winRate}%`,
+              color: monthStats.winRate >= 50 ? '#22c55e' : monthStats.winRate === 0 ? '#94A3B8' : '#ef4444',
+            },
+            {
+              label: lang === 'ar' ? 'أفضل يوم'      : lang === 'fr' ? 'Meilleur jour'       : 'Best Day',
+              val:   monthStats.bestDay ? fmtPnl(monthStats.bestDay.pnl) : '—',
+              color: '#22c55e',
+            },
+            {
+              label: lang === 'ar' ? 'أسوأ يوم'      : lang === 'fr' ? 'Pire jour'           : 'Worst Day',
+              val:   monthStats.worstDay && monthStats.worstDay.pnl < 0 ? fmtPnl(monthStats.worstDay.pnl) : '—',
+              color: '#ef4444',
+            },
+          ].map((s, i) => (
+            <div key={i}>
+              <p style={{ fontSize: 11, color: '#94A3B8', marginBottom: 5 }}>{s.label}</p>
+              <p style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, color: s.color }}>{s.val}</p>
             </div>
           ))}
         </div>
+
+        {/* ── Calendar header ── */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setCalMonth(p => p.month === 0 ? { year: p.year - 1, month: 11 } : { ...p, month: p.month - 1 })}
+            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:34, height:34, borderRadius:8, backgroundColor:'rgba(0,212,170,0.1)', color:'#00d4aa', border:'1px solid rgba(0,212,170,0.22)', flexShrink:0, transition:'background 0.15s' }}
+            className="hover:bg-[#00d4aa]/20"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="flex flex-1 items-center justify-center gap-3">
+            <span style={{ fontSize:18, fontWeight:700 }}>{monthLabel}</span>
+            {!isCurrentMonth && (
+              <button
+                onClick={() => setCalMonth({ year: today.getFullYear(), month: today.getMonth() })}
+                style={{ padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:600, backgroundColor:'rgba(0,212,170,0.1)', color:'#00d4aa', border:'1px solid rgba(0,212,170,0.25)', transition:'background 0.15s' }}
+                className="hover:bg-[#00d4aa]/20"
+              >
+                {lang === 'ar' ? 'اليوم' : lang === 'fr' ? "Aujourd'hui" : 'Today'}
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setCalMonth(p => p.month === 11 ? { year: p.year + 1, month: 0 } : { ...p, month: p.month + 1 })}
+            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:34, height:34, borderRadius:8, backgroundColor:'rgba(0,212,170,0.1)', color:'#00d4aa', border:'1px solid rgba(0,212,170,0.22)', flexShrink:0, transition:'background 0.15s' }}
+            className="hover:bg-[#00d4aa]/20"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* ── Grid + weekly sidebar ── */}
+        <div className="flex gap-2">
+          {/* Main grid */}
+          <div className="min-w-0 flex-1">
+            {/* Day-of-week headers */}
+            <div className="mb-1.5 grid grid-cols-7 gap-1">
+              {dayNames.map(d => (
+                <div key={d} style={{ padding:'4px 0', textAlign:'center', fontSize:11, fontWeight:600, color:'#64748B' }}>{d}</div>
+              ))}
+            </div>
+            {/* Week rows */}
+            <div className="space-y-1">
+              {weeks.map((week, wi) => (
+                <div key={wi} className="grid grid-cols-7 gap-1">
+                  {week.cells.map((cell, ci) => {
+                    if (cell.day === null) {
+                      return <div key={ci} style={{ minHeight:90 }} />;
+                    }
+                    const isTodayCell = isCurrentMonth && today.getDate() === cell.day;
+                    const hasData = cell.count > 0;
+                    const winRatePct = cell.count > 0 ? (cell.wins / cell.count) * 100 : 0;
+                    const animDelay = (wi * 7 + ci) * 12;
+
+                    let bgColor = 'rgba(30,35,50,0.55)';
+                    if (hasData) {
+                      bgColor = cell.pnl > 0 ? 'rgba(34,197,94,0.1)' : cell.pnl < 0 ? 'rgba(239,68,68,0.1)' : 'rgba(234,179,8,0.08)';
+                    }
+
+                    return (
+                      <div
+                        key={ci}
+                        onClick={() => {
+                          if (hasData) {
+                            setSelectedDay(cell.day!);
+                          } else {
+                            setQuickAddDate(`${year}-${pad2(month + 1)}-${pad2(cell.day!)}`);
+                          }
+                        }}
+                        className="group cursor-pointer transition-[filter] hover:brightness-125"
+                        style={{
+                          minHeight: 90,
+                          backgroundColor: bgColor,
+                          borderRadius: 8,
+                          padding: '6px 8px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          border: isTodayCell ? '2px solid #00d4aa' : '1px solid rgba(255,255,255,0.04)',
+                          animation: `calCellIn 0.28s ease-out ${animDelay}ms both`,
+                          position: 'relative',
+                        }}
+                      >
+                        {/* Day number */}
+                        <span style={{ fontSize:13, color: isTodayCell ? '#00d4aa' : '#64748B', fontWeight: isTodayCell ? 700 : 400, lineHeight:1 }}>
+                          {cell.day}
+                        </span>
+
+                        {hasData ? (
+                          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, marginTop:2 }}>
+                            {/* PnL */}
+                            <span style={{ fontSize:18, fontWeight:700, color: cell.pnl >= 0 ? '#22c55e' : '#ef4444', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>
+                              {cell.pnl >= 0 ? '+' : '-'}{Math.abs(cell.pnl) >= 1000 ? `${(Math.abs(cell.pnl)/1000).toFixed(1)}k` : Math.abs(cell.pnl).toFixed(0)}
+                            </span>
+                            {/* Trade count */}
+                            <span style={{ fontSize:12, color:'#94A3B8', lineHeight:1 }}>
+                              {cell.count} {lang === 'ar' ? 'صفقة' : 'trade' + (cell.count !== 1 ? 's' : '')}
+                            </span>
+                            {/* Win rate */}
+                            <span style={{ fontSize:12, color:'#94A3B8', lineHeight:1 }}>
+                              {winRatePct.toFixed(1)}%
+                            </span>
+                          </div>
+                        ) : (
+                          /* Empty day hover hint */
+                          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}
+                               className="opacity-0 transition-opacity group-hover:opacity-60">
+                            <span style={{ fontSize:22, color:'#64748B', fontWeight:300, lineHeight:1 }}>+</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Weekly sidebar */}
+          <div className="hidden w-[76px] flex-col gap-1 sm:flex">
+            <div style={{ padding:'4px 0', textAlign:'center', fontSize:11, fontWeight:600, color:'#64748B', marginBottom:2 }}>
+              {lang === 'ar' ? 'الأسبوع' : lang === 'fr' ? 'Sem.' : 'Week'}
+            </div>
+            {weeks.map((week, wi) => {
+              const isCurWeek = wi === todayWeekIdx;
+              const barPct = maxAbsWeekPnl > 0 ? Math.abs(week.pnl) / maxAbsWeekPnl : 0;
+              return (
+                <div key={wi} style={{
+                  minHeight: 90,
+                  display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4,
+                  borderRadius:8,
+                  backgroundColor: isCurWeek ? 'rgba(0,212,170,0.07)' : 'rgba(30,35,50,0.5)',
+                  border: isCurWeek ? '1px solid rgba(0,212,170,0.22)' : '1px solid rgba(255,255,255,0.03)',
+                  padding:'6px 4px',
+                }}>
+                  <span style={{ fontSize:11, color: isCurWeek ? '#00d4aa' : '#64748B', fontWeight:600 }}>
+                    {lang === 'ar' ? `أ${wi+1}` : `W${wi+1}`}
+                  </span>
+                  {week.tradingDays > 0 ? (
+                    <>
+                      <span style={{ fontSize:12, fontWeight:700, color: week.pnl >= 0 ? '#22c55e' : '#ef4444', lineHeight:1, fontVariantNumeric:'tabular-nums', textAlign:'center' }}>
+                        {fmtShort(week.pnl)}
+                      </span>
+                      {/* Mini performance bar */}
+                      <div style={{ width:'80%', height:4, borderRadius:2, backgroundColor:'rgba(255,255,255,0.06)' }}>
+                        <div style={{ width:`${barPct*100}%`, height:'100%', borderRadius:2, backgroundColor: week.pnl >= 0 ? '#22c55e' : '#ef4444', transition:'width 0.4s ease' }} />
+                      </div>
+                      <span style={{ fontSize:10, color:'#64748B' }}>
+                        {week.tradingDays}{lang === 'ar' ? 'ي' : 'd'}
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize:12, color:'#64748B' }}>—</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* Day detail modal */}
+      {selectedDay !== null && selectedDayTrades.length > 0 && (
+        <DayDetailModal
+          day={selectedDay} month={month} year={year}
+          dayTrades={selectedDayTrades} lang={lang}
+          onClose={() => setSelectedDay(null)}
+        />
+      )}
+
+      {/* Quick add trade modal (empty day click) */}
+      {quickAddDate !== null && (
+        <QuickAddTrade
+          open
+          onClose={() => setQuickAddDate(null)}
+          accounts={accounts} lang={lang} user={user}
+          onSaved={() => { setQuickAddDate(null); onTradeSaved(); }}
+          initialDate={quickAddDate}
+        />
+      )}
+    </>
   );
 }
 
 // ---- Add Trade Form (reused from TradesPage) ----
 function QuickAddTrade({
-  open, onClose, accounts, lang, user, onSaved,
+  open, onClose, accounts, lang, user, onSaved, initialDate,
 }: {
   open: boolean;
   onClose: () => void;
@@ -340,6 +590,7 @@ function QuickAddTrade({
   lang: 'ar'|'fr'|'en';
   user: any;
   onSaved: () => void;
+  initialDate?: string; // YYYY-MM-DD — prefills open/close time when provided
 }) {
   const [form, setForm] = useState({
     symbol: '', direction: '' as 'BUY'|'SELL'|'', result: '', profit: '',
@@ -349,6 +600,13 @@ function QuickAddTrade({
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Prefill date when modal opens for an empty-day click
+  useEffect(() => {
+    if (open && initialDate) {
+      setForm(f => ({ ...f, open_time: `${initialDate}T09:00`, close_time: `${initialDate}T10:00` }));
+    }
+  }, [open, initialDate]);
 
   const isPartial = form.result.startsWith('Partial');
   const rr = (() => {
@@ -969,7 +1227,10 @@ const DashboardPage = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <TradingCalendar trades={closedTrades} lang={lang} />
+          <TradingCalendar
+            trades={closedTrades} lang={lang}
+            accounts={accounts} user={user} onTradeSaved={fetchData}
+          />
         </CardContent>
       </Card>
 
