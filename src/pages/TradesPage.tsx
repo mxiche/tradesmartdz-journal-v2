@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 
@@ -144,6 +144,417 @@ type Trade = Tables<'trades'>;
 type Account = Tables<'mt5_accounts'>;
 
 const DEFAULT_TAGS = ['FVG', 'IFVG', 'Liquidity Sweep', 'Order Block', 'BOS/CHoCH', 'MSS', 'Fair Value Gap + Sweep'];
+
+// ── MT5 HTML parser ─────────────────────────────────────────────────────────
+
+interface Mt5ParsedTrade {
+  symbol: string;
+  direction: 'BUY' | 'SELL';
+  volume: number;
+  entry: number;
+  exit_price: number;
+  open_time: string;
+  close_time: string;
+  profit: number;
+  commission: number;
+}
+
+function parseMt5Date(s: string): string | null {
+  const m = s.trim().match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}`;
+}
+
+function parseMt5Html(html: string): Mt5ParsedTrade[] {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const rows = Array.from(doc.querySelectorAll('tr'));
+
+  type OpenDeal = { dateStr: string; symbol: string; dirType: string; volume: number; price: number; commission: number };
+  const openDeals = new Map<string, OpenDeal>();
+  const trades: Mt5ParsedTrade[] = [];
+
+  const NON_TRADE = new Set(['balance', 'credit', 'deposit', 'withdrawal', 'correction']);
+
+  for (const row of rows) {
+    const cells = Array.from(row.querySelectorAll('td')).map(td => (td.textContent ?? '').trim());
+    if (cells.length < 8) continue;
+
+    const dateStr = parseMt5Date(cells[0]);
+    if (!dateStr) continue;
+
+    const type = cells[3].toLowerCase();
+    const dirCol = cells[4].toLowerCase();
+
+    if (NON_TRADE.has(type)) continue;
+
+    const symbol = cells[2].trim();
+    if (!symbol || symbol.length < 2) continue;
+
+    const volume = parseFloat(cells[5]) || 0;
+    const price = parseFloat(cells[6].replace(',', '.')) || 0;
+    const orderNum = cells[7].trim();
+    const commission = parseFloat(cells[8]) || 0;
+    const profit = parseFloat(cells[10]) || 0;
+
+    if (dirCol === 'in') {
+      openDeals.set(orderNum, { dateStr, symbol, dirType: type, volume, price, commission });
+    } else if (dirCol === 'out') {
+      const open = openDeals.get(orderNum);
+      if (open) {
+        const isBuy = open.dirType === 'buy' || open.dirType === 'buy limit' || open.dirType === 'buy stop' || open.dirType === 'buy stop limit';
+        trades.push({
+          symbol: open.symbol || symbol,
+          direction: isBuy ? 'BUY' : 'SELL',
+          volume: open.volume || volume,
+          entry: open.price,
+          exit_price: price,
+          open_time: open.dateStr,
+          close_time: dateStr,
+          profit,
+          commission: (open.commission || 0) + commission,
+        });
+        openDeals.delete(orderNum);
+      }
+    }
+  }
+
+  return trades;
+}
+
+// ── Mt5ImportModal ───────────────────────────────────────────────────────────
+
+function Mt5ImportModal({
+  open,
+  onClose,
+  userId,
+  accounts: initialAccounts,
+  onImported,
+}: {
+  open: boolean;
+  onClose: () => void;
+  userId: string;
+  accounts: Account[];
+  onImported: () => void;
+}) {
+  const { t, language: lang } = useLanguage();
+
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [parsedTrades, setParsedTrades] = useState<Mt5ParsedTrade[]>([]);
+  const [duplicateCount, setDuplicateCount] = useState(0);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importTotal, setImportTotal] = useState(0);
+  const [importedCount, setImportedCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [showNewAccount, setShowNewAccount] = useState(false);
+  const [newAccFirm, setNewAccFirm] = useState('');
+  const [newAccLogin, setNewAccLogin] = useState('');
+  const [newAccName, setNewAccName] = useState('');
+  const [creatingAcc, setCreatingAcc] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset when closed
+  useEffect(() => {
+    if (!open) {
+      setStep(1); setParsedTrades([]); setDuplicateCount(0);
+      setSelectedAccountId(''); setImportProgress(0); setImportTotal(0);
+      setImportedCount(0); setSkippedCount(0); setFileError(null);
+      setShowNewAccount(false); setNewAccFirm(''); setNewAccLogin(''); setNewAccName('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [open]);
+
+  // Sync accounts prop
+  useEffect(() => {
+    setAccounts(initialAccounts);
+    if (initialAccounts.length > 0 && !selectedAccountId) {
+      setSelectedAccountId(initialAccounts[0].id);
+    }
+  }, [initialAccounts]);
+
+  const handleFile = async (file: File) => {
+    setFileError(null);
+    if (!file.name.match(/\.(html?|htm)$/i)) {
+      setFileError(t('importInvalidFile'));
+      return;
+    }
+    let html: string;
+    try { html = await file.text(); } catch { setFileError(t('importInvalidFile')); return; }
+    const trades = parseMt5Html(html);
+    if (trades.length === 0) { setFileError(t('importNoTrades')); return; }
+
+    // Duplicate check preview
+    const { data: existing } = await supabase
+      .from('trades').select('open_time, symbol, profit').eq('user_id', userId);
+    const existingSet = new Set((existing ?? []).map(tr => `${tr.symbol}|${tr.open_time}|${tr.profit}`));
+    const dupes = trades.filter(tr => existingSet.has(`${tr.symbol}|${tr.open_time}|${tr.profit}`)).length;
+
+    setParsedTrades(trades);
+    setDuplicateCount(dupes);
+    if (accounts.length > 0 && !selectedAccountId) setSelectedAccountId(accounts[0].id);
+    setStep(2);
+  };
+
+  const handleCreateAccount = async () => {
+    if (!newAccFirm.trim()) return;
+    setCreatingAcc(true);
+    const payload: Record<string, unknown> = {
+      user_id: userId,
+      firm: newAccFirm.trim(),
+      account_name: newAccName.trim() || null,
+    };
+    if (newAccLogin.trim()) payload.login = parseInt(newAccLogin);
+    const { data, error } = await supabase.from('mt5_accounts').insert(payload).select().single();
+    setCreatingAcc(false);
+    if (error || !data) { toast.error(lang === 'ar' ? 'خطأ في إنشاء الحساب' : lang === 'fr' ? 'Erreur création compte' : 'Error creating account'); return; }
+    const newAcc = data as Account;
+    setAccounts(prev => [...prev, newAcc]);
+    setSelectedAccountId(newAcc.id);
+    setShowNewAccount(false);
+    setNewAccFirm(''); setNewAccLogin(''); setNewAccName('');
+  };
+
+  const handleImport = async () => {
+    if (!selectedAccountId) return;
+    setStep(3);
+
+    const { data: existing } = await supabase
+      .from('trades').select('open_time, symbol, profit').eq('user_id', userId);
+    const existingSet = new Set((existing ?? []).map(tr => `${tr.symbol}|${tr.open_time}|${tr.profit}`));
+
+    const toInsert = parsedTrades.filter(tr => !existingSet.has(`${tr.symbol}|${tr.open_time}|${tr.profit}`));
+    const skipped = parsedTrades.length - toInsert.length;
+    setImportTotal(toInsert.length);
+    setImportProgress(0);
+
+    const BATCH = 50;
+    let inserted = 0;
+    for (let i = 0; i < toInsert.length; i += BATCH) {
+      const batch = toInsert.slice(i, i + BATCH).map(tr => ({
+        user_id: userId,
+        symbol: tr.symbol,
+        direction: tr.direction,
+        volume: tr.volume || null,
+        entry: tr.entry || null,
+        exit_price: tr.exit_price || null,
+        open_time: tr.open_time,
+        close_time: tr.close_time,
+        profit: tr.profit,
+        account_id: selectedAccountId,
+        duration: computeDuration(tr.open_time, tr.close_time) || null,
+      }));
+      const { error } = await supabase.from('trades').insert(batch);
+      if (!error) { inserted += batch.length; setImportProgress(inserted); }
+    }
+
+    setImportedCount(inserted);
+    setSkippedCount(skipped);
+    setStep(4);
+  };
+
+  const nonDupe = parsedTrades.length - duplicateCount;
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t('importMt5Title')}</DialogTitle>
+        </DialogHeader>
+
+        {/* Step indicators */}
+        <div className="flex items-center gap-1 mb-4">
+          {([1, 2, 3, 4] as const).map((s, idx) => (
+            <div key={s} className="flex items-center gap-1 flex-1">
+              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+                step >= s ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'
+              }`}>{s}</div>
+              {idx < 3 && <div className={`h-0.5 flex-1 transition-colors ${step > s ? 'bg-primary' : 'bg-secondary'}`} />}
+            </div>
+          ))}
+        </div>
+
+        {/* ── Step 1: Upload ── */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <div
+              className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-10 text-center transition-colors ${
+                isDragging ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50 hover:bg-secondary/30'
+              }`}
+              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={e => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-10 w-10 text-muted-foreground" />
+              <div>
+                <p className="font-semibold text-foreground">{t('importDropTitle')}</p>
+                <p className="text-sm text-muted-foreground mt-1">{t('importOrBrowse')}</p>
+                <p className="text-xs text-muted-foreground mt-2">{t('importFileHint')}</p>
+              </div>
+              <input ref={fileInputRef} type="file" accept=".html,.htm" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
+            </div>
+
+            {fileError && (
+              <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <X className="h-4 w-4 shrink-0" />{fileError}
+              </div>
+            )}
+
+            <div className="rounded-lg bg-secondary/50 p-4 text-sm">
+              <p className="font-medium text-foreground mb-2">
+                {lang === 'ar' ? 'كيفية تصدير تقرير MT5' : lang === 'fr' ? 'Comment exporter depuis MT5' : 'How to export from MT5'}
+              </p>
+              <ol className={`space-y-1 text-muted-foreground list-decimal ${lang === 'ar' ? 'mr-4' : 'ml-4'}`}>
+                <li>{lang === 'ar' ? 'افتح MetaTrader 5' : lang === 'fr' ? 'Ouvrez MetaTrader 5' : 'Open MetaTrader 5'}</li>
+                <li>{lang === 'ar' ? 'انقر على "سجل الحساب" (Account History)' : lang === 'fr' ? 'Cliquez sur "Historique du compte"' : 'Click "Account History" tab'}</li>
+                <li>{lang === 'ar' ? 'انقر بزر الفأرة الأيمن ← حفظ كتقرير (HTML)' : lang === 'fr' ? 'Clic droit → Enregistrer comme rapport (HTML)' : 'Right-click → Save as Report (HTML)'}</li>
+              </ol>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Preview ── */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg bg-secondary/60 px-4 py-3">
+              <span className="font-semibold text-foreground">
+                {parsedTrades.length} {lang === 'ar' ? 'صفقة وجدت' : lang === 'fr' ? 'trades trouvés' : 'trades found'}
+              </span>
+              {duplicateCount > 0 && (
+                <span className="text-sm text-yellow-400">
+                  {duplicateCount} {t('importDuplicatesSkipped')}
+                </span>
+              )}
+            </div>
+
+            {/* Account selector */}
+            <div className="space-y-2">
+              <Label>{t('importSelectAccount')}</Label>
+              {accounts.length > 0 ? (
+                <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {accounts.map(acc => (
+                      <SelectItem key={acc.id} value={acc.id}>
+                        {acc.account_name || `${acc.firm}${acc.login ? ` · ${acc.login}` : ''}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {lang === 'ar' ? 'لا توجد حسابات — أضف حساباً أدناه' : lang === 'fr' ? 'Aucun compte — ajoutez-en un ci-dessous' : 'No accounts — add one below'}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowNewAccount(v => !v)}
+                className="flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                <Plus className="h-3.5 w-3.5" />{t('importAddAccount')}
+              </button>
+
+              {showNewAccount && (
+                <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
+                  <Input placeholder={lang === 'ar' ? 'الشركة *' : lang === 'fr' ? 'Firme *' : 'Firm *'} value={newAccFirm} onChange={e => setNewAccFirm(e.target.value)} />
+                  <Input placeholder={lang === 'ar' ? 'رقم الحساب (اختياري)' : lang === 'fr' ? 'N° compte (optionnel)' : 'Account number (optional)'} value={newAccLogin} onChange={e => setNewAccLogin(e.target.value)} />
+                  <Input placeholder={lang === 'ar' ? 'اسم الحساب (اختياري)' : lang === 'fr' ? 'Nom du compte (optionnel)' : 'Account name (optional)'} value={newAccName} onChange={e => setNewAccName(e.target.value)} />
+                  <Button size="sm" className="gradient-primary w-full" onClick={handleCreateAccount} disabled={creatingAcc || !newAccFirm.trim()}>
+                    {creatingAcc ? <Loader2 className="me-2 h-4 w-4 animate-spin" /> : <Plus className="me-2 h-4 w-4" />}
+                    {lang === 'ar' ? 'إنشاء الحساب' : lang === 'fr' ? 'Créer le compte' : 'Create Account'}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Preview table — first 5 */}
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-secondary/50">
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground">{lang === 'ar' ? 'الرمز' : 'Symbol'}</th>
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground">{lang === 'ar' ? 'الاتجاه' : lang === 'fr' ? 'Dir.' : 'Dir.'}</th>
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground">{lang === 'ar' ? 'الربح' : 'P&L'}</th>
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground">{lang === 'ar' ? 'التاريخ' : lang === 'fr' ? 'Date' : 'Date'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedTrades.slice(0, 5).map((tr, i) => (
+                    <tr key={i} className="border-b border-border/50 last:border-0">
+                      <td className="px-3 py-2 font-semibold text-foreground">{tr.symbol}</td>
+                      <td className={`px-3 py-2 font-medium ${tr.direction === 'BUY' ? 'text-profit' : 'text-loss'}`}>{tr.direction}</td>
+                      <td className={`px-3 py-2 tabular-nums ${tr.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {tr.profit >= 0 ? '+' : ''}${tr.profit.toFixed(2)}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">{tr.close_time.slice(0, 10)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {parsedTrades.length > 5 && (
+                <p className="py-2 text-center text-xs text-muted-foreground">
+                  {lang === 'ar' ? `و ${parsedTrades.length - 5} صفقة أخرى...` : lang === 'fr' ? `et ${parsedTrades.length - 5} de plus...` : `and ${parsedTrades.length - 5} more...`}
+                </p>
+              )}
+            </div>
+
+            <Button
+              className="w-full min-h-[44px] gradient-primary text-primary-foreground"
+              onClick={handleImport}
+              disabled={!selectedAccountId || nonDupe === 0}
+            >
+              {t('importStartImport')} ({nonDupe} {lang === 'ar' ? 'صفقة' : lang === 'fr' ? 'trades' : 'trades'})
+            </Button>
+          </div>
+        )}
+
+        {/* ── Step 3: Progress ── */}
+        {step === 3 && (
+          <div className="flex flex-col items-center gap-6 py-8">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="text-lg font-semibold text-foreground">{t('importImporting')}</p>
+            <div className="w-full space-y-2">
+              <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{ width: `${importTotal > 0 ? Math.round((importProgress / importTotal) * 100) : 0}%` }}
+                />
+              </div>
+              <p className="text-center text-sm text-muted-foreground">{importProgress} / {importTotal}</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 4: Success ── */}
+        {step === 4 && (
+          <div className="flex flex-col items-center gap-5 py-8">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-profit/20">
+              <CheckSquare className="h-8 w-8 text-profit" />
+            </div>
+            <p className="text-xl font-bold text-foreground">{t('importSuccess')}</p>
+            <p className="text-center text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">{importedCount}</span>{' '}
+              {lang === 'ar' ? 'صفقة تم استيرادها' : lang === 'fr' ? 'trades importés' : 'trades imported'}
+              {skippedCount > 0 && (
+                <> · <span className="text-yellow-400">{skippedCount} {t('importDuplicatesSkipped')}</span></>
+              )}
+            </p>
+            <Button className="min-h-[44px] gradient-primary text-primary-foreground px-8" onClick={() => { onClose(); onImported(); }}>
+              {t('importGoToTrades')}
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── TradesPage ───────────────────────────────────────────────────────────────
 
 const TradesPage = () => {
   const { t, language } = useLanguage();
@@ -279,6 +690,9 @@ const TradesPage = () => {
     const file = e.dataTransfer.files[0];
     if (file) handleFileUpload(file);
   };
+
+  // MT5 Import modal
+  const [importOpen, setImportOpen] = useState(false);
 
   // Add trade dialog
   const [addOpen, setAddOpen] = useState(false);
@@ -657,6 +1071,9 @@ const TradesPage = () => {
           <Button size="sm" className="gradient-primary text-primary-foreground gap-1" onClick={() => setAddOpen(true)}>
             <Plus className="h-4 w-4" />
             {lang === 'ar' ? 'إضافة صفقة' : lang === 'fr' ? 'Ajouter' : 'Add Trade'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="me-2 h-4 w-4" /> {t('importMt5')}
           </Button>
           <Button variant="outline" size="sm" onClick={exportCsv}>
             <Download className="me-2 h-4 w-4" /> {t('export')}
@@ -1162,6 +1579,18 @@ const TradesPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* MT5 Import Modal */}
+      <Mt5ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        userId={user!.id}
+        accounts={accounts}
+        onImported={async () => {
+          const { data } = await supabase.from('trades').select('*').eq('user_id', user!.id).order('close_time', { ascending: false });
+          setTrades(data ?? []);
+        }}
+      />
 
       {/* Detail Panel */}
       <Sheet open={!!selectedTrade} onOpenChange={() => setSelectedTrade(null)}>
