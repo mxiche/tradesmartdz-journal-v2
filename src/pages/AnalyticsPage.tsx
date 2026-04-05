@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
-import { Loader2, ChevronLeft, ChevronRight, FileDown } from 'lucide-react';
+import { Loader2, FileDown } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -343,12 +343,6 @@ const AnalyticsPage = () => {
   const [timeRange, setTimeRange] = useState('allTime');
   const [certLoading, setCertLoading] = useState(false);
   const certRef = useRef<HTMLDivElement>(null);
-  const [calendarMonth, setCalendarMonth] = useState(() => {
-    const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() };
-  });
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
-
   useEffect(() => {
     if (!user) return;
     const fetchTrades = async () => {
@@ -479,45 +473,6 @@ const AnalyticsPage = () => {
     return { name: day, pnl: +ts.reduce((s, tr) => s + (tr.profit ?? 0), 0).toFixed(2) };
   });
 
-  // Calendar for calendarMonth
-  const { year, month } = calendarMonth;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0=Sun
-
-  // Build calendar grid with leading empty cells (Mon-first: shift Sun to end)
-  const leadingBlanks = (firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1);
-
-  const calendarData = Array.from({ length: daysInMonth }, (_, i) => {
-    const day = i + 1;
-    const dayTrades = filteredTrades.filter(tr => {
-      if (!tr.close_time) return false;
-      const d = new Date(tr.close_time);
-      return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
-    });
-    const pnl = dayTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
-    const wins = dayTrades.filter(tr => (tr.profit ?? 0) > 0).length;
-    return { day, pnl, count: dayTrades.length, wins };
-  });
-
-  const selectedDayData = selectedDay !== null ? calendarData[selectedDay - 1] : null;
-
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'];
-
-  const prevMonth = () => {
-    setCalendarMonth(({ year, month }) => month === 0
-      ? { year: year - 1, month: 11 }
-      : { year, month: month - 1 });
-    setSelectedDay(null);
-  };
-
-  const nextMonth = () => {
-    setCalendarMonth(({ year, month }) => month === 11
-      ? { year: year + 1, month: 0 }
-      : { year, month: month + 1 });
-    setSelectedDay(null);
-  };
-
   const PnLTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     const val = payload[0].value as number;
@@ -617,92 +572,6 @@ const AnalyticsPage = () => {
         {renderBarChart(bySession, t('bySession'))}
         {renderDayChart(byDay, t('byDay'))}
       </div>
-
-      {/* Monthly Calendar */}
-      <Card className="border-border bg-card">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">{t('monthlyCalendar')}</CardTitle>
-            <div className="flex items-center gap-2">
-              <button onClick={prevMonth} className="flex h-7 w-7 items-center justify-center rounded hover:bg-secondary">
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="min-w-[130px] text-center text-sm font-medium">
-                {monthNames[month]} {year}
-              </span>
-              <button onClick={nextMonth} className="flex h-7 w-7 items-center justify-center rounded hover:bg-secondary">
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Day-of-week headers (Mon–Sun) */}
-          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-              <div key={d} className="py-1 font-medium">{d}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {/* Leading blanks */}
-            {Array.from({ length: leadingBlanks }).map((_, i) => (
-              <div key={`blank-${i}`} />
-            ))}
-            {calendarData.map(({ day, pnl, count }) => {
-              const isSelected = selectedDay === day;
-              let cellClass = 'bg-secondary text-muted-foreground';
-              if (count > 0) {
-                if (pnl > 0) cellClass = 'bg-profit/20 text-profit hover:bg-profit/30';
-                else if (pnl < 0) cellClass = 'bg-loss/20 text-loss hover:bg-loss/30';
-                else cellClass = 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30';
-              }
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() => setSelectedDay(selectedDay === day ? null : day)}
-                  className={`flex h-10 flex-col items-center justify-center rounded-md text-xs font-medium transition-colors ${cellClass} ${isSelected ? 'ring-2 ring-primary ring-offset-1 ring-offset-card' : ''}`}
-                >
-                  <span>{day}</span>
-                  {count > 0 && <span className="text-[9px] opacity-70">{count}t</span>}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Day detail popover */}
-          {selectedDay !== null && selectedDayData && selectedDayData.count > 0 && (
-            <div className="mt-4 rounded-lg border border-border bg-secondary/60 p-4">
-              <p className="mb-2 text-sm font-semibold">
-                {monthNames[month]} {selectedDay}, {year}
-              </p>
-              <div className="flex gap-6 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Trades</p>
-                  <p className="font-bold">{selectedDayData.count}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">P&L</p>
-                  <p className={`font-bold ${selectedDayData.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                    {selectedDayData.pnl >= 0 ? '+' : ''}${selectedDayData.pnl.toFixed(2)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Win Rate</p>
-                  <p className="font-bold">
-                    {selectedDayData.count > 0 ? Math.round((selectedDayData.wins / selectedDayData.count) * 100) : 0}%
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-          {selectedDay !== null && selectedDayData && selectedDayData.count === 0 && (
-            <div className="mt-4 rounded-lg border border-border bg-secondary/60 p-4">
-              <p className="text-sm text-muted-foreground">No trades on {monthNames[month]} {selectedDay}.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Hidden certificate template — captured by html2canvas on download */}
       <CertificateTemplate

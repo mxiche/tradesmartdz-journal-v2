@@ -804,9 +804,9 @@ const DashboardPage = () => {
       </div>
 
       {/* ── THIRD ROW: Calendar + Accounts ── */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        {/* Calendar */}
-        <Card className="border-border bg-card">
+      <div className="grid gap-5 lg:grid-cols-5">
+        {/* Calendar — 40% */}
+        <Card className="border-border bg-card lg:col-span-2">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">{lang === 'ar' ? 'التقويم الشهري' : lang === 'fr' ? 'Calendrier mensuel' : 'Monthly Calendar'}</CardTitle>
           </CardHeader>
@@ -815,8 +815,8 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
 
-        {/* Connected Accounts */}
-        <Card className="border-border bg-card">
+        {/* Connected Accounts — 60% */}
+        <Card className="border-border bg-card lg:col-span-3">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">{t('connectedAccounts')}</CardTitle>
