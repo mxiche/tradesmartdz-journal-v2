@@ -131,8 +131,8 @@ function WinRateDonut({ wins, total, lang }: { wins: number; total: number; lang
   );
 }
 
-// ---- Mini Calendar ----
-function MiniCalendar({ trades, lang }: { trades: Trade[]; lang: 'ar'|'fr'|'en' }) {
+// ---- Trading Calendar (full-width, large cells) ----
+function TradingCalendar({ trades, lang }: { trades: Trade[]; lang: 'ar'|'fr'|'en' }) {
   const [calMonth, setCalMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -152,9 +152,42 @@ function MiniCalendar({ trades, lang }: { trades: Trade[]; lang: 'ar'|'fr'|'en' 
         return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
       });
       const pnl = dayTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
-      return { day, pnl, count: dayTrades.length };
+      const wins = dayTrades.filter(tr => (tr.profit ?? 0) > 0).length;
+      return { day, pnl, count: dayTrades.length, wins };
     });
   }, [trades, year, month]);
+
+  // Build weeks (pad to multiples of 7)
+  const weeks = useMemo(() => {
+    const cells = [
+      ...Array.from({ length: leadingBlanks }, () => ({ day: null as number | null, pnl: 0, count: 0, wins: 0 })),
+      ...dayData,
+    ];
+    while (cells.length % 7 !== 0) cells.push({ day: null, pnl: 0, count: 0, wins: 0 });
+    const result = [];
+    for (let i = 0; i < cells.length; i += 7) {
+      const wk = cells.slice(i, i + 7);
+      const active = wk.filter(c => c.day !== null && c.count > 0);
+      result.push({ cells: wk, pnl: active.reduce((s, c) => s + c.pnl, 0), tradingDays: active.length });
+    }
+    return result;
+  }, [leadingBlanks, dayData]);
+
+  // Monthly stats
+  const monthStats = useMemo(() => {
+    const active = dayData.filter(d => d.count > 0);
+    const totalPnl = active.reduce((s, d) => s + d.pnl, 0);
+    const profitDays = active.filter(d => d.pnl > 0).length;
+    const totalTrades = active.reduce((s, d) => s + d.count, 0);
+    const totalWins = active.reduce((s, d) => s + d.wins, 0);
+    return {
+      tradingDays: active.length,
+      profitDays,
+      totalPnl,
+      totalTrades,
+      winRate: totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100) : 0,
+    };
+  }, [dayData]);
 
   const monthLabel = new Date(year, month, 1).toLocaleDateString(
     lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
@@ -163,43 +196,135 @@ function MiniCalendar({ trades, lang }: { trades: Trade[]; lang: 'ar'|'fr'|'en' 
   const dayNames = lang === 'ar'
     ? ['إث','ثل','أر','خم','جم','سب','أح']
     : lang === 'fr'
-    ? ['Lu','Ma','Me','Je','Ve','Sa','Di']
-    : ['Mo','Tu','We','Th','Fr','Sa','Su'];
+    ? ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
+    : ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  const fmtPnl = (v: number, short = false) => {
+    const abs = Math.abs(v);
+    if (short && abs >= 1000) return `${v >= 0 ? '+' : '-'}$${(abs / 1000).toFixed(1)}k`;
+    return `${v >= 0 ? '+' : '-'}$${abs.toFixed(short ? 0 : 2)}`;
+  };
+
+  const statLabel = (key: string) => {
+    const m: Record<string, Record<string, string>> = {
+      monthlyPnl:   { ar: 'P&L الشهري', fr: 'P&L mensuel', en: 'Monthly P&L' },
+      tradingDays:  { ar: 'أيام التداول', fr: 'Jours actifs', en: 'Trading Days' },
+      winDays:      { ar: 'أيام رابحة', fr: 'Jours gagnants', en: 'Win Days' },
+      totalTrades:  { ar: 'إجمالي الصفقات', fr: 'Total trades', en: 'Total Trades' },
+      winRate:      { ar: 'نسبة الفوز', fr: 'Taux de réussite', en: 'Win Rate' },
+    };
+    return m[key]?.[lang] ?? key;
+  };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Monthly stats bar */}
+      <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-secondary/30 p-3 sm:grid-cols-5">
+        {[
+          { key: 'monthlyPnl',  val: fmtPnl(monthStats.totalPnl), color: monthStats.totalPnl >= 0 ? 'text-profit' : 'text-loss' },
+          { key: 'tradingDays', val: String(monthStats.tradingDays), color: 'text-foreground' },
+          { key: 'winDays',     val: String(monthStats.profitDays), color: 'text-profit' },
+          { key: 'totalTrades', val: String(monthStats.totalTrades), color: 'text-foreground' },
+          { key: 'winRate',     val: `${monthStats.winRate}%`, color: monthStats.winRate >= 50 ? 'text-profit' : monthStats.winRate === 0 ? 'text-muted-foreground' : 'text-loss' },
+        ].map(s => (
+          <div key={s.key} className="flex flex-col gap-0.5">
+            <p className="text-[11px] text-muted-foreground">{statLabel(s.key)}</p>
+            <p className={`text-lg font-bold leading-none ${s.color}`}>{s.val}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Navigation */}
       <div className="flex items-center justify-between">
-        <button onClick={() => setCalMonth(p => p.month === 0 ? { year: p.year - 1, month: 11 } : { ...p, month: p.month - 1 })}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground">
+        <button
+          onClick={() => setCalMonth(p => p.month === 0 ? { year: p.year - 1, month: 11 } : { ...p, month: p.month - 1 })}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+        >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <span className="text-sm font-semibold text-foreground">{monthLabel}</span>
-        <button onClick={() => setCalMonth(p => p.month === 11 ? { year: p.year + 1, month: 0 } : { ...p, month: p.month + 1 })}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground">
+        <span className="text-base font-semibold text-foreground">{monthLabel}</span>
+        <button
+          onClick={() => setCalMonth(p => p.month === 11 ? { year: p.year + 1, month: 0 } : { ...p, month: p.month + 1 })}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+        >
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-0.5">
-        {dayNames.map(d => (
-          <div key={d} className="py-1 text-center text-[10px] font-medium text-muted-foreground">{d}</div>
-        ))}
-        {Array.from({ length: leadingBlanks }).map((_, i) => <div key={`b${i}`} />)}
-        {dayData.map(({ day, pnl, count }) => {
-          const today = new Date();
-          const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
-          let bg = 'bg-secondary/30 text-muted-foreground';
-          if (count > 0) bg = pnl > 0 ? 'bg-profit/20 text-profit' : pnl < 0 ? 'bg-loss/20 text-loss' : 'bg-yellow-500/15 text-yellow-400';
-          return (
-            <div key={day} className={`relative flex flex-col items-center rounded-md p-0.5 ${bg} ${isToday ? 'ring-1 ring-primary' : ''}`}>
-              <span className="text-[10px] font-semibold leading-tight">{day}</span>
-              {count > 0 && (
-                <span className="text-[8px] leading-tight tabular-nums">
-                  {pnl >= 0 ? '+' : ''}{pnl.toFixed(0)}
-                </span>
+
+      {/* Grid + weekly sidebar */}
+      <div className="flex gap-2">
+        {/* Main grid */}
+        <div className="min-w-0 flex-1">
+          {/* Day-of-week headers */}
+          <div className="mb-1 grid grid-cols-7 gap-1">
+            {dayNames.map(d => (
+              <div key={d} className="truncate py-1 text-center text-[11px] font-medium text-muted-foreground">{d}</div>
+            ))}
+          </div>
+          {/* Week rows */}
+          <div className="space-y-1">
+            {weeks.map((week, wi) => (
+              <div key={wi} className="grid grid-cols-7 gap-1">
+                {week.cells.map((cell, ci) => {
+                  if (cell.day === null) {
+                    return <div key={ci} className="min-h-[60px] md:min-h-[80px]" />;
+                  }
+                  const today = new Date();
+                  const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === cell.day;
+                  const hasData = cell.count > 0;
+                  const winRate = cell.count > 0 ? Math.round((cell.wins / cell.count) * 100) : 0;
+                  let bg = 'bg-secondary/30 hover:bg-secondary/50';
+                  if (hasData) bg = cell.pnl > 0 ? 'bg-profit/15 hover:bg-profit/22' : cell.pnl < 0 ? 'bg-loss/15 hover:bg-loss/22' : 'bg-yellow-500/10 hover:bg-yellow-500/20';
+                  return (
+                    <div
+                      key={ci}
+                      className={`relative flex min-h-[60px] flex-col rounded-md p-1.5 transition-colors md:min-h-[80px] ${bg} ${isToday ? 'ring-1 ring-primary ring-offset-1 ring-offset-card' : ''}`}
+                    >
+                      {/* Day number — top left */}
+                      <span className="text-[10px] leading-none text-muted-foreground">{cell.day}</span>
+                      {/* Trade data — centered */}
+                      {hasData && (
+                        <div className="flex flex-1 flex-col items-center justify-center gap-[3px]">
+                          <span className={`text-xs font-bold leading-none tabular-nums sm:text-sm ${cell.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                            {cell.pnl >= 0 ? '+' : ''}{Math.abs(cell.pnl) >= 1000 ? `${(cell.pnl / 1000).toFixed(1)}k` : cell.pnl.toFixed(0)}
+                          </span>
+                          <span className="text-[9px] leading-none text-muted-foreground">{cell.count}{lang === 'ar' ? 'ص' : 't'}</span>
+                          <span className={`text-[9px] leading-none ${winRate >= 50 ? 'text-profit' : 'text-loss'}`}>{winRate}%</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Weekly sidebar */}
+        <div className="hidden w-[72px] flex-col gap-1 sm:flex">
+          <div className="py-1 text-center text-[11px] font-medium text-muted-foreground">
+            {lang === 'ar' ? 'الأسبوع' : lang === 'fr' ? 'Sem.' : 'Week'}
+          </div>
+          {weeks.map((week, wi) => (
+            <div key={wi} className="flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-md bg-secondary/20 px-1 md:min-h-[80px]">
+              <span className="text-[10px] text-muted-foreground">
+                {lang === 'ar' ? `أ${wi + 1}` : `W${wi + 1}`}
+              </span>
+              {week.tradingDays > 0 ? (
+                <>
+                  <span className={`text-[11px] font-bold leading-none tabular-nums ${week.pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {fmtPnl(week.pnl, true)}
+                  </span>
+                  <span className="text-[9px] text-muted-foreground">
+                    {week.tradingDays}{lang === 'ar' ? 'ي' : 'd'}
+                  </span>
+                </>
+              ) : (
+                <span className="text-[10px] text-muted-foreground">—</span>
               )}
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -803,49 +928,50 @@ const DashboardPage = () => {
         </Card>
       </div>
 
-      {/* ── THIRD ROW: Calendar + Accounts ── */}
-      <div className="grid gap-5 lg:grid-cols-5">
-        {/* Calendar — 40% */}
-        <Card className="border-border bg-card lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{lang === 'ar' ? 'التقويم الشهري' : lang === 'fr' ? 'Calendrier mensuel' : 'Monthly Calendar'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MiniCalendar trades={closedTrades} lang={lang} />
-          </CardContent>
-        </Card>
-
-        {/* Connected Accounts — 60% */}
-        <Card className="border-border bg-card lg:col-span-3">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">{t('connectedAccounts')}</CardTitle>
-              <a href="/connect" className="text-xs text-primary hover:underline">
-                {lang === 'ar' ? 'إدارة' : lang === 'fr' ? 'Gérer' : 'Manage'}
+      {/* ── FOURTH ROW: Connected Accounts (full width, horizontal scroll) ── */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">{t('connectedAccounts')}</CardTitle>
+            <a href="/connect" className="text-xs text-primary hover:underline">
+              {lang === 'ar' ? 'إدارة' : lang === 'fr' ? 'Gérer' : 'Manage'}
+            </a>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {accounts.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <p className="text-sm text-muted-foreground">{t('noAccounts')}</p>
+              <a href="/connect">
+                <Button size="sm" className="gradient-primary text-primary-foreground">
+                  <Plus className="me-2 h-4 w-4" />
+                  {lang === 'ar' ? 'إضافة حساب' : lang === 'fr' ? 'Ajouter un compte' : 'Add Account'}
+                </Button>
               </a>
             </div>
-          </CardHeader>
-          <CardContent>
-            {accounts.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-6 text-center">
-                <p className="text-sm text-muted-foreground">{t('noAccounts')}</p>
-                <a href="/connect">
-                  <Button size="sm" className="gradient-primary text-primary-foreground">
-                    <Plus className="me-2 h-4 w-4" />
-                    {lang === 'ar' ? 'إضافة حساب' : lang === 'fr' ? 'Ajouter un compte' : 'Add Account'}
-                  </Button>
-                </a>
-              </div>
-            ) : (
-              <div className="space-y-4 max-h-[360px] overflow-y-auto pe-1">
-                {accounts.map(acc => (
-                  <AccountCard key={acc.id} acc={acc} lang={lang} compact userId={user?.id} />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          ) : (
+            <div className="flex gap-4 overflow-x-auto pb-1">
+              {accounts.map(acc => (
+                <div key={acc.id} className="w-72 shrink-0">
+                  <AccountCard acc={acc} lang={lang} compact userId={user?.id} />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── FIFTH ROW: Trading Calendar (full width) ── */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">
+            {lang === 'ar' ? 'التقويم الشهري' : lang === 'fr' ? 'Calendrier mensuel' : 'Monthly Calendar'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TradingCalendar trades={closedTrades} lang={lang} />
+        </CardContent>
+      </Card>
 
       {/* ── FOURTH ROW: Recent Trades ── */}
       <Card className="border-border bg-card">
