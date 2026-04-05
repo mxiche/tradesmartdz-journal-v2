@@ -16,6 +16,7 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import ConnectPage from "./pages/ConnectPage";
 import SettingsPage from "./pages/SettingsPage";
 import CalendarPage from "./pages/CalendarPage";
+import JournalPage from "./pages/JournalPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 
@@ -40,6 +41,7 @@ const App = () => (
                   <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route path="/connect" element={<ConnectPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
+                  <Route path="/journal" element={<JournalPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />

@@ -74,6 +74,39 @@ export type Database = {
         }
         Relationships: []
       }
+      journal_entries: {
+        Row: {
+          id: string
+          user_id: string
+          entry_date: string
+          pre_market: string | null
+          trade_notes: string | null
+          lessons: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          entry_date: string
+          pre_market?: string | null
+          trade_notes?: string | null
+          lessons?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          entry_date?: string
+          pre_market?: string | null
+          trade_notes?: string | null
+          lessons?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       trades: {
         Row: {
           account_id: string | null
@@ -88,6 +121,8 @@ export type Database = {
           notes: string | null
           open_time: string | null
           profit: number | null
+          rating: number | null
+          reviewed: boolean | null
           screenshot_url: string | null
           session: string | null
           setup_tag: string | null
@@ -111,6 +146,8 @@ export type Database = {
           notes?: string | null
           open_time?: string | null
           profit?: number | null
+          rating?: number | null
+          reviewed?: boolean | null
           screenshot_url?: string | null
           session?: string | null
           setup_tag?: string | null
@@ -134,6 +171,8 @@ export type Database = {
           notes?: string | null
           open_time?: string | null
           profit?: number | null
+          rating?: number | null
+          reviewed?: boolean | null
           setup_tag?: string | null
           screenshot_url?: string | null
           session?: string | null

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, KeyboardEvent, DragEvent } from 'react';
+import { useEffect, useState, useRef, useCallback, KeyboardEvent, DragEvent } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,9 +12,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
+import html2canvas from 'html2canvas';
 
 const RESULT_OPTIONS = [
   { value: 'Win', label: { ar: 'ربح', fr: 'Gain', en: 'Win' } },
@@ -160,17 +161,23 @@ interface Mt5ParsedTrade {
 }
 
 function parseMt5CellDate(s: string): string | null {
-  // "2024.01.15 14:30:00" or "2024.01.15 14:30"
   const m = s.trim().match(/^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6] ?? '00'}`;
-  // ISO "2024-01-15 14:30:00"
   const m2 = s.trim().match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}(?::\d{2})?)$/);
   if (m2) return `${m2[1]}T${m2[2]}`;
   return null;
 }
 
-const SKIP_TYPES = new Set(['balance', 'deposit', 'withdrawal', 'credit', 'correction']);
-const DIR_SKIP   = new Set(['BUY', 'SELL', 'IN', 'OUT', 'BUY LIMIT', 'SELL LIMIT', 'BUY STOP', 'SELL STOP']);
+// Header-name → canonical key mapping
+const HDR_MAP: Record<string, string> = {
+  time: 'time', deal: 'deal', symbol: 'symbol', type: 'type', direction: 'direction',
+  volume: 'volume', price: 'price', order: 'order', commission: 'commission',
+  swap: 'swap', profit: 'profit', balance: 'balance', comment: 'comment',
+  's/l': 'sl', 't/p': 'tp',
+};
+const BUY_TYPES  = new Set(['buy','buy limit','buy stop','buy stop limit','buy stop market']);
+const SELL_TYPES = new Set(['sell','sell limit','sell stop','sell stop limit','sell stop market']);
+const SKIP_TYPES = new Set(['balance','deposit','withdrawal','credit','correction','']);
 
 function parseMt5Html(html: string): Mt5ParsedTrade[] {
   const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -178,84 +185,125 @@ function parseMt5Html(html: string): Mt5ParsedTrade[] {
   const trades: Mt5ParsedTrade[] = [];
 
   for (const table of tables) {
-    const rows = table.querySelectorAll('tr');
+    const rows = Array.from(table.querySelectorAll('tr'));
+    if (rows.length < 2) continue;
 
-    for (const row of rows) {
+    // ── Step 1: find the header row ──────────────────────────────────
+    let colMap: Record<string, number[]> = {};  // key → list of col indices (Time appears twice)
+    let headerRowIdx = -1;
+
+    for (let ri = 0; ri < Math.min(rows.length, 6); ri++) {
+      const ths = Array.from(rows[ri].querySelectorAll('th,td'))
+        .map(el => (el.textContent ?? '').trim().toLowerCase());
+      if (ths.some(h => h === 'profit' || h === 'symbol')) {
+        colMap = {};
+        ths.forEach((h, ci) => {
+          const key = HDR_MAP[h] ?? h;
+          if (!colMap[key]) colMap[key] = [];
+          colMap[key].push(ci);
+        });
+        headerRowIdx = ri;
+        break;
+      }
+    }
+
+    // ── Step 2: parse data rows ──────────────────────────────────────
+    const dataRows = headerRowIdx >= 0 ? rows.slice(headerRowIdx + 1) : rows;
+    const hasHeaders = headerRowIdx >= 0;
+
+    for (const row of dataRows) {
       const cells = Array.from(row.querySelectorAll('td')).map(td => (td.textContent ?? '').trim());
-      if (cells.length < 8) continue;
+      if (cells.length < 4) continue;
 
       const rowText = cells.join(' ').toLowerCase();
-
-      // Must contain buy or sell
       if (!rowText.includes('buy') && !rowText.includes('sell')) continue;
-
-      // Skip non-trade rows
-      if (SKIP_TYPES.has(cells[3]?.toLowerCase() ?? '')) continue;
       if (rowText.includes('balance') || rowText.includes('deposit') ||
           rowText.includes('withdrawal') || rowText.includes('credit')) continue;
 
-      // Find direction
       let direction: 'BUY' | 'SELL' | '' = '';
-      for (const cell of cells) {
-        const c = cell.toLowerCase();
-        if (c === 'buy' || c === 'buy limit' || c === 'buy stop' || c === 'buy stop limit') { direction = 'BUY'; break; }
-        if (c === 'sell' || c === 'sell limit' || c === 'sell stop' || c === 'sell stop limit') { direction = 'SELL'; break; }
-      }
-      if (!direction) continue;
-
-      // Find symbol: uppercase 2–10 chars (exclude direction keywords)
       let symbol = '';
-      for (const cell of cells) {
-        if (DIR_SKIP.has(cell.toUpperCase())) continue;
-        if (/^[A-Z]{2,10}$/.test(cell) ||
-            /^[A-Z]{2,6}USD$/.test(cell) ||
-            /^(XAU|XAG|BTC|ETH|NQ|ES|YM|GC|CL|NASDAQ|SP500)/.test(cell)) {
-          symbol = cell;
-          break;
-        }
-      }
-      if (!symbol || symbol.length < 2) continue;
-
-      // Collect all dates in the row
-      const dates: string[] = [];
-      for (const cell of cells) {
-        const d = parseMt5CellDate(cell);
-        if (d) dates.push(d);
-      }
-      if (dates.length === 0) continue;
-
-      const open_time  = dates[0];
-      const close_time = dates[1] ?? dates[0];
-
-      // Find profit: last valid number (can be negative, skip blanks)
+      let open_time = '';
+      let close_time = '';
       let profit = 0;
-      for (let i = cells.length - 1; i >= 0; i--) {
-        const raw = cells[i].replace(/\s/g, '').replace(',', '.');
-        if (!raw || raw === '0') continue;
-        const val = parseFloat(raw);
-        if (!isNaN(val) && /^-?\d/.test(raw) && Math.abs(val) < 1_000_000) { profit = val; break; }
-      }
-
-      // Find volume: small decimal like 0.01–100
       let volume = 0;
-      for (const cell of cells) {
-        const val = parseFloat(cell.replace(',', '.'));
-        if (!isNaN(val) && val > 0 && val <= 100 && /^\d+\.\d+$/.test(cell)) { volume = val; break; }
+      let entry = 0;
+      let exit_price = 0;
+
+      if (hasHeaders && Object.keys(colMap).length > 0) {
+        // Header-guided extraction ────────────────────────────────
+        const get = (key: string, nth = 0) => cells[colMap[key]?.[nth]] ?? '';
+
+        const typeStr = get('type').toLowerCase();
+        if (SKIP_TYPES.has(typeStr)) continue;
+        if (BUY_TYPES.has(typeStr))       direction = 'BUY';
+        else if (SELL_TYPES.has(typeStr)) direction = 'SELL';
+
+        // Direction column (e.g. "in"/"out") not needed if type has buy/sell
+        if (!direction) {
+          const dirStr = get('direction').toLowerCase();
+          // For paired in/out format: type col has buy/sell, direction has in/out
+          // Try 'in' on earlier column for combined row approach
+          if (BUY_TYPES.has(typeStr) || dirStr === 'in') direction = 'BUY';
+          else if (SELL_TYPES.has(typeStr) || dirStr === 'out') direction = 'SELL';
+        }
+        if (!direction) continue;
+
+        symbol    = get('symbol').trim();
+        const times = (colMap['time'] ?? []).map(ci => parseMt5CellDate(cells[ci] ?? '')).filter(Boolean) as string[];
+        open_time  = times[0] ?? '';
+        close_time = times[1] ?? times[0] ?? '';
+
+        const profitRaw = get('profit').replace(/\s/g, '').replace(',', '.');
+        profit = parseFloat(profitRaw) || 0;
+
+        const volRaw = get('volume').replace(',', '.');
+        volume = parseFloat(volRaw) || 0;
+
+        const priceIndices = colMap['price'] ?? [];
+        entry      = parseFloat((cells[priceIndices[0]] ?? '').replace(',', '.')) || 0;
+        exit_price = parseFloat((cells[priceIndices[1]] ?? cells[priceIndices[0]] ?? '').replace(',', '.')) || 0;
+
+      } else {
+        // Fallback: heuristic extraction ──────────────────────────
+        for (const cell of cells) {
+          const c = cell.toLowerCase();
+          if (BUY_TYPES.has(c))  { direction = 'BUY';  break; }
+          if (SELL_TYPES.has(c)) { direction = 'SELL'; break; }
+        }
+        if (!direction) continue;
+
+        for (const cell of cells) {
+          if (/^[A-Z]{2,10}$/.test(cell) && !['BUY','SELL','IN','OUT'].includes(cell)) { symbol = cell; break; }
+        }
+
+        const dates: string[] = [];
+        for (const cell of cells) { const d = parseMt5CellDate(cell); if (d) dates.push(d); }
+        open_time  = dates[0] ?? '';
+        close_time = dates[1] ?? dates[0] ?? '';
+
+        // Profit: last numeric value that is not clearly a price or volume
+        for (let i = cells.length - 1; i >= 0; i--) {
+          if (parseMt5CellDate(cells[i])) continue;
+          const raw = cells[i].replace(/\s/g, '').replace(',', '.');
+          const val = parseFloat(raw);
+          if (!isNaN(val) && /^-?\d/.test(raw) && Math.abs(val) < 100_000) { profit = val; break; }
+        }
+
+        const prices: number[] = [];
+        for (const cell of cells) {
+          if (parseMt5CellDate(cell) || cell.includes(':')) continue;
+          const val = parseFloat(cell.replace(',', '.'));
+          if (!isNaN(val) && val > 0.5 && val < 1_000_000) prices.push(val);
+        }
+        entry      = prices[0] ?? 0;
+        exit_price = prices.length >= 2 ? prices[1] : (prices[0] ?? 0);
+        volume     = 0;
       }
 
-      // Find entry/exit prices (exclude dates, skip cells with colons for times)
-      const prices: number[] = [];
-      for (const cell of cells) {
-        if (cell.includes(':')) continue;
-        // Skip date-like cells (4-digit year portion)
-        if (/^\d{4}[.\-]/.test(cell)) continue;
-        const val = parseFloat(cell.replace(',', '.'));
-        if (!isNaN(val) && val > 0.5 && val < 1_000_000) prices.push(val);
-      }
-      const entry      = prices[0] ?? 0;
-      const exit_price = prices.length >= 2 ? prices[prices.length - 2] : (prices[0] ?? 0);
+      if (!symbol || symbol.length < 2) continue;
+      if (!open_time) continue;
 
-      trades.push({ symbol, direction, volume, entry, exit_price, open_time, close_time, profit, commission: 0 });
+      trades.push({ symbol, direction, volume, entry, exit_price, open_time, close_time: close_time || open_time, profit, commission: 0 });
     }
   }
 
@@ -670,12 +718,27 @@ const TradesPage = () => {
   const [dirFilter, setDirFilter] = useState('all');
   const [setupFilter, setSetupFilter] = useState('all');
   const [accountFilter, setAccountFilter] = useState('all');
+  const [ratingFilter, setRatingFilter] = useState(0);       // 0 = all, 1-5 = min stars
+  const [unreviewedOnly, setUnreviewedOnly] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [editTags, setEditTags] = useState<string[]>([]);
   const [editNotes, setEditNotes] = useState('');
+  const [editRating, setEditRating] = useState(0);
+  const [editReviewed, setEditReviewed] = useState(false);
+  const [editSymbol, setEditSymbol] = useState('');
+  const [editDirection, setEditDirection] = useState<'BUY'|'SELL'>('BUY');
+  const [editResult, setEditResult] = useState('');
+  const [editProfit, setEditProfit] = useState('');
+  const [editRisk, setEditRisk] = useState('');
+  const [editSession, setEditSession] = useState('');
+  const [editSetupTag, setEditSetupTag] = useState('');
+  const [editOpenTime, setEditOpenTime] = useState('');
+  const [editCloseTime, setEditCloseTime] = useState('');
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingBulk, setDeletingBulk] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareCardRef = useRef<HTMLDivElement>(null);
 
   // Screenshot upload
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
@@ -1007,15 +1070,30 @@ const TradesPage = () => {
 
   const openTrade = (trade: Trade) => {
     setSelectedTrade(trade);
+    const { result, session, setup } = parseSetupTag(trade.setup_tag);
     const tags = trade.setup_tag
       ? trade.setup_tag.split(',').map(s => s.trim()).filter(Boolean)
       : [];
     setEditTags(tags);
     setEditNotes(trade.notes ?? '');
+    setEditRating((trade as any).rating ?? 0);
+    setEditReviewed((trade as any).reviewed ?? false);
+    setEditSymbol(trade.symbol ?? '');
+    setEditDirection((trade.direction as 'BUY'|'SELL') ?? 'BUY');
+    setEditResult(result ?? '');
+    setEditProfit(trade.profit != null ? String(Math.abs(trade.profit)) : '');
+    // Extract risk from notes metadata line
+    const riskMatch = (trade.notes ?? '').match(/Risk \$([0-9.]+)/);
+    setEditRisk(riskMatch ? riskMatch[1] : '');
+    setEditSession(session ?? '');
+    setEditSetupTag(setup ?? '');
+    setEditOpenTime(trade.open_time ? new Date(trade.open_time).toISOString().slice(0,16) : '');
+    setEditCloseTime(trade.close_time ? new Date(trade.close_time).toISOString().slice(0,16) : '');
     setScreenshotUrl(trade.screenshot_url ?? null);
     setUploadProgress(0);
     setIsDragging(false);
     setCompressedSize(null);
+    setShareOpen(false);
   };
 
   const toggleTag = (tag: string) => {
@@ -1057,23 +1135,63 @@ const TradesPage = () => {
   const saveTrade = async () => {
     if (!selectedTrade) return;
     setSaving(true);
-    const setupTag = editTags.join(', ') || null;
-    const { error } = await supabase
-      .from('trades')
-      .update({ setup_tag: setupTag, notes: editNotes || null })
-      .eq('id', selectedTrade.id);
+
+    // Rebuild setup_tag from result + session + custom tags
+    const tagParts = [editResult, editSession, ...editTags.filter(t => !RESULT_VALUES.includes(t) && !SESSION_VALUES.includes(t)), editSetupTag.trim()].filter(Boolean);
+    const setupTag = [...new Set(tagParts)].join(', ') || null;
+
+    // Rebuild notes: meta line + user notes
+    const rrVal = editRisk ? (Math.abs(parseFloat(editProfit)||0) / parseFloat(editRisk)).toFixed(2) : '';
+    const riskStr = editRisk ? `Risk $${editRisk}` : '';
+    const rrStr   = rrVal && rrVal !== 'NaN' && parseFloat(rrVal) > 0 ? `R:R ${rrVal}` : '';
+    const metaLine = [riskStr, rrStr].filter(Boolean).join(' | ');
+    // Preserve user notes (lines after meta)
+    const existingUserNotes = (editNotes ?? '').split('\n').filter(l => !l.startsWith('Risk $') && !l.startsWith('R:R')).join('\n').trim();
+    const finalNotes = [metaLine, existingUserNotes].filter(Boolean).join('\n') || null;
+
+    // Compute profit with sign
+    const profitNum = parseFloat(editProfit) || 0;
+    const finalProfit = editResult === 'Loss' ? -Math.abs(profitNum) : Math.abs(profitNum);
+    const duration = (editOpenTime && editCloseTime) ? computeDuration(editOpenTime, editCloseTime) || null : selectedTrade.duration;
+
+    const updatePayload: Record<string, unknown> = {
+      symbol:    editSymbol.trim().toUpperCase() || selectedTrade.symbol,
+      direction: editDirection,
+      profit:    finalProfit,
+      setup_tag: setupTag,
+      notes:     finalNotes,
+      session:   editSession || null,
+      rating:    editRating || null,
+      reviewed:  editReviewed,
+      open_time: editOpenTime ? new Date(editOpenTime).toISOString() : selectedTrade.open_time,
+      close_time: editCloseTime ? new Date(editCloseTime).toISOString() : selectedTrade.close_time,
+      duration,
+    };
+
+    const { error } = await supabase.from('trades').update(updatePayload as any).eq('id', selectedTrade.id);
     setSaving(false);
     if (error) {
       toast.error('Failed to save');
     } else {
-      setTrades(prev => prev.map(tr => tr.id === selectedTrade.id
-        ? { ...tr, setup_tag: setupTag, notes: editNotes || null }
-        : tr
-      ));
-      toast.success('Saved!');
+      const updated = { ...selectedTrade, ...updatePayload } as Trade;
+      setTrades(prev => prev.map(tr => tr.id === selectedTrade.id ? updated : tr));
+      toast.success(lang === 'ar' ? 'تم الحفظ' : lang === 'fr' ? 'Enregistré' : 'Saved!');
       setSelectedTrade(null);
     }
   };
+
+  // Quick rating/reviewed save (from table row or panel toggle)
+  const saveRating = useCallback(async (tradeId: string, rating: number) => {
+    await supabase.from('trades').update({ rating } as any).eq('id', tradeId);
+    setTrades(prev => prev.map(tr => tr.id === tradeId ? { ...tr, ...(({ rating } as any)) } : tr));
+  }, []);
+
+  const toggleReviewed = useCallback(async (tradeId: string, current: boolean) => {
+    const reviewed = !current;
+    await supabase.from('trades').update({ reviewed } as any).eq('id', tradeId);
+    setTrades(prev => prev.map(tr => tr.id === tradeId ? { ...tr, ...(({ reviewed } as any)) } : tr));
+    if (selectedTrade?.id === tradeId) setEditReviewed(reviewed);
+  }, [selectedTrade]);
 
   const handleDeleteTrade = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1142,7 +1260,7 @@ const TradesPage = () => {
   // account map for name lookup
   const accountMap = Object.fromEntries(accounts.map(a => [a.id, a]));
 
-  // Filter: check if trade's setup_tag contains the filter tag
+  // Filter
   const filtered = trades.filter(tr => {
     if (search && !tr.symbol.toLowerCase().includes(search.toLowerCase())) return false;
     if (dirFilter !== 'all' && tr.direction !== dirFilter) return false;
@@ -1151,12 +1269,11 @@ const TradesPage = () => {
       if (!tradeTags.includes(setupFilter)) return false;
     }
     if (accountFilter !== 'all') {
-      if (accountFilter === 'manual') {
-        if (tr.account_id) return false;
-      } else {
-        if (tr.account_id !== accountFilter) return false;
-      }
+      if (accountFilter === 'manual') { if (tr.account_id) return false; }
+      else { if (tr.account_id !== accountFilter) return false; }
     }
+    if (ratingFilter > 0 && ((tr as any).rating ?? 0) < ratingFilter) return false;
+    if (unreviewedOnly && (tr as any).reviewed === true) return false;
     return true;
   });
 
@@ -1221,6 +1338,27 @@ const TradesPage = () => {
             </SelectContent>
           </Select>
         )}
+        {/* Rating filter */}
+        <Select value={String(ratingFilter)} onValueChange={v => setRatingFilter(Number(v))}>
+          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="0">{t('tradeRating')}</SelectItem>
+            {[1,2,3,4,5].map(n => (
+              <SelectItem key={n} value={String(n)}>{'⭐'.repeat(n)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {/* Reviewed filter */}
+        <button
+          type="button"
+          onClick={() => setUnreviewedOnly(v => !v)}
+          className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+            unreviewedOnly ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/40'
+          }`}
+        >
+          <CheckSquare className="h-3.5 w-3.5" />
+          {t('unreviewed')}
+        </button>
       </div>
 
       {/* Table */}
@@ -1260,6 +1398,7 @@ const TradesPage = () => {
                     <TableHead className="font-semibold">{lang === 'ar' ? 'الجلسة' : lang === 'fr' ? 'Session' : 'Session'}</TableHead>
                     <TableHead className="font-semibold">{t('setup')}</TableHead>
                     <TableHead className="font-semibold">{t('notes')}</TableHead>
+                    <TableHead className="font-semibold w-16">⭐</TableHead>
                     <TableHead className="font-semibold w-8"></TableHead>
                     <TableHead className="font-semibold">{t('date')}</TableHead>
                     <TableHead className="w-10"></TableHead>
@@ -1370,6 +1509,27 @@ const TradesPage = () => {
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
+                        </TableCell>
+
+                        {/* Rating + Reviewed */}
+                        <TableCell className="w-16" onClick={e => e.stopPropagation()}>
+                          <div className="flex flex-col items-start gap-0.5">
+                            <div className="flex">
+                              {[1,2,3,4,5].map(s => (
+                                <button key={s} type="button"
+                                  onClick={() => saveRating(trade.id, s === (trade as any).rating ? 0 : s)}
+                                  className="p-0 leading-none"
+                                >
+                                  <Star className={`h-3 w-3 ${s <= ((trade as any).rating ?? 0) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`} />
+                                </button>
+                              ))}
+                            </div>
+                            {(trade as any).reviewed && (
+                              <span className="flex items-center gap-0.5 rounded-full bg-profit/15 px-1.5 py-0.5 text-[9px] font-medium text-profit">
+                                <Check className="h-2.5 w-2.5" />
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
 
                         {/* Screenshot icon */}
@@ -1695,201 +1855,282 @@ const TradesPage = () => {
         }}
       />
 
-      {/* Detail Panel */}
+      {/* ── Detail Panel ── */}
       <Sheet open={!!selectedTrade} onOpenChange={() => setSelectedTrade(null)}>
-        <SheetContent className="overflow-y-auto">
-          {selectedTrade && (
-            <>
-              <SheetHeader>
-                <SheetTitle>{selectedTrade.symbol} — {selectedTrade.direction === 'BUY' ? t('buy') : t('sell')}</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6 space-y-5">
-                {/* Trade stats */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div><p className="text-sm text-muted-foreground">{t('entry')}</p><p className="font-medium">{selectedTrade.entry}</p></div>
-                  <div><p className="text-sm text-muted-foreground">{t('exit')}</p><p className="font-medium">{selectedTrade.exit_price}</p></div>
-                  <div><p className="text-sm text-muted-foreground">{t('pnl')}</p><p className={`font-bold ${(selectedTrade.profit ?? 0) >= 0 ? 'text-profit' : 'text-loss'}`}>${selectedTrade.profit}</p></div>
-                  <div><p className="text-sm text-muted-foreground">{t('duration')}</p><p className="font-medium">{selectedTrade.duration}</p></div>
-                </div>
-
-                {/* Multi-select tag picker */}
-                <div className="space-y-3">
-                  <Label>{t('setup')}</Label>
-
-                  {/* Tag pills */}
-                  <div className="flex flex-wrap gap-2">
-                    {allTags.map(tag => {
-                      const active = editTags.includes(tag);
-                      return (
-                        <div key={tag} className="group relative flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => toggleTag(tag)}
-                            className={`rounded-full border pe-6 ps-3 py-1 text-xs font-medium transition-colors ${
-                              active
-                                ? 'border-primary bg-primary/20 text-primary'
-                                : 'border-border bg-secondary text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                            }`}
-                          >
-                            {tag}
-                          </button>
-                          {/* Delete tag from list */}
-                          <button
-                            type="button"
-                            onClick={() => removeTag(tag)}
-                            className="absolute end-1 flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                            title="Remove tag"
-                          >
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Selected tags summary */}
-                  {editTags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {editTags.map(tag => (
-                        <Badge key={tag} className="gap-1 bg-primary/20 text-primary">
-                          {tag}
-                          <button onClick={() => toggleTag(tag)} className="hover:text-destructive">
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Add new custom tag */}
-                  <div className="flex gap-2">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+          {selectedTrade && (() => {
+            const pnlNum = parseFloat(editProfit) || 0;
+            const riskNum = parseFloat(editRisk) || 0;
+            const rrCalc  = riskNum > 0 ? (pnlNum / riskNum).toFixed(2) : '—';
+            const durCalc = (editOpenTime && editCloseTime) ? computeDuration(editOpenTime, editCloseTime) : (selectedTrade.duration ?? '—');
+            return (
+              <>
+                <SheetHeader className="pb-2">
+                  <SheetTitle className="flex items-center gap-3">
+                    <span className={`rounded-full px-3 py-0.5 text-sm font-bold ${editDirection === 'BUY' ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss'}`}>
+                      {editDirection}
+                    </span>
                     <Input
-                      placeholder="Add custom tag…"
-                      value={newTagInput}
-                      onChange={e => setNewTagInput(e.target.value)}
-                      onKeyDown={handleTagInputKeyDown}
-                      className="h-8 text-sm"
+                      value={editSymbol}
+                      onChange={e => setEditSymbol(e.target.value.toUpperCase())}
+                      className="h-8 w-32 text-lg font-bold uppercase"
                     />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 px-2"
-                      onClick={addCustomTag}
-                      disabled={addingTag || !newTagInput.trim()}
-                    >
-                      {addingTag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Notes */}
-                <div className="space-y-2">
-                  <Label>{t('notes')}</Label>
-                  <Textarea
-                    placeholder={t('notes')}
-                    rows={4}
-                    value={editNotes}
-                    onChange={e => setEditNotes(e.target.value)}
-                  />
-                </div>
-
-                {/* Screenshot */}
-                <div className="space-y-2">
-                  <Label>
-                    {lang === 'ar' ? 'لقطة الشاشة' : lang === 'fr' ? 'Capture d\'écran' : 'Chart Screenshot'}
-                  </Label>
-
-                  {screenshotUrl ? (
-                    <div className="relative overflow-hidden rounded-lg border border-border">
-                      <img
-                        src={screenshotUrl}
-                        alt="Trade screenshot"
-                        className="w-full object-contain max-h-64"
-                      />
+                    <div className="flex gap-1 ms-auto">
                       <button
                         type="button"
-                        onClick={handleDeleteScreenshot}
-                        className="absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-background/80 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-destructive hover:text-white"
-                        title={lang === 'ar' ? 'حذف الصورة' : lang === 'fr' ? 'Supprimer' : 'Delete screenshot'}
+                        onClick={() => setShareOpen(v => !v)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                        title={t('shareTrade')}
+                      >
+                        <Share2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={e => { handleDeleteTrade(selectedTrade.id, e); }}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-destructive/30 text-destructive/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        title={lang === 'ar' ? 'حذف الصفقة' : 'Delete'}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
-                      {/* Click to replace */}
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="absolute bottom-2 end-2 rounded-md bg-background/80 px-2 py-1 text-xs text-muted-foreground backdrop-blur-sm transition-colors hover:text-foreground"
-                      >
-                        {lang === 'ar' ? 'استبدال' : lang === 'fr' ? 'Remplacer' : 'Replace'}
-                      </button>
                     </div>
-                  ) : (
-                    <div
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onClick={() => !uploading && fileInputRef.current?.click()}
-                      className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
-                        isDragging
-                          ? 'border-primary bg-primary/5 text-primary'
-                          : 'border-border bg-secondary/30 text-muted-foreground hover:border-primary/50 hover:text-foreground'
-                      } ${uploading ? 'cursor-default opacity-70' : ''}`}
-                    >
-                      {uploading ? (
-                        <>
-                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                          <p className="text-sm font-medium text-primary">
-                            {compressedSize === null
-                              ? (lang === 'ar' ? 'جاري ضغط الصورة...' : lang === 'fr' ? 'Compression...' : 'Compressing...')
-                              : (lang === 'ar' ? 'جاري الرفع...' : lang === 'fr' ? 'Envoi en cours...' : 'Uploading...')
-                            }
-                          </p>
-                          {compressedSize !== null && (
-                            <p className="text-xs text-muted-foreground">
-                              {lang === 'ar' ? `حجم الملف: ${compressedSize}` : lang === 'fr' ? `Taille: ${compressedSize}` : `Compressed to ${compressedSize}`}
-                            </p>
-                          )}
-                          <div className="w-full max-w-[160px] overflow-hidden rounded-full bg-secondary h-1.5">
-                            <div
-                              className="h-full rounded-full bg-primary transition-all duration-150"
-                              style={{ width: compressedSize === null ? '15%' : `${uploadProgress}%` }}
-                            />
+                  </SheetTitle>
+                </SheetHeader>
+
+                <div className="space-y-5 pt-2">
+
+                  {/* ── Section: Core fields ── */}
+                  <div className="rounded-xl border border-border bg-secondary/20 p-4 space-y-3">
+                    {/* Direction toggle */}
+                    <div className="flex gap-2">
+                      {(['BUY','SELL'] as const).map(d => (
+                        <button key={d} type="button"
+                          onClick={() => setEditDirection(d)}
+                          className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition-colors ${
+                            editDirection === d
+                              ? d === 'BUY' ? 'border-profit bg-profit/20 text-profit' : 'border-loss bg-loss/20 text-loss'
+                              : 'border-border bg-card text-muted-foreground hover:border-primary/40'
+                          }`}
+                        >{d === 'BUY' ? t('buy') : t('sell')}</button>
+                      ))}
+                    </div>
+
+                    {/* Result */}
+                    <div className="space-y-1">
+                      <Label>{lang === 'ar' ? 'النتيجة' : lang === 'fr' ? 'Résultat' : 'Result'}</Label>
+                      <Select value={editResult} onValueChange={setEditResult}>
+                        <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                        <SelectContent>
+                          {RESULT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label[lang]}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* PnL + Risk + RR */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t('pnl')} ($)</Label>
+                        <Input type="number" step="0.01" value={editProfit} onChange={e => setEditProfit(e.target.value)} className="h-8 text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t('risk')}</Label>
+                        <Input type="number" step="0.01" value={editRisk} onChange={e => setEditRisk(e.target.value)} className="h-8 text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">R:R</Label>
+                        <Input readOnly value={rrCalc} className="h-8 text-sm bg-secondary cursor-default text-muted-foreground" />
+                      </div>
+                    </div>
+
+                    {/* Open / Close time */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">{lang === 'ar' ? 'الفتح' : lang === 'fr' ? 'Ouverture' : 'Open'}</Label>
+                        <Input type="datetime-local" value={editOpenTime} onChange={e => setEditOpenTime(e.target.value)} className="h-8 text-xs" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{lang === 'ar' ? 'الإغلاق' : lang === 'fr' ? 'Clôture' : 'Close'}</Label>
+                        <Input type="datetime-local" value={editCloseTime} onChange={e => setEditCloseTime(e.target.value)} className="h-8 text-xs" />
+                      </div>
+                    </div>
+
+                    {/* Duration read-only */}
+                    <p className="text-xs text-muted-foreground">
+                      {t('duration')}: <span className="font-medium text-foreground">{durCalc}</span>
+                      {selectedTrade.entry && <span className="ms-3">{t('entry')}: {selectedTrade.entry}</span>}
+                      {selectedTrade.exit_price && <span className="ms-3">{t('exit')}: {selectedTrade.exit_price}</span>}
+                    </p>
+                  </div>
+
+                  {/* ── Section: Tags & Classification ── */}
+                  <div className="rounded-xl border border-border bg-secondary/20 p-4 space-y-3">
+                    {/* Session */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">{lang === 'ar' ? 'الجلسة' : lang === 'fr' ? 'Session' : 'Session'}</Label>
+                      <Select value={editSession} onValueChange={setEditSession}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">{t('all')}</SelectItem>
+                          {SESSION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label[lang]}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Setup text */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t('setup')}</Label>
+                      <Input value={editSetupTag} onChange={e => setEditSetupTag(e.target.value)}
+                        placeholder="FVG, Order Block..." className="h-8 text-sm" />
+                    </div>
+
+                    {/* Tag pills */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {allTags.map(tag => {
+                        const active = editTags.includes(tag);
+                        return (
+                          <div key={tag} className="group relative flex items-center">
+                            <button type="button" onClick={() => toggleTag(tag)}
+                              className={`rounded-full border pe-5 ps-2.5 py-0.5 text-xs font-medium transition-colors ${
+                                active ? 'border-primary bg-primary/20 text-primary' : 'border-border bg-secondary text-muted-foreground hover:border-primary/40'
+                              }`}>{tag}</button>
+                            <button type="button" onClick={() => removeTag(tag)}
+                              className="absolute end-0.5 h-4 w-4 flex items-center justify-center rounded-full opacity-0 text-muted-foreground hover:text-destructive group-hover:opacity-100 transition-opacity">
+                              <X className="h-2.5 w-2.5" />
+                            </button>
                           </div>
-                        </>
-                      ) : (
-                        <>
-                          <Camera className="h-8 w-8" />
-                          <p className="text-sm font-medium">
-                            {lang === 'ar' ? 'أفلت لقطة الشاشة هنا' : lang === 'fr' ? 'Déposez votre capture ici' : 'Drop your chart screenshot here'}
-                          </p>
-                          <p className="text-xs">
-                            {lang === 'ar' ? 'أو انقر للاختيار — JPG, PNG, WEBP' : lang === 'fr' ? 'ou cliquez — JPG, PNG, WEBP' : 'or click to browse — JPG, PNG, WEBP'}
-                          </p>
-                        </>
-                      )}
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input placeholder={lang === 'ar' ? 'إضافة وسم...' : 'Add tag...'} value={newTagInput}
+                        onChange={e => setNewTagInput(e.target.value)} onKeyDown={handleTagInputKeyDown} className="h-8 text-sm" />
+                      <Button size="sm" variant="outline" className="h-8 px-2" onClick={addCustomTag} disabled={addingTag || !newTagInput.trim()}>
+                        {addingTag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* ── Section: Rating & Review ── */}
+                  <div className="rounded-xl border border-border bg-secondary/20 p-4 space-y-3">
+                    {/* Stars */}
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">{t('tradeRating')}</Label>
+                      <div className="flex gap-1">
+                        {[1,2,3,4,5].map(s => (
+                          <button key={s} type="button" onClick={() => setEditRating(s === editRating ? 0 : s)}>
+                            <Star className={`h-6 w-6 transition-colors ${s <= editRating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-400/60'}`} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Reviewed toggle */}
+                    <button type="button" onClick={() => setEditReviewed(v => !v)}
+                      className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        editReviewed ? 'border-profit/40 bg-profit/10 text-profit' : 'border-border text-muted-foreground hover:border-primary/40'
+                      }`}>
+                      <Check className="h-4 w-4 shrink-0" />
+                      {editReviewed ? t('reviewed') : t('markReviewed')}
+                    </button>
+                  </div>
+
+                  {/* ── Section: Notes ── */}
+                  <div className="space-y-1.5">
+                    <Label>{t('notes')}</Label>
+                    <Textarea placeholder={t('notes')} rows={4} value={editNotes} onChange={e => setEditNotes(e.target.value)} />
+                  </div>
+
+                  {/* ── Section: Screenshot ── */}
+                  <div className="space-y-2">
+                    <Label>{lang === 'ar' ? 'لقطة الشاشة' : lang === 'fr' ? 'Capture d\'écran' : 'Screenshot'}</Label>
+                    {screenshotUrl ? (
+                      <div className="relative overflow-hidden rounded-lg border border-border">
+                        <img src={screenshotUrl} alt="Trade screenshot" className="w-full object-contain max-h-64" />
+                        <button type="button" onClick={handleDeleteScreenshot}
+                          className="absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-background/80 backdrop-blur-sm text-muted-foreground hover:bg-destructive hover:text-white transition-colors">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                        <button type="button" onClick={() => fileInputRef.current?.click()}
+                          className="absolute bottom-2 end-2 rounded-md bg-background/80 px-2 py-1 text-xs backdrop-blur-sm text-muted-foreground hover:text-foreground transition-colors">
+                          {lang === 'ar' ? 'استبدال' : lang === 'fr' ? 'Remplacer' : 'Replace'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+                        onClick={() => !uploading && fileInputRef.current?.click()}
+                        className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-5 text-center transition-colors ${
+                          isDragging ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-secondary/30 text-muted-foreground hover:border-primary/50'
+                        } ${uploading ? 'cursor-default opacity-70' : ''}`}>
+                        {uploading ? (
+                          <>
+                            <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                            <p className="text-xs text-primary">{compressedSize === null ? (lang === 'ar' ? 'ضغط...' : 'Compressing...') : (lang === 'ar' ? 'رفع...' : 'Uploading...')}</p>
+                            <div className="h-1 w-32 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-primary transition-all" style={{ width: compressedSize === null ? '15%' : `${uploadProgress}%` }} /></div>
+                          </>
+                        ) : (
+                          <>
+                            <Camera className="h-7 w-7" />
+                            <p className="text-xs">{lang === 'ar' ? 'أفلت أو انقر للاختيار — JPG, PNG' : lang === 'fr' ? 'Déposer ou cliquer — JPG, PNG' : 'Drop or click — JPG, PNG'}</p>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                      onChange={e => { const file = e.target.files?.[0]; if (file) handleFileUpload(file); e.target.value = ''; }} />
+                  </div>
+
+                  {/* ── Share card ── */}
+                  {shareOpen && (
+                    <div className="rounded-xl border border-primary/20 bg-secondary/30 p-4 space-y-3">
+                      {/* Preview card */}
+                      <div ref={shareCardRef} style={{ width: 480, background: 'linear-gradient(135deg,#0f1117 0%,#1a1d27 100%)', borderRadius: 16, padding: 28, fontFamily: 'system-ui,sans-serif', color: '#e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#00d4aa', letterSpacing: '0.08em' }}>TRADESMARTDZ</span>
+                          <span style={{ fontSize: 12, color: '#64748b' }}>{selectedTrade.close_time ? new Date(selectedTrade.close_time).toLocaleDateString() : ''}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+                          <span style={{ fontSize: 32, fontWeight: 800, color: '#f1f5f9' }}>{editSymbol || selectedTrade.symbol}</span>
+                          <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 700, background: editDirection === 'BUY' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', color: editDirection === 'BUY' ? '#22c55e' : '#ef4444' }}>{editDirection}</span>
+                          {editResult && <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'rgba(100,116,139,0.2)', color: '#94a3b8' }}>{editResult}</span>}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 18 }}>
+                          {[
+                            { label: 'P&L', val: `${pnlNum >= 0 ? '+' : ''}$${pnlNum.toFixed(2)}`, color: pnlNum >= 0 ? '#22c55e' : '#ef4444' },
+                            { label: 'R:R', val: rrCalc, color: '#e2e8f0' },
+                            { label: lang === 'ar' ? 'المدة' : 'Duration', val: durCalc, color: '#e2e8f0' },
+                          ].map((s, i) => (
+                            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 14px' }}>
+                              <p style={{ fontSize: 10, color: '#64748b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
+                              <p style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.val}</p>
+                            </div>
+                          ))}
+                        </div>
+                        {editSetupTag && <div style={{ marginBottom: 16 }}><span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, background: 'rgba(0,212,170,0.12)', color: '#00d4aa' }}>{editSetupTag}</span></div>}
+                        {editRating > 0 && <div style={{ marginBottom: 16 }}>{'⭐'.repeat(editRating)}</div>}
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12, fontSize: 11, color: '#475569', textAlign: 'center' }}>
+                          Analyzed with TradeSmartDz — neuroport.xyz
+                        </div>
+                      </div>
+                      <Button className="w-full gradient-primary text-primary-foreground" onClick={async () => {
+                        if (!shareCardRef.current) return;
+                        const canvas = await html2canvas(shareCardRef.current, { scale: 2, backgroundColor: null, useCORS: true });
+                        const a = document.createElement('a');
+                        a.href = canvas.toDataURL('image/png');
+                        a.download = `trade-${editSymbol || selectedTrade.symbol}-${new Date().toISOString().slice(0,10)}.png`;
+                        a.click();
+                      }}>
+                        <Download className="me-2 h-4 w-4" />{t('shareDownload')}
+                      </Button>
                     </div>
                   )}
 
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) handleFileUpload(file);
-                      e.target.value = '';
-                    }}
-                  />
+                  {/* Save + action bar */}
+                  <Button className="w-full min-h-[44px] gradient-primary text-primary-foreground" onClick={saveTrade} disabled={saving}>
+                    {saving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+                    {t('save')}
+                  </Button>
                 </div>
-
-                <Button className="w-full min-h-[44px] gradient-primary text-primary-foreground" onClick={saveTrade} disabled={saving}>
-                  {saving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-                  {t('save')}
-                </Button>
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
         </SheetContent>
       </Sheet>
     </div>
