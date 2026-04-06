@@ -17,6 +17,7 @@ import ConnectPage from "./pages/ConnectPage";
 import SettingsPage from "./pages/SettingsPage";
 import CalendarPage from "./pages/CalendarPage";
 import JournalPage from "./pages/JournalPage";
+import AICoachPage from "./pages/AICoachPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 
@@ -42,6 +43,7 @@ const App = () => (
                   <Route path="/connect" element={<ConnectPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/journal" element={<JournalPage />} />
+                  <Route path="/ai-coach" element={<AICoachPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />

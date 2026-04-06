@@ -349,6 +349,12 @@ const CAL_DAY_NAMES: Record<'ar'|'fr'|'en', string[]> = {
   fr: ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'],
   ar: ['أحد','إثن','ثلا','أرب','خمي','جمع','سبت'],
 };
+// Single-letter initials for mobile (Arabic uses specific root letters)
+const CAL_DAY_INITIALS: Record<'ar'|'fr'|'en', string[]> = {
+  en: ['S','M','T','W','T','F','S'],
+  fr: ['D','L','M','M','J','V','S'],
+  ar: ['ح','ن','ث','ر','خ','ج','س'],
+};
 
 // ─── DashDayData ─────────────────────────────────────────────
 interface DashDayData {
@@ -384,7 +390,7 @@ function DashDayCell({ d, lang, onClick }: { d: DashDayData; lang: 'ar'|'fr'|'en
 
   return (
     <div
-      className={`relative flex min-h-[55px] sm:min-h-[90px] flex-col rounded-lg border p-1.5 sm:p-2 transition-all duration-150 select-none
+      className={`relative flex min-h-[65px] sm:min-h-[90px] flex-col overflow-hidden rounded-lg border p-1.5 sm:p-2 transition-all duration-150 select-none
         ${bg} ${border || 'border-border/40'}
         ${d.isCurrentMonth ? 'cursor-pointer hover:border-primary/40 hover:brightness-110' : ''}
       `}
@@ -400,7 +406,7 @@ function DashDayCell({ d, lang, onClick }: { d: DashDayData; lang: 'ar'|'fr'|'en
       {/* Trade data */}
       {hasTrades && d.isCurrentMonth && (
         <div className="mt-0.5 sm:mt-1 flex flex-1 flex-col items-center justify-center gap-0.5">
-          <span className={`text-[11px] sm:text-base font-bold leading-tight ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+          <span className={`w-full truncate text-center text-[11px] sm:text-base font-bold leading-tight ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
             {fmtPnlCal(d.pnl)}
           </span>
           <span className="text-[9px] sm:text-[10px] text-muted-foreground">
@@ -667,7 +673,28 @@ function TradingCalendar({
   const handleExportCalendar = async () => {
     if (!calGridRef.current) return;
     const monthName = CAL_MONTH_NAMES[lang][month];
-    const gridCanvas = await html2canvas(calGridRef.current, { scale: 2, backgroundColor: '#0A0F1C', useCORS: true });
+    const BG = '#0f1117';
+    const gridCanvas = await html2canvas(calGridRef.current, {
+      scale: 2,
+      backgroundColor: BG,
+      useCORS: true,
+      logging: false,
+      onclone: (_clonedDoc, clonedEl) => {
+        (clonedEl as HTMLElement).style.backgroundColor = BG;
+        (clonedEl as HTMLElement).style.padding = '12px';
+        // Resolve transparent/invisible text to white
+        const all = (clonedEl as HTMLElement).querySelectorAll('*');
+        all.forEach((el: Element) => {
+          const s = window.getComputedStyle(el);
+          if (s.color === 'rgba(0, 0, 0, 0)' || s.color === 'transparent') {
+            (el as HTMLElement).style.color = '#ffffff';
+          }
+          if (s.backgroundColor === 'rgba(0, 0, 0, 0)' || s.backgroundColor === 'transparent') {
+            // leave transparent bg cells as-is (they use border coloring)
+          }
+        });
+      },
+    });
     const FOOTER_H = 56;
     const PAD = 20;
     const out = document.createElement('canvas');
@@ -675,7 +702,7 @@ function TradingCalendar({
     out.height = gridCanvas.height + PAD * 2 + FOOTER_H;
     const ctx = out.getContext('2d')!;
     // Background
-    ctx.fillStyle = '#0A0F1C';
+    ctx.fillStyle = BG;
     ctx.fillRect(0, 0, out.width, out.height);
     // Calendar grid
     ctx.drawImage(gridCanvas, PAD, PAD);
@@ -788,7 +815,7 @@ function TradingCalendar({
             {CAL_DAY_NAMES[lang].map((name, i) => (
               <div key={i} className={`py-1.5 text-center text-xs font-semibold ${i === 0 || i === 6 ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
                 <span className="hidden sm:inline">{name}</span>
-                <span className="sm:hidden">{name.charAt(0)}</span>
+                <span className="sm:hidden">{CAL_DAY_INITIALS[lang][i]}</span>
               </div>
             ))}
           </div>

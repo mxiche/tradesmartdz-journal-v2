@@ -149,6 +149,7 @@ const translations = {
     saving: 'جاري الحفظ...',
     noEntryYet: 'لا توجد مدخلات لهذا اليوم',
     risk: 'المخاطرة ($)',
+    aiCoach: 'المدرب الذكي',
   },
   fr: {
     dashboard: 'Tableau de bord',
@@ -298,6 +299,7 @@ const translations = {
     saving: 'Sauvegarde...',
     noEntryYet: 'Aucune entrée pour ce jour',
     risk: 'Risque ($)',
+    aiCoach: 'Coach IA',
   },
   en: {
     dashboard: 'Dashboard',
@@ -447,6 +449,7 @@ const translations = {
     saving: 'Saving...',
     noEntryYet: 'No entry for this day yet',
     risk: 'Risk ($)',
+    aiCoach: 'AI Coach',
   },
 } as const;
 

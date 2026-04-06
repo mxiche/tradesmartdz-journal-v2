@@ -6,7 +6,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { LayoutDashboard, BarChart3, Link2, Settings, LogOut, Menu, X, TrendingUp, User, Calendar, BookOpen } from 'lucide-react';
+import { LayoutDashboard, BarChart3, Link2, Settings, LogOut, Menu, X, TrendingUp, User, Calendar, BookOpen, Bot } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
 export default function AppLayout() {
@@ -20,6 +20,7 @@ export default function AppLayout() {
     { label: t('connectAccount'), icon: Link2,           path: '/connect'   },
     { label: language === 'ar' ? 'التقويم الاقتصادي' : language === 'fr' ? 'Calendrier' : 'Calendar', icon: Calendar, path: '/calendar' },
     { label: t('dailyJournal'),   icon: BookOpen,        path: '/journal'   },
+    { label: language === 'ar' ? 'المدرب الذكي' : language === 'fr' ? 'Coach IA' : 'AI Coach', icon: Bot, path: '/ai-coach' },
     { label: t('settings'),       icon: Settings,        path: '/settings'  },
   ], [t, language]);
   const location = useLocation();
