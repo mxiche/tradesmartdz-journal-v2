@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, Legend,
+  PieChart, Pie, ReferenceLine,
 } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
-import { Loader2, FileDown, Calendar, Zap, Target, TrendingUp } from 'lucide-react';
+import { Loader2, FileDown, Calendar, Zap, Target, X as XIcon } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -178,6 +178,19 @@ function CountTooltip({ active, payload, label }: any) {
       {payload.map((p: any, i: number) => (
         <p key={i} style={{ color: p.color, fontSize: 12 }}>{p.name}: {p.value}</p>
       ))}
+    </div>
+  );
+}
+
+function SymbolTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  const pnl = d.pnl as number;
+  return (
+    <div style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: 8, padding: '8px 12px', minWidth: 140 }}>
+      <p style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{label}</p>
+      <p style={{ color: pnl >= 0 ? '#22c55e' : '#ef4444', fontSize: 13 }}>PnL: {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}</p>
+      <p style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>{d.count} trades · {d.winRate}% win</p>
     </div>
   );
 }
@@ -430,41 +443,69 @@ const AnalyticsPage = () => {
 
   // ── Heatmap: session × day ────────────────────────────────────
   const HEATMAP_DAYS = ['Mon','Tue','Wed','Thu','Fri'] as const;
+
   const heatmap = useMemo(() => {
-    const map: Record<string, Record<string, number>> = {};
+    const pnl:    Record<string, Record<string, number>>   = {};
+    const counts: Record<string, Record<string, number>>   = {};
+    const wins:   Record<string, Record<string, number>>   = {};
+    const tradesList: Record<string, Record<string, Trade[]>> = {};
+
     SESSIONS.forEach(ses => {
-      map[ses] = {};
-      HEATMAP_DAYS.forEach(d => { map[ses][d] = 0; });
+      pnl[ses] = {}; counts[ses] = {}; wins[ses] = {}; tradesList[ses] = {};
+      HEATMAP_DAYS.forEach(d => { pnl[ses][d] = 0; counts[ses][d] = 0; wins[ses][d] = 0; tradesList[ses][d] = []; });
     });
-    const counts: Record<string, Record<string, number>> = {};
-    SESSIONS.forEach(ses => { counts[ses] = {}; HEATMAP_DAYS.forEach(d => { counts[ses][d] = 0; }); });
 
     trades.forEach(tr => {
       const ses = getTradeSession(tr);
       if (!ses || !(SESSIONS as readonly string[]).includes(ses)) return;
       if (!tr.close_time) return;
       const dow = new Date(tr.close_time).getDay();
-      const dayIdx = dow - 1; // Mon=1..Fri=5 → 0..4
+      const dayIdx = dow - 1;
       if (dayIdx < 0 || dayIdx > 4) return;
       const day = HEATMAP_DAYS[dayIdx];
-      map[ses][day] += tr.profit ?? 0;
-      counts[ses][day]++;
+      pnl[ses][day]    += tr.profit ?? 0;
+      counts[ses][day] += 1;
+      tradesList[ses][day].push(tr);
+      if ((tr.profit ?? 0) > 0) wins[ses][day]++;
     });
-    return { pnl: map, counts };
+    return { pnl, counts, wins, tradesList };
   }, [trades]);
 
-  const maxAbsHeat = useMemo(() => {
-    let max = 0;
-    SESSIONS.forEach(ses => HEATMAP_DAYS.forEach(d => { max = Math.max(max, Math.abs(heatmap.pnl[ses][d])); }));
-    return max || 1;
-  }, [heatmap]);
-
-  function heatColor(val: number, max: number): string {
-    if (val === 0) return '#1a1d27';
-    const intensity = Math.min(Math.abs(val) / max, 1);
-    if (val > 0) return `rgba(34,197,94,${0.1 + intensity * 0.55})`;
-    return `rgba(239,68,68,${0.1 + intensity * 0.55})`;
+  // Heatmap cell styling by PnL tier (no max-scaling — absolute thresholds)
+  function heatCellStyle(val: number, cnt: number): { bg: string; color: string } {
+    if (cnt === 0) return { bg: '#1e293b', color: '#475569' };
+    if (val > 100)  return { bg: '#166534', color: '#86efac' };
+    if (val > 0)    return { bg: '#14532d', color: '#4ade80' };
+    if (val < -100) return { bg: '#450a0a', color: '#f87171' };
+    if (val < 0)    return { bg: '#7f1d1d', color: '#fca5a5' };
+    return { bg: '#1e293b', color: '#475569' }; // breakeven
   }
+
+  // Heatmap detail popover state
+  const [heatDetail, setHeatDetail] = useState<{
+    ses: string; day: string; pnl: number; cnt: number; wr: number; avg: number;
+    symbols: string[]; best: number; worst: number;
+  } | null>(null);
+
+  const openHeatDetail = (ses: string, day: string) => {
+    const cnt  = heatmap.counts[ses][day];
+    if (cnt === 0) return;
+    const pnlV = heatmap.pnl[ses][day];
+    const winsV = heatmap.wins[ses][day];
+    const trs  = heatmap.tradesList[ses][day];
+    const symbols = [...new Set(trs.map(t => t.symbol).filter(Boolean))];
+    const profits = trs.map(t => t.profit ?? 0);
+    setHeatDetail({
+      ses, day,
+      pnl: pnlV,
+      cnt,
+      wr: Math.round((winsV / cnt) * 100),
+      avg: pnlV / cnt,
+      symbols,
+      best: Math.max(...profits),
+      worst: Math.min(...profits),
+    });
+  };
 
   // ── Setup table ───────────────────────────────────────────────
   const setupTableData = useMemo(() => {
@@ -488,15 +529,16 @@ const AnalyticsPage = () => {
 
   // ── Symbol bars ───────────────────────────────────────────────
   const symbolData = useMemo(() => {
-    const map: Record<string, { pnl: number; count: number }> = {};
+    const map: Record<string, { pnl: number; count: number; wins: number }> = {};
     trades.forEach(tr => {
       const sym = tr.symbol || 'Unknown';
-      if (!map[sym]) map[sym] = { pnl: 0, count: 0 };
+      if (!map[sym]) map[sym] = { pnl: 0, count: 0, wins: 0 };
       map[sym].pnl += tr.profit ?? 0;
       map[sym].count++;
+      if ((tr.profit ?? 0) > 0) map[sym].wins++;
     });
     return Object.entries(map)
-      .map(([name, v]) => ({ name, pnl: +v.pnl.toFixed(2), count: v.count }))
+      .map(([name, v]) => ({ name, pnl: +v.pnl.toFixed(2), count: v.count, winRate: Math.round((v.wins / v.count) * 100) }))
       .sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl))
       .slice(0, 12);
   }, [trades]);
@@ -744,50 +786,130 @@ const AnalyticsPage = () => {
       {/* ── SECTION 3: HEATMAP ── */}
       <Section title={l.heatmap}>
         {trades.length === 0 ? <EmptyState msg={noDataMsg} /> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="py-2 pe-4 text-start text-xs font-medium text-muted-foreground w-24" />
-                  {HEATMAP_DAYS.map(d => (
-                    <th key={d} className="py-2 text-center text-xs font-semibold text-muted-foreground">{l.days[d]}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {SESSIONS.map(ses => (
-                  <tr key={ses}>
-                    <td className="py-1 pe-4 text-xs font-medium text-muted-foreground whitespace-nowrap">
-                      {l.sessions[ses]}
-                    </td>
-                    {HEATMAP_DAYS.map(d => {
-                      const val = heatmap.pnl[ses][d];
-                      const cnt = heatmap.counts[ses][d];
-                      return (
-                        <td key={d} className="py-1 px-1">
-                          <div
-                            className="flex min-h-[52px] flex-col items-center justify-center rounded-lg p-1"
-                            style={{ backgroundColor: heatColor(val, maxAbsHeat), border: '1px solid rgba(255,255,255,0.05)' }}
-                          >
-                            {cnt > 0 ? (
-                              <>
-                                <span className={`text-xs font-bold leading-tight ${val >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-                                  {val >= 0 ? '+' : ''}{val.toFixed(0)}
-                                </span>
-                                <span className="text-[9px] text-muted-foreground/70">{cnt}t</span>
-                              </>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground/30">—</span>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
+          <>
+            <div className="overflow-x-auto">
+              <table style={{ borderCollapse: 'separate', borderSpacing: '4px', minWidth: '420px' }}>
+                <thead>
+                  <tr>
+                    {/* sticky session label column header */}
+                    <th style={{ background: '#0f1117', color: '#475569', fontSize: 11, padding: '6px 12px 6px 0', textAlign: 'start', whiteSpace: 'nowrap', minWidth: 90 }} />
+                    {HEATMAP_DAYS.map(d => (
+                      <th key={d} style={{ background: '#0f1117', color: '#64748b', fontSize: 12, fontWeight: 600, textAlign: 'center', padding: '6px 4px', minWidth: 70 }}>
+                        {l.days[d]}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {SESSIONS.map(ses => (
+                    <tr key={ses}>
+                      <td style={{ background: '#0f1117', color: '#64748b', fontSize: 11, fontWeight: 600, padding: '4px 12px 4px 0', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+                        {l.sessions[ses]}
+                      </td>
+                      {HEATMAP_DAYS.map(d => {
+                        const val = heatmap.pnl[ses][d];
+                        const cnt = heatmap.counts[ses][d];
+                        const { bg, color } = heatCellStyle(val, cnt);
+                        const hasTrades = cnt > 0;
+                        return (
+                          <td key={d} style={{ padding: 0 }}>
+                            <div
+                              onClick={() => openHeatDetail(ses, d)}
+                              style={{
+                                background: bg,
+                                borderRadius: 8,
+                                minHeight: 70,
+                                minWidth: 70,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 2,
+                                padding: '6px 4px',
+                                cursor: hasTrades ? 'pointer' : 'default',
+                                transition: 'filter 0.15s',
+                              }}
+                              onMouseEnter={e => hasTrades && ((e.currentTarget as HTMLDivElement).style.filter = 'brightness(1.15)')}
+                              onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.filter = '')}
+                            >
+                              {hasTrades ? (
+                                <>
+                                  <span style={{ color, fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>
+                                    {val >= 0 ? '+' : ''}{val.toFixed(0)}
+                                  </span>
+                                  <span style={{ color: '#94a3b8', fontSize: 10 }}>{cnt}t</span>
+                                </>
+                              ) : (
+                                <span style={{ color: '#374151', fontSize: 12 }}>—</span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Heatmap detail modal */}
+            {heatDetail && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+                onClick={() => setHeatDetail(null)}
+              >
+                <div
+                  className="w-full max-w-sm rounded-2xl border p-5 shadow-2xl"
+                  style={{ background: '#0f1117', borderColor: '#00d4aa', borderWidth: 1 }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  {/* Header */}
+                  <div className="mb-4 flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="text-base font-bold text-foreground">
+                        {l.days[heatDetail.day as keyof typeof l.days]} — {l.sessions[heatDetail.ses as keyof typeof l.sessions]}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">{heatDetail.cnt} {l.trades}</p>
+                    </div>
+                    <button onClick={() => setHeatDetail(null)} className="text-muted-foreground hover:text-foreground">
+                      <XIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="rounded-xl bg-secondary/40 p-3 text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">{l.winRate}</p>
+                      <p className={`text-lg font-bold ${heatDetail.wr >= 50 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{heatDetail.wr}%</p>
+                    </div>
+                    <div className="rounded-xl bg-secondary/40 p-3 text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">{l.totalPnl}</p>
+                      <p className={`text-lg font-bold ${heatDetail.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{fmtPnl(heatDetail.pnl)}</p>
+                    </div>
+                    <div className="rounded-xl bg-secondary/40 p-3 text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">{l.avgPnl}</p>
+                      <p className={`text-sm font-bold ${heatDetail.avg >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{fmtPnl(heatDetail.avg)}</p>
+                    </div>
+                    <div className="rounded-xl bg-secondary/40 p-3 text-center">
+                      <p className="text-[10px] text-muted-foreground mb-1">{l.bestTrade}</p>
+                      <p className="text-sm font-bold text-[#22c55e]">+${heatDetail.best.toFixed(2)}</p>
+                    </div>
+                  </div>
+                  {/* Symbols */}
+                  {heatDetail.symbols.length > 0 && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-2">{l.setup}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {heatDetail.symbols.map(sym => (
+                          <span key={sym} className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{sym}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </Section>
 
@@ -827,13 +949,22 @@ const AnalyticsPage = () => {
       {/* ── SECTION 5: SYMBOL BARS ── */}
       <Section title={l.symbolChart}>
         {symbolData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
-          <ResponsiveContainer width="100%" height={Math.max(200, symbolData.length * 36)}>
-            <BarChart data={symbolData} layout="vertical" margin={{ left: 4, right: 48, top: 4, bottom: 4 }}>
+          <ResponsiveContainer width="100%" height={Math.max(240, symbolData.length * 44)}>
+            <BarChart
+              data={symbolData}
+              layout="vertical"
+              barSize={20}
+              barCategoryGap="30%"
+              margin={{ top: 20, right: 70, left: 20, bottom: 20 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
               <XAxis type="number" stroke="#475569" fontSize={10} tickFormatter={v => `$${v}`} />
-              <YAxis dataKey="name" type="category" stroke="#475569" fontSize={11} width={64} />
-              <Tooltip content={<DarkTooltip />} />
-              <Bar dataKey="pnl" radius={[0, 4, 4, 0]} label={{ position: 'right', fontSize: 10, formatter: (v: number) => v !== 0 ? `$${v.toFixed(0)}` : '' }}>
+              <YAxis dataKey="name" type="category" stroke="#475569" fontSize={11} width={100} />
+              <Tooltip content={<SymbolTooltip />} />
+              <ReferenceLine x={0} stroke="#374151" strokeWidth={1.5} />
+              <Bar dataKey="pnl" radius={[0, 4, 4, 0]} minPointSize={3}
+                label={{ position: 'right', fontSize: 10, fill: '#94a3b8', formatter: (v: number) => v !== 0 ? `$${v.toFixed(0)}` : '' }}
+              >
                 {symbolData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#22c55e' : '#ef4444'} />)}
               </Bar>
             </BarChart>

@@ -23,33 +23,67 @@ export default function AppLayout() {
     { label: language === 'ar' ? 'المدرب الذكي' : language === 'fr' ? 'Coach IA' : 'AI Coach', icon: Bot, path: '/ai-coach' },
     { label: t('settings'),       icon: Settings,        path: '/settings'  },
   ], [t, language]);
+
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const closeSidebar = (e?: React.SyntheticEvent) => {
+    e?.preventDefault();
+    setSidebarOpen(false);
+  };
 
   const handleLogout = async () => {
     await signOut();
     navigate('/');
   };
 
+  // Sidebar slide direction: LTR → slide from left, RTL → slide from right
+  const sidebarTransform = sidebarOpen
+    ? 'translate-x-0'
+    : isRtl
+      ? 'translate-x-full'
+      : '-translate-x-full';
+
   return (
-    <div className="flex min-h-screen overflow-hidden bg-background">
-      {/* Mobile overlay */}
+    // No overflow:hidden on the root — it clips fixed overlays on mobile
+    <div className="flex min-h-screen bg-background">
+
+      {/* ── Mobile overlay (full-screen backdrop) ── */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-40 lg:hidden"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          onClick={closeSidebar}
+          onTouchEnd={closeSidebar}
         />
       )}
 
-      {/* Sidebar — hidden transform computed in JS to avoid rtl: variant conflicting with lg:translate-x-0 */}
-      <aside className={`fixed inset-y-0 start-0 z-50 flex w-64 flex-col border-e border-border bg-card transition-transform duration-300 lg:static lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : isRtl ? 'translate-x-full' : '-translate-x-full'}`}>
+      {/* ── Sidebar ── */}
+      <aside
+        className={`
+          fixed top-0 bottom-0 z-50 flex w-64 flex-col border-e border-border bg-card
+          transition-transform duration-300
+          lg:static lg:translate-x-0
+          ${isRtl ? 'right-0 left-auto' : 'left-0'}
+          ${sidebarTransform}
+        `}
+        style={{ height: '100dvh' }}
+      >
+        {/* Header row */}
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
           <Logo size="sm" />
-          <Button variant="ghost" size="icon" className="h-11 w-11 lg:hidden" onClick={() => setSidebarOpen(false)}>
+          <button
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground lg:hidden"
+            onClick={closeSidebar}
+            onTouchEnd={closeSidebar}
+            aria-label="Close menu"
+          >
             <X className="h-5 w-5" />
-          </Button>
+          </button>
         </div>
+
+        {/* Nav links */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {navItems.map(item => {
             const active = location.pathname === item.path;
@@ -58,7 +92,11 @@ export default function AppLayout() {
                 key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ${active ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
+                className={`flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors
+                  ${active
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                  }`}
               >
                 <item.icon className="h-5 w-5 shrink-0" />
                 <span className="truncate">{item.label}</span>
@@ -66,6 +104,8 @@ export default function AppLayout() {
             );
           })}
         </nav>
+
+        {/* Logout */}
         <div className="shrink-0 border-t border-border p-3">
           <Button
             variant="ghost"
@@ -78,8 +118,11 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* ── Main content ── */}
+      <div
+        className="flex min-w-0 flex-1 flex-col"
+        style={sidebarOpen ? { pointerEvents: 'none' } : undefined}
+      >
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
           <Button
             variant="ghost"
