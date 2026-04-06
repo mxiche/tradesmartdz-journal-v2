@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +17,15 @@ import html2canvas from 'html2canvas';
 type Trade = Tables<'trades'>;
 type Account = Tables<'mt5_accounts'>;
 type Lang = 'ar' | 'fr' | 'en';
+
+function useIsMobile(breakpoint = 640) {
+  const mq = useMemo(() => window.matchMedia(`(max-width: ${breakpoint - 1}px)`), [breakpoint]);
+  return useSyncExternalStore(
+    cb => { mq.addEventListener('change', cb); return () => mq.removeEventListener('change', cb); },
+    () => mq.matches,
+    () => false,
+  );
+}
 
 // ─── Static labels ────────────────────────────────────────────
 const L = {
@@ -305,6 +314,7 @@ const AnalyticsPage = () => {
   const lang = language as Lang;
   const l = L[lang];
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -659,7 +669,7 @@ const AnalyticsPage = () => {
             <SelectContent>
               <SelectItem value="all">{l.allAccounts}</SelectItem>
               {accounts.map(a => (
-                <SelectItem key={a.id} value={a.id}>{a.account_number || a.id.slice(0,8)}</SelectItem>
+                <SelectItem key={a.id} value={a.id}>{a.account_name || a.firm || 'Account'}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -933,39 +943,43 @@ const AnalyticsPage = () => {
       {/* ── SECTION 5: SYMBOL BARS ── */}
       <Section title={l.symbolChart}>
         {symbolData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
-          <ResponsiveContainer width="100%" height={Math.max(300, symbolData.length * 60)}>
-            <BarChart
-              data={symbolData}
-              layout="vertical"
-              margin={{ top: 10, right: 80, left: 120, bottom: 10 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-              <XAxis
-                type="number"
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={12}
-                tickFormatter={(v) => `$${v}`}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                stroke="hsl(var(--muted-foreground))"
-                fontSize={12}
-                width={110}
-                tick={{ fill: 'hsl(var(--foreground))' }}
-              />
-              <Tooltip
-                contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }}
-                formatter={(value: number) => [`$${value.toFixed(2)}`, 'PnL']}
-              />
-              <ReferenceLine x={0} stroke="hsl(var(--border))" strokeWidth={2} />
-              <Bar dataKey="pnl" radius={[0, 4, 4, 0]} barSize={24}>
-                {symbolData.map((entry, index) => (
-                  <Cell key={index} fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="w-full overflow-x-auto">
+            <div style={{ minWidth: '320px' }}>
+              <ResponsiveContainer width="100%" height={Math.max(isMobile ? symbolData.length * 45 : 300, isMobile ? symbolData.length * 45 : symbolData.length * 60)}>
+                <BarChart
+                  data={isMobile ? symbolData.map(d => ({ ...d, name: d.name.slice(0, 6) })) : symbolData}
+                  layout="vertical"
+                  margin={{ top: 10, right: 80, left: isMobile ? 70 : 120, bottom: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={isMobile ? 10 : 12}
+                    tickFormatter={(v) => `$${v}`}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={isMobile ? 10 : 12}
+                    width={isMobile ? 65 : 110}
+                    tick={{ fill: 'hsl(var(--foreground))' }}
+                  />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }}
+                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'PnL']}
+                  />
+                  <ReferenceLine x={0} stroke="hsl(var(--border))" strokeWidth={2} />
+                  <Bar dataKey="pnl" radius={[0, 4, 4, 0]} barSize={isMobile ? 16 : 24}>
+                    {symbolData.map((entry, index) => (
+                      <Cell key={index} fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         )}
       </Section>
 
