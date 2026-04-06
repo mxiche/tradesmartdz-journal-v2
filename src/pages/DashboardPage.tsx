@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -325,6 +325,16 @@ function TradesmartScore({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// ─── useIsMobile ──────────────────────────────────────────────
+function useIsMobile(breakpoint = 640) {
+  const mq = useMemo(() => window.matchMedia(`(max-width: ${breakpoint - 1}px)`), [breakpoint]);
+  return useSyncExternalStore(
+    cb => { mq.addEventListener('change', cb); return () => mq.removeEventListener('change', cb); },
+    () => mq.matches,
+    () => false,
   );
 }
 
@@ -665,68 +675,86 @@ function TradingCalendar({
   // Max abs week PnL for the bar
   const maxAbsWeekPnl = Math.max(...weekSummaries.slice(0, visibleWeeks).map(w => Math.abs(w.pnl)), 1);
 
+  const isMobile = useIsMobile();
+
   const prevMonth = () => setCalMonth(p => p.month === 0 ? { year: p.year - 1, month: 11 } : { ...p, month: p.month - 1 });
   const nextMonth = () => setCalMonth(p => p.month === 11 ? { year: p.year + 1, month: 0 } : { ...p, month: p.month + 1 });
   const goToday   = () => { const n = new Date(); setCalMonth({ year: n.getFullYear(), month: n.getMonth() }); };
 
   const calGridRef = useRef<HTMLDivElement>(null);
   const handleExportCalendar = async () => {
-    if (!calGridRef.current) return;
     const monthName = CAL_MONTH_NAMES[lang][month];
-    const BG = '#0f1117';
-    const gridCanvas = await html2canvas(calGridRef.current, {
-      scale: 2,
-      backgroundColor: BG,
-      useCORS: true,
-      logging: false,
-      onclone: (_clonedDoc, clonedEl) => {
-        (clonedEl as HTMLElement).style.backgroundColor = BG;
-        (clonedEl as HTMLElement).style.padding = '12px';
-        // Resolve transparent/invisible text to white
-        const all = (clonedEl as HTMLElement).querySelectorAll('*');
-        all.forEach((el: Element) => {
-          const s = window.getComputedStyle(el);
-          if (s.color === 'rgba(0, 0, 0, 0)' || s.color === 'transparent') {
-            (el as HTMLElement).style.color = '#ffffff';
-          }
-          if (s.backgroundColor === 'rgba(0, 0, 0, 0)' || s.backgroundColor === 'transparent') {
-            // leave transparent bg cells as-is (they use border coloring)
-          }
-        });
-      },
-    });
-    const FOOTER_H = 56;
-    const PAD = 20;
-    const out = document.createElement('canvas');
-    out.width  = gridCanvas.width + PAD * 2;
-    out.height = gridCanvas.height + PAD * 2 + FOOTER_H;
-    const ctx = out.getContext('2d')!;
-    // Background
-    ctx.fillStyle = BG;
-    ctx.fillRect(0, 0, out.width, out.height);
-    // Calendar grid
-    ctx.drawImage(gridCanvas, PAD, PAD);
-    // Footer divider
-    const divY = gridCanvas.height + PAD + 12;
-    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(PAD, divY); ctx.lineTo(out.width - PAD, divY); ctx.stroke();
-    // Footer text
-    const fy = divY + 28;
-    ctx.font = `bold 24px system-ui,sans-serif`;
-    ctx.fillStyle = '#00d4aa';
-    ctx.textAlign = 'left';
-    ctx.fillText('TradeSmartDz', PAD, fy);
-    ctx.font = `16px system-ui,sans-serif`;
-    ctx.fillStyle = '#475569';
-    ctx.textAlign = 'center';
-    ctx.fillText('neuroport.xyz', out.width / 2, fy);
-    ctx.textAlign = 'right';
-    ctx.fillText(`${monthName} ${year}`, out.width - PAD, fy);
-    const a = document.createElement('a');
-    a.href = out.toDataURL('image/png');
-    a.download = `tradesmartdz-calendar-${monthName.toLowerCase().replace(/\s+/g, '-')}-${year}.png`;
-    a.click();
+    const dayNames = CAL_DAY_NAMES[lang];
+
+    // Build the visible grid (only current month + its surrounding week slots)
+    const visibleCells = grid.slice(0, visibleWeeks * 7);
+
+    // ── Build hardcoded-style HTML for reliable html2canvas capture ──
+    const cellStyle = (d: DashDayData): string => {
+      if (!d.isCurrentMonth) return 'background-color:#0d1021;border:1px solid #1e293b;border-radius:6px;padding:8px;min-height:80px;opacity:0.25;';
+      if (d.tradeCount > 0 && d.pnl >= 0) return 'background-color:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.25);border-radius:6px;padding:8px;min-height:80px;text-align:center;';
+      if (d.tradeCount > 0 && d.pnl < 0)  return 'background-color:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.25);border-radius:6px;padding:8px;min-height:80px;text-align:center;';
+      if (d.isWeekend) return 'background-color:#111420;border:1px solid #1e293b;border-radius:6px;padding:8px;min-height:80px;';
+      return 'background-color:#161929;border:1px solid #1e293b;border-radius:6px;padding:8px;min-height:80px;';
+    };
+
+    const cellInner = (d: DashDayData): string => {
+      if (!d.isCurrentMonth) return `<span style="color:#475569;font-size:11px;">${d.date.getDate()}</span>`;
+      const pnlColor = d.pnl >= 0 ? '#22c55e' : '#ef4444';
+      const dayNum = `<div style="color:#64748b;font-size:11px;margin-bottom:4px;">${d.date.getDate()}</div>`;
+      if (d.tradeCount === 0) return dayNum;
+      const pnlStr = (d.pnl >= 0 ? '+' : '') + '$' + Math.abs(d.pnl).toFixed(2);
+      const wr = Math.round((d.wins / d.tradeCount) * 100);
+      return `${dayNum}
+        <div style="color:${pnlColor};font-size:13px;font-weight:bold;line-height:1.2;">${pnlStr}</div>
+        <div style="color:#94a3b8;font-size:10px;margin-top:3px;">${d.tradeCount} ${lang === 'ar' ? 'صفقة' : lang === 'fr' ? 'trades' : 'trades'}</div>
+        <div style="color:${wr >= 50 ? '#22c55e' : '#ef4444'};font-size:10px;">${wr}%</div>`;
+    };
+
+    const headerRow = dayNames
+      .map(n => `<div style="color:#64748b;font-size:12px;text-align:center;padding:6px 4px;font-weight:600;">${n}</div>`)
+      .join('');
+
+    const rows = Array.from({ length: visibleWeeks }, (_, w) =>
+      `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;">
+        ${visibleCells.slice(w * 7, w * 7 + 7).map(d =>
+          `<div style="${cellStyle(d)}">${cellInner(d)}</div>`
+        ).join('')}
+      </div>`
+    ).join('');
+
+    const html = `
+      <div style="background-color:#0f1117;padding:24px;font-family:Arial,sans-serif;width:800px;">
+        <div style="color:#ffffff;font-size:20px;font-weight:bold;text-align:center;margin-bottom:16px;">
+          ${monthName} ${year}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">${headerRow}</div>
+        ${rows}
+        <div style="background-color:#0a0f1c;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:16px;border-radius:8px;border:1px solid #1e293b;">
+          <span style="color:#00d4aa;font-size:15px;font-weight:bold;">TradeSmartDz</span>
+          <span style="color:#ffffff;font-size:13px;">${monthName} ${year}</span>
+          <span style="color:#475569;font-size:12px;">neuroport.xyz</span>
+        </div>
+      </div>`;
+
+    // Inject hidden element, capture, remove
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    const el = wrapper.firstElementChild as HTMLElement;
+    el.style.position = 'fixed';
+    el.style.left = '-9999px';
+    el.style.top = '0';
+    document.body.appendChild(el);
+
+    try {
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#0f1117', useCORS: true, logging: false });
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = `tradesmartdz-calendar-${monthName.toLowerCase().replace(/\s+/g, '-')}-${year}.png`;
+      a.click();
+    } finally {
+      document.body.removeChild(el);
+    }
   };
 
   const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -734,6 +762,111 @@ function TradingCalendar({
   const selectedDayData = selectedDay !== null
     ? grid.find(d => d.isCurrentMonth && d.isToday === (selectedDay === now.getDate() && isCurrentMonth) || (d.isCurrentMonth && d.date.getDate() === selectedDay))
     : null;
+
+  // ── Mobile list view: days with trades, descending ──
+  const mobileTradeDays = useMemo(() =>
+    grid
+      .filter(d => d.isCurrentMonth && d.tradeCount > 0)
+      .sort((a, b) => b.date.getTime() - a.date.getTime()),
+  [grid]);
+
+  const mobileLocale = lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US';
+
+  if (isMobile) {
+    return (
+      <div className="space-y-4">
+        {/* Mobile header: nav + month name */}
+        <div className="flex items-center justify-between gap-2">
+          <button onClick={prevMonth}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <h2 className="text-base font-bold text-foreground">
+            {CAL_MONTH_NAMES[lang][month]} {year}
+          </h2>
+          <button onClick={nextMonth}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Mobile stats bar */}
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-3">
+          <div className="flex flex-1 flex-col items-center gap-0.5">
+            <span className="text-[10px] text-muted-foreground">{lang === 'ar' ? 'إجمالي P&L' : lang === 'fr' ? 'P&L total' : 'Total P&L'}</span>
+            <span className={`text-sm font-bold ${monthStats.totalPnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+              {monthStats.totalTrades === 0 ? '—' : fmtPnlCal(monthStats.totalPnl)}
+            </span>
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div className="flex flex-1 flex-col items-center gap-0.5">
+            <span className="text-[10px] text-muted-foreground">{lang === 'ar' ? 'أيام التداول' : lang === 'fr' ? 'Jours tradés' : 'Trading Days'}</span>
+            <span className="text-sm font-bold text-foreground">{monthStats.tradingDays}</span>
+          </div>
+          <div className="h-8 w-px bg-border" />
+          <div className="flex flex-1 flex-col items-center gap-0.5">
+            <span className="text-[10px] text-muted-foreground">{lang === 'ar' ? 'نسبة الفوز' : lang === 'fr' ? 'Taux win' : 'Win Rate'}</span>
+            <span className={`text-sm font-bold ${monthStats.winRate >= 50 ? 'text-[#22c55e]' : monthStats.totalTrades === 0 ? 'text-foreground' : 'text-[#ef4444]'}`}>
+              {monthStats.totalTrades === 0 ? '—' : `${monthStats.winRate}%`}
+            </span>
+          </div>
+        </div>
+
+        {/* Mobile day list */}
+        {mobileTradeDays.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            {lang === 'ar' ? 'لا توجد صفقات هذا الشهر' : lang === 'fr' ? 'Aucun trade ce mois' : 'No trades this month'}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {mobileTradeDays.map((d, i) => {
+              const wr = Math.round((d.wins / d.tradeCount) * 100);
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelectedDay(d.date.getDate())}
+                  className={`w-full flex items-center justify-between gap-3 rounded-xl border p-3.5 text-left transition-colors active:opacity-80
+                    ${d.pnl >= 0 ? 'border-[rgba(34,197,94,0.2)] bg-[rgba(34,197,94,0.06)]' : 'border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.06)]'}`}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-semibold text-foreground">
+                      {d.date.toLocaleDateString(mobileLocale, { weekday: 'long', day: 'numeric', month: 'short' })}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {d.tradeCount} {lang === 'ar' ? 'صفقة' : lang === 'fr' ? (d.tradeCount > 1 ? 'trades' : 'trade') : (d.tradeCount !== 1 ? 'trades' : 'trade')}
+                      {' · '}{wr}% {lang === 'ar' ? 'ربح' : lang === 'fr' ? 'win' : 'win'}
+                    </span>
+                  </div>
+                  <span className={`text-base font-bold ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                    {fmtPnlCal(d.pnl)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Day detail modal */}
+        {selectedDay !== null && selectedDayData && selectedDayData.dayTrades.length > 0 && (
+          <DayDetailModal
+            day={selectedDay} month={month} year={year}
+            dayTrades={selectedDayData.dayTrades} lang={lang}
+            onClose={() => setSelectedDay(null)}
+          />
+        )}
+
+        {/* Quick add trade (empty day click) */}
+        {quickAddDate !== null && (
+          <QuickAddTrade
+            open onClose={() => setQuickAddDate(null)}
+            accounts={accounts} lang={lang} user={user}
+            onSaved={() => { setQuickAddDate(null); onTradeSaved(); }}
+            initialDate={quickAddDate}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

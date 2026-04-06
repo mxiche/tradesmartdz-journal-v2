@@ -33,54 +33,58 @@ function buildSummary(
   return `📊 Daily Summary\n\nTrades: ${total} | Wins: ${wins} | Losses: ${losses}\nWin Rate: ${winRate}%\nPnL: ${pnlStr}$\n\nTradeSmartDz 🎯`;
 }
 
-Deno.serve(async () => {
+async function runNotifications(): Promise<{ sent: number; total_users: number; message?: string }> {
+  // 1. Fetch all users with a telegram_chat_id
+  const { data: prefs, error: prefsError } = await supabase
+    .from('user_preferences')
+    .select('user_id, telegram_chat_id, language')
+    .not('telegram_chat_id', 'is', null);
+
+  if (prefsError) throw prefsError;
+  if (!prefs || prefs.length === 0) {
+    return { sent: 0, total_users: 0, message: 'No users with Telegram connected' };
+  }
+
+  // 2. Build today's date range (UTC midnight to midnight)
+  const now = new Date();
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const todayEnd = new Date(todayStart.getTime() + 86_400_000);
+
+  let sent = 0;
+
+  // 3. For each user, compute today's stats and send summary
+  for (const pref of prefs) {
+    const { data: trades } = await supabase
+      .from('trades')
+      .select('profit')
+      .eq('user_id', pref.user_id)
+      .gte('close_time', todayStart.toISOString())
+      .lt('close_time', todayEnd.toISOString());
+
+    // Skip users with no trades today
+    if (!trades || trades.length === 0) continue;
+
+    const total = trades.length;
+    const wins = trades.filter(t => (t.profit ?? 0) > 0).length;
+    const losses = trades.filter(t => (t.profit ?? 0) < 0).length;
+    const pnl = trades.reduce((s, t) => s + (t.profit ?? 0), 0);
+    const winRate = Math.round((wins / total) * 100);
+
+    const lang = pref.language ?? 'en';
+    const text = buildSummary(lang, total, wins, losses, winRate, pnl);
+
+    await sendMessage(pref.telegram_chat_id, text);
+    sent++;
+  }
+
+  return { sent, total_users: prefs.length };
+}
+
+// Handle both GET (manual test) and POST (cron trigger)
+Deno.serve(async (req) => {
   try {
-    // 1. Fetch all users with a telegram_chat_id
-    const { data: prefs, error: prefsError } = await supabase
-      .from('user_preferences')
-      .select('user_id, telegram_chat_id, language')
-      .not('telegram_chat_id', 'is', null);
-
-    if (prefsError) throw prefsError;
-    if (!prefs || prefs.length === 0) {
-      return new Response(JSON.stringify({ sent: 0, message: 'No users with Telegram connected' }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // 2. Build today's date range (UTC midnight to midnight)
-    const now = new Date();
-    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const todayEnd = new Date(todayStart.getTime() + 86_400_000);
-
-    let sent = 0;
-
-    // 3. For each user, compute today's stats and send summary
-    for (const pref of prefs) {
-      const { data: trades } = await supabase
-        .from('trades')
-        .select('profit')
-        .eq('user_id', pref.user_id)
-        .gte('close_time', todayStart.toISOString())
-        .lt('close_time', todayEnd.toISOString());
-
-      // Skip users with no trades today
-      if (!trades || trades.length === 0) continue;
-
-      const total = trades.length;
-      const wins = trades.filter(t => (t.profit ?? 0) > 0).length;
-      const losses = trades.filter(t => (t.profit ?? 0) < 0).length;
-      const pnl = trades.reduce((s, t) => s + (t.profit ?? 0), 0);
-      const winRate = Math.round((wins / total) * 100);
-
-      const lang = pref.language ?? 'en';
-      const text = buildSummary(lang, total, wins, losses, winRate, pnl);
-
-      await sendMessage(pref.telegram_chat_id, text);
-      sent++;
-    }
-
-    return new Response(JSON.stringify({ sent, total_users: prefs.length }), {
+    const result = await runNotifications();
+    return new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {
