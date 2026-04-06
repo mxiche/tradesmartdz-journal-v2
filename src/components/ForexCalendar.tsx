@@ -93,7 +93,7 @@ function ImpactBadge({ impact, lang }: { impact: string; lang: Lang }) {
     impact === 'Low'    ? t('low', lang) :
                           t('holiday', lang);
   return (
-    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${cls}`}>
+    <span className={`inline-flex items-center rounded-full px-1 sm:px-1.5 py-0 sm:py-0.5 text-[9px] sm:text-[10px] font-semibold ${cls}`}>
       {label}
     </span>
   );
@@ -326,15 +326,15 @@ export function ForexCalendar({ lang, fullPage }: ForexCalendarProps) {
 
                 {/* Events table */}
                 <div className="overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full text-xs">
+                  <table className="w-full text-[10px] sm:text-xs">
                     <thead>
                       <tr className="border-b border-border bg-secondary/30 text-muted-foreground">
-                        <th className="px-3 py-2 text-start font-medium">{t('time', lang)}</th>
-                        <th className="px-3 py-2 text-start font-medium">{t('currency', lang)}</th>
-                        <th className="px-3 py-2 text-start font-medium w-full">{t('event', lang)}</th>
-                        <th className="px-3 py-2 text-end font-medium">{t('previous', lang)}</th>
-                        <th className="px-3 py-2 text-end font-medium">{t('forecast', lang)}</th>
-                        <th className="px-3 py-2 text-end font-medium">{t('actual', lang)}</th>
+                        <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-start font-medium whitespace-nowrap">{t('time', lang)}</th>
+                        <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-start font-medium">{t('currency', lang)}</th>
+                        <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-start font-medium w-full">{t('event', lang)}</th>
+                        <th className="hidden sm:table-cell px-3 py-2 text-end font-medium">{t('previous', lang)}</th>
+                        <th className="hidden sm:table-cell px-3 py-2 text-end font-medium">{t('forecast', lang)}</th>
+                        <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-end font-medium">{t('actual', lang)}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -347,27 +347,27 @@ export function ForexCalendar({ lang, fullPage }: ForexCalendarProps) {
                               : isToday ? 'hover:bg-primary/5' : 'hover:bg-secondary/40'
                           }`}
                         >
-                          <td className="px-3 py-2.5 tabular-nums text-muted-foreground whitespace-nowrap">
+                          <td className="px-1.5 sm:px-3 py-1.5 sm:py-2.5 tabular-nums text-muted-foreground whitespace-nowrap">
                             {ev.impact === 'Holiday' ? '—' : fmtTime(ev.date)}
                           </td>
-                          <td className="px-3 py-2.5 whitespace-nowrap">
-                            <span className="flex items-center gap-1 font-medium text-foreground">
+                          <td className="px-1.5 sm:px-3 py-1.5 sm:py-2.5 whitespace-nowrap">
+                            <span className="flex items-center gap-0.5 sm:gap-1 font-medium text-foreground">
                               {CURRENCY_FLAG[ev.country] ?? '🏳'} {ev.country}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5">
-                            <div className="flex flex-wrap items-center gap-1.5">
+                          <td className="px-1.5 sm:px-3 py-1.5 sm:py-2.5">
+                            <div className="flex flex-wrap items-center gap-1">
                               <span className={ev.impact === 'Holiday' ? 'text-muted-foreground italic' : 'text-foreground'}>{ev.title}</span>
                               <ImpactBadge impact={ev.impact} lang={lang} />
                             </div>
                           </td>
-                          <td className="px-3 py-2.5 text-end tabular-nums text-muted-foreground whitespace-nowrap">
+                          <td className="hidden sm:table-cell px-3 py-2.5 text-end tabular-nums text-muted-foreground whitespace-nowrap">
                             {ev.previous || '—'}
                           </td>
-                          <td className="px-3 py-2.5 text-end tabular-nums text-muted-foreground whitespace-nowrap">
+                          <td className="hidden sm:table-cell px-3 py-2.5 text-end tabular-nums text-muted-foreground whitespace-nowrap">
                             {ev.forecast || '—'}
                           </td>
-                          <td className={`px-3 py-2.5 text-end tabular-nums font-medium whitespace-nowrap ${
+                          <td className={`px-1.5 sm:px-3 py-1.5 sm:py-2.5 text-end tabular-nums font-medium whitespace-nowrap ${
                             ev.actual
                               ? parseFloat(ev.actual) >= parseFloat(ev.forecast || '0')
                                 ? 'text-profit'

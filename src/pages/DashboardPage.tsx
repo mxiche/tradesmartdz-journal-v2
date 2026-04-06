@@ -12,8 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
-  TrendingUp, TrendingDown, Loader2, Plus, ChevronLeft, ChevronRight, Camera, X,
+  TrendingUp, TrendingDown, Loader2, Plus, ChevronLeft, ChevronRight, Camera, X, Download,
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
 import { AccountCard } from '@/pages/ConnectPage';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { toast } from 'sonner';
@@ -383,7 +384,7 @@ function DashDayCell({ d, lang, onClick }: { d: DashDayData; lang: 'ar'|'fr'|'en
 
   return (
     <div
-      className={`relative flex min-h-[50px] sm:min-h-[90px] flex-col rounded-lg border p-1.5 sm:p-2 transition-all duration-150 select-none
+      className={`relative flex min-h-[55px] sm:min-h-[90px] flex-col rounded-lg border p-1.5 sm:p-2 transition-all duration-150 select-none
         ${bg} ${border || 'border-border/40'}
         ${d.isCurrentMonth ? 'cursor-pointer hover:border-primary/40 hover:brightness-110' : ''}
       `}
@@ -662,6 +663,45 @@ function TradingCalendar({
   const nextMonth = () => setCalMonth(p => p.month === 11 ? { year: p.year + 1, month: 0 } : { ...p, month: p.month + 1 });
   const goToday   = () => { const n = new Date(); setCalMonth({ year: n.getFullYear(), month: n.getMonth() }); };
 
+  const calGridRef = useRef<HTMLDivElement>(null);
+  const handleExportCalendar = async () => {
+    if (!calGridRef.current) return;
+    const monthName = CAL_MONTH_NAMES[lang][month];
+    const gridCanvas = await html2canvas(calGridRef.current, { scale: 2, backgroundColor: '#0A0F1C', useCORS: true });
+    const FOOTER_H = 56;
+    const PAD = 20;
+    const out = document.createElement('canvas');
+    out.width  = gridCanvas.width + PAD * 2;
+    out.height = gridCanvas.height + PAD * 2 + FOOTER_H;
+    const ctx = out.getContext('2d')!;
+    // Background
+    ctx.fillStyle = '#0A0F1C';
+    ctx.fillRect(0, 0, out.width, out.height);
+    // Calendar grid
+    ctx.drawImage(gridCanvas, PAD, PAD);
+    // Footer divider
+    const divY = gridCanvas.height + PAD + 12;
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD, divY); ctx.lineTo(out.width - PAD, divY); ctx.stroke();
+    // Footer text
+    const fy = divY + 28;
+    ctx.font = `bold 24px system-ui,sans-serif`;
+    ctx.fillStyle = '#00d4aa';
+    ctx.textAlign = 'left';
+    ctx.fillText('TradeSmartDz', PAD, fy);
+    ctx.font = `16px system-ui,sans-serif`;
+    ctx.fillStyle = '#475569';
+    ctx.textAlign = 'center';
+    ctx.fillText('neuroport.xyz', out.width / 2, fy);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${monthName} ${year}`, out.width - PAD, fy);
+    const a = document.createElement('a');
+    a.href = out.toDataURL('image/png');
+    a.download = `tradesmartdz-calendar-${monthName.toLowerCase().replace(/\s+/g, '-')}-${year}.png`;
+    a.click();
+  };
+
   const pad2 = (n: number) => String(n).padStart(2, '0');
 
   const selectedDayData = selectedDay !== null
@@ -692,7 +732,7 @@ function TradingCalendar({
           )}
         </div>
 
-        {/* Stats pills */}
+        {/* Stats pills + Export button */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
             <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'P&L الشهري' : lang === 'fr' ? 'P&L mensuel' : 'Monthly P&L'}</span>
@@ -728,6 +768,14 @@ function TradingCalendar({
               <span className="text-sm font-bold text-[#ef4444]">{fmtPnlCal(monthStats.worstDay.pnl)}</span>
             </div>
           )}
+          <button
+            onClick={handleExportCalendar}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            title={lang === 'ar' ? 'تصدير كصورة' : lang === 'fr' ? 'Exporter en image' : 'Export as image'}
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{lang === 'ar' ? 'تصدير' : lang === 'fr' ? 'Exporter' : 'Export'}</span>
+          </button>
         </div>
       </div>
 
@@ -745,7 +793,7 @@ function TradingCalendar({
             ))}
           </div>
           {/* Grid rows */}
-          <div className="space-y-1">
+          <div ref={calGridRef} className="space-y-1">
             {Array.from({ length: visibleWeeks }, (_, w) => (
               <div key={w} className="grid grid-cols-7 gap-1">
                 {grid.slice(w * 7, w * 7 + 7).map((d, i) => (
@@ -1166,8 +1214,9 @@ const DashboardPage = () => {
     [equityAccountId, accounts]
   );
   const hasLimits = selectedEquityAccount ? HAS_LIMITS_TYPES.includes(selectedEquityAccount.account_type ?? '') : false;
-  const accountSize = selectedEquityAccount?.account_size ?? selectedEquityAccount?.starting_balance ?? 0;
-  const ddLimit = selectedEquityAccount?.max_drawdown_limit ?? 10;
+  const accountSize     = selectedEquityAccount?.account_size ?? selectedEquityAccount?.starting_balance ?? 0;
+  const ddLimit         = selectedEquityAccount?.max_drawdown_limit ?? 0;
+  const dailyLossLimit  = selectedEquityAccount?.daily_loss_limit   ?? 0;
 
   const equityData = useMemo(() => {
     const isAll = equityAccountId === 'all';
@@ -1179,24 +1228,33 @@ const DashboardPage = () => {
       : trades.filter(tr => tr.profit !== null && tr.account_id === equityAccountId);
     const sorted = [...rel].sort((a, b) => new Date(a.close_time!).getTime() - new Date(b.close_time!).getTime());
 
+    // Limit levels — shown whenever account has limits configured
+    const dangerLevel    = accountSize > 0 && ddLimit > 0        ? +(startBalance - (accountSize * ddLimit / 100)).toFixed(2)        : null;
+    const dailyLossLevel = accountSize > 0 && dailyLossLimit > 0 ? +(startBalance - (accountSize * dailyLossLimit / 100)).toFixed(2) : null;
+
     if (sorted.length === 0) {
-      return { points: [{ date: lang === 'ar' ? 'الآن' : 'Now', balance: +startBalance.toFixed(2) }], startBalance, dangerLevel: null };
+      return { points: [{ date: lang === 'ar' ? 'الآن' : 'Now', balance: +startBalance.toFixed(2) }], startBalance, dangerLevel, dailyLossLevel };
+    }
+
+    // Group by day — one data point per trading day (not per trade)
+    const byDay = new Map<string, number>();
+    for (const tr of sorted) {
+      const day = new Date(tr.close_time!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      byDay.set(day, (byDay.get(day) ?? 0) + (tr.profit ?? 0));
     }
     let running = startBalance;
-    const pts = sorted.map(tr => {
-      running += tr.profit ?? 0;
-      return { date: new Date(tr.close_time!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), balance: +running.toFixed(2) };
+    const pts = Array.from(byDay.entries()).map(([date, dailyPnl]) => {
+      running += dailyPnl;
+      return { date, balance: +running.toFixed(2) };
     });
-    const dangerLevel = hasLimits && accountSize > 0 ? +(startBalance - (accountSize * ddLimit / 100)).toFixed(2) : null;
-    return { points: [{ date: '', balance: +startBalance.toFixed(2) }, ...pts], startBalance, dangerLevel };
-  }, [equityAccountId, selectedEquityAccount, accounts, trades, hasLimits, accountSize, ddLimit, lang]);
+    return { points: [{ date: '', balance: +startBalance.toFixed(2) }, ...pts], startBalance, dangerLevel, dailyLossLevel };
+  }, [equityAccountId, selectedEquityAccount, accounts, trades, accountSize, ddLimit, dailyLossLimit, lang]);
 
   const equityCurrent = equityData.points[equityData.points.length - 1]?.balance ?? 0;
   const equityChange = equityCurrent - equityData.startBalance;
   const equityChangePct = equityData.startBalance > 0 ? ((equityChange / equityData.startBalance) * 100).toFixed(2) : '0.00';
-  const lineColor = hasLimits
-    ? (equityCurrent >= equityData.startBalance ? '#00d4aa' : equityData.dangerLevel !== null && equityCurrent > equityData.dangerLevel ? '#f59e0b' : '#ef4444')
-    : '#00d4aa';
+  // Teal when at or above start balance, red when below
+  const lineColor = equityCurrent >= equityData.startBalance ? '#00d4aa' : '#ef4444';
 
   // ---- display name / greeting ----
   const displayName = (user?.user_metadata?.full_name as string | undefined)?.trim() || 'Trader';
@@ -1410,22 +1468,32 @@ const DashboardPage = () => {
                   axisLine={false}
                   tickFormatter={v => `$${v}`}
                   width={68}
-                  domain={equityData.dangerLevel !== null
-                    ? [Math.min(equityData.dangerLevel * 0.998, equityData.dangerLevel - 30), 'auto']
-                    : ['auto', 'auto']}
+                  domain={(() => {
+                    const levels = [equityData.dangerLevel, equityData.dailyLossLevel].filter(l => l !== null) as number[];
+                    if (levels.length === 0) return ['auto', 'auto'] as ['auto','auto'];
+                    const minLvl = Math.min(...levels);
+                    return [Math.min(minLvl * 0.998, minLvl - 30), 'auto'] as [number, 'auto'];
+                  })()}
                 />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: '8px', color: '#e2e8f0', fontSize: 12 }}
                   labelStyle={{ color: '#e2e8f0' }}
                   formatter={(v: number) => [`$${v.toFixed(2)}`, lang === 'ar' ? 'الرصيد' : lang === 'fr' ? 'Solde' : 'Balance']}
                 />
-                {hasLimits && (
+                {/* Start balance reference — shown when there are limit levels to compare against */}
+                {(equityData.dangerLevel !== null || equityData.dailyLossLevel !== null) && (
                   <ReferenceLine y={equityData.startBalance} stroke="#f59e0b" strokeDasharray="5 4" strokeWidth={1.5}
                     label={{ value: lang === 'ar' ? 'البداية' : 'Start', position: 'insideTopRight', fill: '#f59e0b', fontSize: 9 }} />
                 )}
+                {/* Max drawdown — always RED */}
                 {equityData.dangerLevel !== null && (
                   <ReferenceLine y={equityData.dangerLevel} stroke="#ef4444" strokeDasharray="5 4" strokeWidth={1.5}
                     label={{ value: lang === 'ar' ? 'حد السحب' : lang === 'fr' ? 'DD Max' : 'Max DD', position: 'insideBottomRight', fill: '#ef4444', fontSize: 9 }} />
+                )}
+                {/* Daily loss limit — always ORANGE */}
+                {equityData.dailyLossLevel !== null && (
+                  <ReferenceLine y={equityData.dailyLossLevel} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1.5}
+                    label={{ value: lang === 'ar' ? 'خسارة يومية' : lang === 'fr' ? 'Perte/jour' : 'Daily Loss', position: 'insideBottomLeft', fill: '#f97316', fontSize: 9 }} />
                 )}
                 <Area type="monotone" dataKey="balance" stroke={lineColor} strokeWidth={2} fill="url(#equityFill)"
                   dot={false} activeDot={{ r: 4, fill: lineColor, strokeWidth: 0 }} />

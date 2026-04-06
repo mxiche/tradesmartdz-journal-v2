@@ -1343,7 +1343,6 @@ const TradesPage = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{lang === 'ar' ? 'كل الحسابات' : lang === 'fr' ? 'Tous les comptes' : 'All accounts'}</SelectItem>
-              <SelectItem value="manual">{lang === 'ar' ? 'يدوي' : lang === 'fr' ? 'Manuel' : 'Manual'}</SelectItem>
               {accounts.map(acc => (
                 <SelectItem key={acc.id} value={acc.id}>
                   {acc.account_name ?? acc.login?.toString() ?? acc.id.slice(0, 8)}

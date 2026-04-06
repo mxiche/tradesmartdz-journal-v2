@@ -592,7 +592,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId }: Ac
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-secondary">
             <div
-              className={`h-full rounded-full transition-all ${ddBarColor(ddBarPct)}`}
+              className="h-full rounded-full transition-all bg-[#ef4444]"
               style={{ width: `${ddBarPct}%` }}
             />
           </div>
@@ -611,7 +611,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId }: Ac
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-secondary">
             <div
-              className={`h-full rounded-full transition-all ${ddBarColor(dailyLossBarPct)}`}
+              className="h-full rounded-full transition-all bg-[#ef4444]"
               style={{ width: `${dailyLossBarPct}%` }}
             />
           </div>
