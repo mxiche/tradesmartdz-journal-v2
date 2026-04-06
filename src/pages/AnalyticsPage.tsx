@@ -471,14 +471,14 @@ const AnalyticsPage = () => {
     return { pnl, counts, wins, tradesList };
   }, [trades]);
 
-  // Heatmap cell styling by PnL tier (no max-scaling — absolute thresholds)
-  function heatCellStyle(val: number, cnt: number): { bg: string; color: string } {
-    if (cnt === 0) return { bg: '#1e293b', color: '#475569' };
-    if (val > 100)  return { bg: '#166534', color: '#86efac' };
-    if (val > 0)    return { bg: '#14532d', color: '#4ade80' };
-    if (val < -100) return { bg: '#450a0a', color: '#f87171' };
-    if (val < 0)    return { bg: '#7f1d1d', color: '#fca5a5' };
-    return { bg: '#1e293b', color: '#475569' }; // breakeven
+  // Heatmap cell classes — Tailwind only, theme-aware
+  function heatCellClass(val: number, cnt: number): string {
+    if (cnt === 0) return 'bg-muted text-muted-foreground';
+    if (val > 100)  return 'bg-green-900/40 text-green-400';
+    if (val > 0)    return 'bg-green-900/20 text-green-500';
+    if (val < -100) return 'bg-red-900/40 text-red-400';
+    if (val < 0)    return 'bg-red-900/20 text-red-400';
+    return 'bg-muted text-muted-foreground'; // breakeven
   }
 
   // Heatmap detail popover state
@@ -787,14 +787,13 @@ const AnalyticsPage = () => {
       <Section title={l.heatmap}>
         {trades.length === 0 ? <EmptyState msg={noDataMsg} /> : (
           <>
-            <div className="overflow-x-auto">
-              <table style={{ borderCollapse: 'separate', borderSpacing: '4px', minWidth: '420px' }}>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full border-collapse">
                 <thead>
                   <tr>
-                    {/* sticky session label column header */}
-                    <th style={{ background: '#0f1117', color: '#475569', fontSize: 11, padding: '6px 12px 6px 0', textAlign: 'start', whiteSpace: 'nowrap', minWidth: 90 }} />
+                    <th className="text-left text-xs text-muted-foreground p-2 pr-4 whitespace-nowrap font-medium" />
                     {HEATMAP_DAYS.map(d => (
-                      <th key={d} style={{ background: '#0f1117', color: '#64748b', fontSize: 12, fontWeight: 600, textAlign: 'center', padding: '6px 4px', minWidth: 70 }}>
+                      <th key={d} className="text-center text-xs text-muted-foreground p-2 font-medium">
                         {l.days[d]}
                       </th>
                     ))}
@@ -803,44 +802,29 @@ const AnalyticsPage = () => {
                 <tbody>
                   {SESSIONS.map(ses => (
                     <tr key={ses}>
-                      <td style={{ background: '#0f1117', color: '#64748b', fontSize: 11, fontWeight: 600, padding: '4px 12px 4px 0', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+                      <td className="text-xs text-muted-foreground p-2 pr-4 whitespace-nowrap font-medium text-left align-middle">
                         {l.sessions[ses]}
                       </td>
                       {HEATMAP_DAYS.map(d => {
                         const val = heatmap.pnl[ses][d];
                         const cnt = heatmap.counts[ses][d];
-                        const { bg, color } = heatCellStyle(val, cnt);
+                        const cellClass = heatCellClass(val, cnt);
                         const hasTrades = cnt > 0;
                         return (
-                          <td key={d} style={{ padding: 0 }}>
+                          <td key={d} className="p-1">
                             <div
                               onClick={() => openHeatDetail(ses, d)}
-                              style={{
-                                background: bg,
-                                borderRadius: 8,
-                                minHeight: 70,
-                                minWidth: 70,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 2,
-                                padding: '6px 4px',
-                                cursor: hasTrades ? 'pointer' : 'default',
-                                transition: 'filter 0.15s',
-                              }}
-                              onMouseEnter={e => hasTrades && ((e.currentTarget as HTMLDivElement).style.filter = 'brightness(1.15)')}
-                              onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.filter = '')}
+                              className={`rounded-lg p-2 min-h-[70px] flex flex-col items-center justify-center gap-1 transition-opacity ${hasTrades ? 'cursor-pointer hover:opacity-80' : 'cursor-default'} ${cellClass}`}
                             >
                               {hasTrades ? (
                                 <>
-                                  <span style={{ color, fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>
+                                  <span className="text-sm font-bold leading-tight">
                                     {val >= 0 ? '+' : ''}{val.toFixed(0)}
                                   </span>
-                                  <span style={{ color: '#94a3b8', fontSize: 10 }}>{cnt}t</span>
+                                  <span className="text-[10px] text-muted-foreground">{cnt}t</span>
                                 </>
                               ) : (
-                                <span style={{ color: '#374151', fontSize: 12 }}>—</span>
+                                <span className="text-xs text-muted-foreground/40">—</span>
                               )}
                             </div>
                           </td>
@@ -949,23 +933,36 @@ const AnalyticsPage = () => {
       {/* ── SECTION 5: SYMBOL BARS ── */}
       <Section title={l.symbolChart}>
         {symbolData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
-          <ResponsiveContainer width="100%" height={Math.max(240, symbolData.length * 44)}>
+          <ResponsiveContainer width="100%" height={Math.max(300, symbolData.length * 60)}>
             <BarChart
               data={symbolData}
               layout="vertical"
-              barSize={20}
-              barCategoryGap="30%"
-              margin={{ top: 20, right: 70, left: 20, bottom: 20 }}
+              margin={{ top: 10, right: 80, left: 120, bottom: 10 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-              <XAxis type="number" stroke="#475569" fontSize={10} tickFormatter={v => `$${v}`} />
-              <YAxis dataKey="name" type="category" stroke="#475569" fontSize={11} width={100} />
-              <Tooltip content={<SymbolTooltip />} />
-              <ReferenceLine x={0} stroke="#374151" strokeWidth={1.5} />
-              <Bar dataKey="pnl" radius={[0, 4, 4, 0]} minPointSize={3}
-                label={{ position: 'right', fontSize: 10, fill: '#94a3b8', formatter: (v: number) => v !== 0 ? `$${v.toFixed(0)}` : '' }}
-              >
-                {symbolData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#22c55e' : '#ef4444'} />)}
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+              <XAxis
+                type="number"
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={12}
+                tickFormatter={(v) => `$${v}`}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={12}
+                width={110}
+                tick={{ fill: 'hsl(var(--foreground))' }}
+              />
+              <Tooltip
+                contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }}
+                formatter={(value: number) => [`$${value.toFixed(2)}`, 'PnL']}
+              />
+              <ReferenceLine x={0} stroke="hsl(var(--border))" strokeWidth={2} />
+              <Bar dataKey="pnl" radius={[0, 4, 4, 0]} barSize={24}>
+                {symbolData.map((entry, index) => (
+                  <Cell key={index} fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} />
+                ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>

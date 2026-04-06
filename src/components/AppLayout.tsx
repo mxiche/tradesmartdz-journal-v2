@@ -11,7 +11,7 @@ import { useState, useMemo } from 'react';
 
 export default function AppLayout() {
   const { user, signOut } = useAuth();
-  const { t, isRtl, language } = useLanguage();
+  const { t, language } = useLanguage();
 
   const navItems = useMemo(() => [
     { label: t('dashboard'),      icon: LayoutDashboard, path: '/dashboard' },
@@ -28,62 +28,33 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const closeSidebar = (e?: React.SyntheticEvent) => {
-    e?.preventDefault();
-    setSidebarOpen(false);
-  };
-
   const handleLogout = async () => {
     await signOut();
     navigate('/');
   };
 
-  // Sidebar slide direction: LTR → slide from left, RTL → slide from right
-  const sidebarTransform = sidebarOpen
-    ? 'translate-x-0'
-    : isRtl
-      ? 'translate-x-full'
-      : '-translate-x-full';
-
   return (
-    // No overflow:hidden on the root — it clips fixed overlays on mobile
     <div className="flex min-h-screen bg-background">
 
-      {/* ── Mobile overlay (full-screen backdrop) ── */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 lg:hidden"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
-          onClick={closeSidebar}
-          onTouchEnd={closeSidebar}
-        />
-      )}
+      {/* Overlay */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}
+        onClick={() => setSidebarOpen(false)}
+      />
 
-      {/* ── Sidebar ── */}
-      <aside
-        className={`
-          fixed top-0 bottom-0 z-50 flex w-64 flex-col border-e border-border bg-card
-          transition-transform duration-300
-          lg:static lg:translate-x-0
-          ${isRtl ? 'right-0 left-auto' : 'left-0'}
-          ${sidebarTransform}
-        `}
-        style={{ height: '100dvh' }}
-      >
-        {/* Header row */}
+      {/* Sidebar */}
+      <aside className={`fixed inset-y-0 start-0 z-50 w-64 flex flex-col border-e border-border bg-card transition-transform duration-300 lg:static lg:translate-x-0 rtl:lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'}`}>
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
           <Logo size="sm" />
           <button
-            className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground lg:hidden"
-            onClick={closeSidebar}
-            onTouchEnd={closeSidebar}
-            aria-label="Close menu"
+            type="button"
+            className="lg:hidden p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
+            style={{ touchAction: 'manipulation' }}
+            onClick={() => setSidebarOpen(false)}
           >
             <X className="h-5 w-5" />
           </button>
         </div>
-
-        {/* Nav links */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {navItems.map(item => {
             const active = location.pathname === item.path;
@@ -92,11 +63,7 @@ export default function AppLayout() {
                 key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors
-                  ${active
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                  }`}
+                className={`flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ${active ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
               >
                 <item.icon className="h-5 w-5 shrink-0" />
                 <span className="truncate">{item.label}</span>
@@ -104,8 +71,6 @@ export default function AppLayout() {
             );
           })}
         </nav>
-
-        {/* Logout */}
         <div className="shrink-0 border-t border-border p-3">
           <Button
             variant="ghost"
@@ -118,11 +83,8 @@ export default function AppLayout() {
         </div>
       </aside>
 
-      {/* ── Main content ── */}
-      <div
-        className="flex min-w-0 flex-1 flex-col"
-        style={sidebarOpen ? { pointerEvents: 'none' } : undefined}
-      >
+      {/* Main content */}
+      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
           <Button
             variant="ghost"
