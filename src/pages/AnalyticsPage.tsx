@@ -332,7 +332,7 @@ const AnalyticsPage = () => {
       const [{ data: tradesData }, { data: accs }, { data: profile }] = await Promise.all([
         supabase.from('trades').select('*').eq('user_id', user.id).order('close_time', { ascending: true }),
         supabase.from('mt5_accounts').select('*').eq('user_id', user.id),
-        supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+        supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle(),
       ]);
       setAllTrades(tradesData ?? []);
       setAccounts(accs ?? []);

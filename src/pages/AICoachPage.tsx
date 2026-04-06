@@ -10,7 +10,7 @@ type Lang = 'ar' | 'fr' | 'en';
 
 const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'mistralai/mistral-7b-instruct';
+const MODEL = 'openrouter/auto';
 
 // ─── Translations ─────────────────────────────────────────────
 const L = {
