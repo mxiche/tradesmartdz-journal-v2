@@ -763,106 +763,210 @@ function TradingCalendar({
     ? grid.find(d => d.isCurrentMonth && d.isToday === (selectedDay === now.getDate() && isCurrentMonth) || (d.isCurrentMonth && d.date.getDate() === selectedDay))
     : null;
 
-  // ── Mobile list view: days with trades, descending ──
-  const mobileTradeDays = useMemo(() =>
-    grid
-      .filter(d => d.isCurrentMonth && d.tradeCount > 0)
-      .sort((a, b) => b.date.getTime() - a.date.getTime()),
-  [grid]);
+  // ── Mobile weekly view state ──────────────────────────────────
+  const [mobileWeekStart, setMobileWeekStart] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay()); // Sunday of current week
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [mobileShowFullMonth, setMobileShowFullMonth] = useState(false);
 
   const mobileLocale = lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US';
 
+  // 7-day cells for the current week view
+  const mobileWeekCells = useMemo(() => {
+    const todayKey = isoDay(new Date());
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(mobileWeekStart);
+      d.setDate(mobileWeekStart.getDate() + i);
+      const key = isoDay(d);
+      const found = grid.find(g => isoDay(g.date) === key);
+      return found ?? {
+        date: d, pnl: 0, tradeCount: 0, wins: 0,
+        isCurrentMonth: d.getMonth() === month && d.getFullYear() === year,
+        isToday: key === todayKey,
+        isWeekend: d.getDay() === 0 || d.getDay() === 6,
+        dayTrades: [],
+      } as DashDayData;
+    });
+  }, [mobileWeekStart, grid, month, year]);
+
+  const prevWeek = () => setMobileWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; });
+  const nextWeek = () => setMobileWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; });
+
+  const mobileWeekEnd = useMemo(() => { const d = new Date(mobileWeekStart); d.setDate(d.getDate() + 6); return d; }, [mobileWeekStart]);
+
+  const mobileWeekLabel = useMemo(() => {
+    const fmt = (d: Date) => d.toLocaleDateString(mobileLocale, { day: 'numeric', month: 'short' });
+    return `${fmt(mobileWeekStart)} – ${fmt(mobileWeekEnd)}`;
+  }, [mobileWeekStart, mobileWeekEnd, mobileLocale]);
+
+  // Monthly trade days for full-month list view
+  const mobileMonthTradeDays = useMemo(() =>
+    grid.filter(d => d.isCurrentMonth && d.tradeCount > 0).sort((a, b) => b.date.getTime() - a.date.getTime()),
+  [grid]);
+
   if (isMobile) {
     return (
-      <div className="space-y-4">
-        {/* Mobile header: nav + month name */}
-        <div className="flex items-center justify-between gap-2">
-          <button onClick={prevMonth}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <h2 className="text-base font-bold text-foreground">
-            {CAL_MONTH_NAMES[lang][month]} {year}
-          </h2>
-          <button onClick={nextMonth}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground">
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Mobile stats bar */}
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-3">
+      <div className="space-y-3">
+        {/* Monthly stats bar */}
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
           <div className="flex flex-1 flex-col items-center gap-0.5">
-            <span className="text-[10px] text-muted-foreground">{lang === 'ar' ? 'إجمالي P&L' : lang === 'fr' ? 'P&L total' : 'Total P&L'}</span>
+            <span className="text-[10px] text-muted-foreground">{lang === 'ar' ? 'P&L الشهر' : lang === 'fr' ? 'P&L mois' : 'Month P&L'}</span>
             <span className={`text-sm font-bold ${monthStats.totalPnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
               {monthStats.totalTrades === 0 ? '—' : fmtPnlCal(monthStats.totalPnl)}
             </span>
           </div>
-          <div className="h-8 w-px bg-border" />
+          <div className="h-7 w-px bg-border" />
           <div className="flex flex-1 flex-col items-center gap-0.5">
-            <span className="text-[10px] text-muted-foreground">{lang === 'ar' ? 'أيام التداول' : lang === 'fr' ? 'Jours tradés' : 'Trading Days'}</span>
+            <span className="text-[10px] text-muted-foreground">{lang === 'ar' ? 'أيام' : lang === 'fr' ? 'Jours' : 'Days'}</span>
             <span className="text-sm font-bold text-foreground">{monthStats.tradingDays}</span>
           </div>
-          <div className="h-8 w-px bg-border" />
+          <div className="h-7 w-px bg-border" />
           <div className="flex flex-1 flex-col items-center gap-0.5">
-            <span className="text-[10px] text-muted-foreground">{lang === 'ar' ? 'نسبة الفوز' : lang === 'fr' ? 'Taux win' : 'Win Rate'}</span>
+            <span className="text-[10px] text-muted-foreground">{lang === 'ar' ? 'فوز' : lang === 'fr' ? 'Win' : 'Win'}</span>
             <span className={`text-sm font-bold ${monthStats.winRate >= 50 ? 'text-[#22c55e]' : monthStats.totalTrades === 0 ? 'text-foreground' : 'text-[#ef4444]'}`}>
               {monthStats.totalTrades === 0 ? '—' : `${monthStats.winRate}%`}
             </span>
           </div>
+          <div className="h-7 w-px bg-border" />
+          {/* Export icon */}
+          <button
+            onClick={handleExportCalendar}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground active:opacity-70"
+            title={lang === 'ar' ? 'تصدير' : lang === 'fr' ? 'Exporter' : 'Export PNG'}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </button>
         </div>
 
-        {/* Mobile day list */}
-        {mobileTradeDays.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            {lang === 'ar' ? 'لا توجد صفقات هذا الشهر' : lang === 'fr' ? 'Aucun trade ce mois' : 'No trades this month'}
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {mobileTradeDays.map((d, i) => {
-              const wr = Math.round((d.wins / d.tradeCount) * 100);
-              return (
-                <button
-                  key={i}
-                  onClick={() => setSelectedDay(d.date.getDate())}
-                  className={`w-full flex items-center justify-between gap-3 rounded-xl border p-3.5 text-left transition-colors active:opacity-80
-                    ${d.pnl >= 0 ? 'border-[rgba(34,197,94,0.2)] bg-[rgba(34,197,94,0.06)]' : 'border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.06)]'}`}
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-semibold text-foreground">
-                      {d.date.toLocaleDateString(mobileLocale, { weekday: 'long', day: 'numeric', month: 'short' })}
+        {!mobileShowFullMonth ? (
+          <>
+            {/* Week navigation */}
+            <div className="flex items-center justify-between gap-2">
+              <button onClick={prevWeek} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-xs font-medium text-muted-foreground">{mobileWeekLabel}</span>
+              <button onClick={nextWeek} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Weekly 7-column grid */}
+            <div className="grid grid-cols-7 gap-1">
+              {/* Day initials header */}
+              {CAL_DAY_INITIALS[lang].map((init, i) => (
+                <div key={i} className={`py-1 text-center text-[10px] font-semibold ${i === 0 || i === 6 ? 'text-muted-foreground/40' : 'text-muted-foreground'}`}>
+                  {init}
+                </div>
+              ))}
+              {/* Day cells */}
+              {mobileWeekCells.map((d, i) => {
+                const hasTrades = d.tradeCount > 0;
+                const wr = hasTrades ? Math.round((d.wins / d.tradeCount) * 100) : 0;
+                let bg = 'bg-card';
+                let border = 'border-border/40';
+                if (!d.isCurrentMonth) { bg = 'bg-transparent opacity-30'; }
+                else if (hasTrades && d.pnl >= 0) { bg = 'bg-[rgba(34,197,94,0.12)]'; border = 'border-[rgba(34,197,94,0.3)]'; }
+                else if (hasTrades && d.pnl < 0)  { bg = 'bg-[rgba(239,68,68,0.12)]';  border = 'border-[rgba(239,68,68,0.3)]'; }
+                else if (d.isWeekend) { bg = 'bg-secondary/20'; }
+                if (d.isToday) border = 'border-primary border-2';
+                return (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      if (!d.isCurrentMonth) return;
+                      if (hasTrades) setSelectedDay(d.date.getDate());
+                      else setQuickAddDate(`${d.date.getFullYear()}-${pad2(d.date.getMonth()+1)}-${pad2(d.date.getDate())}`);
+                    }}
+                    className={`flex min-h-[80px] flex-col overflow-hidden rounded-lg border p-1 cursor-pointer select-none ${bg} ${border}`}
+                  >
+                    <span className={`text-[10px] font-medium leading-none ${d.isToday ? 'font-bold text-primary' : 'text-muted-foreground'}`}>
+                      {d.date.getDate()}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      {d.tradeCount} {lang === 'ar' ? 'صفقة' : lang === 'fr' ? (d.tradeCount > 1 ? 'trades' : 'trade') : (d.tradeCount !== 1 ? 'trades' : 'trade')}
-                      {' · '}{wr}% {lang === 'ar' ? 'ربح' : lang === 'fr' ? 'win' : 'win'}
-                    </span>
+                    {hasTrades && d.isCurrentMonth && (
+                      <div className="mt-0.5 flex flex-1 flex-col items-center justify-center gap-0.5">
+                        <span className={`w-full truncate text-center text-[11px] font-bold leading-tight ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+                          {fmtPnlCal(d.pnl)}
+                        </span>
+                        <span className="text-[9px] text-muted-foreground">{d.tradeCount}t</span>
+                        <span className={`text-[9px] font-medium ${wr >= 50 ? 'text-[#22c55e]/70' : 'text-[#ef4444]/70'}`}>{wr}%</span>
+                      </div>
+                    )}
                   </div>
-                  <span className={`text-base font-bold ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-                    {fmtPnlCal(d.pnl)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+
+            {/* View Full Month button */}
+            <button
+              onClick={() => setMobileShowFullMonth(true)}
+              className="w-full rounded-xl border border-border bg-card py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              {lang === 'ar' ? 'عرض الشهر كاملاً' : lang === 'fr' ? 'Voir le mois complet' : 'View Full Month'}
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Full month navigation */}
+            <div className="flex items-center justify-between gap-2">
+              <button onClick={prevMonth} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground">
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-sm font-bold text-foreground">{CAL_MONTH_NAMES[lang][month]} {year}</span>
+              <button onClick={nextMonth} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground">
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Full month day headers */}
+            <div className="grid grid-cols-7 gap-0.5">
+              {CAL_DAY_INITIALS[lang].map((init, i) => (
+                <div key={i} className={`py-1 text-center text-[10px] font-semibold ${i===0||i===6?'text-muted-foreground/40':'text-muted-foreground'}`}>{init}</div>
+              ))}
+              {grid.slice(0, visibleWeeks * 7).map((d, i) => {
+                const hasTrades = d.tradeCount > 0;
+                const wr = hasTrades ? Math.round((d.wins / d.tradeCount) * 100) : 0;
+                let bg = 'bg-card'; let border = 'border-border/40';
+                if (!d.isCurrentMonth) { bg = 'bg-transparent opacity-25'; }
+                else if (hasTrades && d.pnl >= 0) { bg = 'bg-[rgba(34,197,94,0.12)]'; border = 'border-[rgba(34,197,94,0.25)]'; }
+                else if (hasTrades && d.pnl < 0)  { bg = 'bg-[rgba(239,68,68,0.12)]';  border = 'border-[rgba(239,68,68,0.25)]'; }
+                else if (d.isWeekend) { bg = 'bg-secondary/20'; }
+                if (d.isToday) border = 'border-primary border-2';
+                return (
+                  <div key={i}
+                    onClick={() => { if (!d.isCurrentMonth) return; if (hasTrades) setSelectedDay(d.date.getDate()); else setQuickAddDate(`${year}-${pad2(month+1)}-${pad2(d.date.getDate())}`); }}
+                    className={`flex min-h-[65px] flex-col overflow-hidden rounded-lg border p-1 cursor-pointer select-none ${bg} ${border}`}
+                  >
+                    <span className={`text-[10px] leading-none ${d.isToday ? 'font-bold text-primary' : 'text-muted-foreground'}`}>{d.date.getDate()}</span>
+                    {hasTrades && d.isCurrentMonth && (
+                      <div className="mt-0.5 flex flex-1 flex-col items-center justify-center">
+                        <span className={`w-full truncate text-center text-[11px] font-bold ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{fmtPnlCal(d.pnl)}</span>
+                        <span className={`text-[9px] ${wr >= 50 ? 'text-[#22c55e]/70' : 'text-[#ef4444]/70'}`}>{wr}%</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setMobileShowFullMonth(false)}
+              className="w-full rounded-xl border border-border bg-card py-2.5 text-xs font-medium text-muted-foreground"
+            >
+              {lang === 'ar' ? 'عرض الأسبوع' : lang === 'fr' ? 'Vue semaine' : 'Week View'}
+            </button>
+          </>
         )}
 
         {/* Day detail modal */}
         {selectedDay !== null && selectedDayData && selectedDayData.dayTrades.length > 0 && (
-          <DayDetailModal
-            day={selectedDay} month={month} year={year}
-            dayTrades={selectedDayData.dayTrades} lang={lang}
-            onClose={() => setSelectedDay(null)}
-          />
+          <DayDetailModal day={selectedDay} month={month} year={year} dayTrades={selectedDayData.dayTrades} lang={lang} onClose={() => setSelectedDay(null)} />
         )}
-
-        {/* Quick add trade (empty day click) */}
         {quickAddDate !== null && (
-          <QuickAddTrade
-            open onClose={() => setQuickAddDate(null)}
-            accounts={accounts} lang={lang} user={user}
-            onSaved={() => { setQuickAddDate(null); onTradeSaved(); }}
-            initialDate={quickAddDate}
-          />
+          <QuickAddTrade open onClose={() => setQuickAddDate(null)} accounts={accounts} lang={lang} user={user} onSaved={() => { setQuickAddDate(null); onTradeSaved(); }} initialDate={quickAddDate} />
         )}
       </div>
     );
