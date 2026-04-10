@@ -429,7 +429,7 @@ function Mt5ImportModal({
     const dupeCount = parsedTrades.length - newTrades.length;
 
     if (newTrades.length === 0) {
-      toast.info('لا توجد صفقات جديدة، جميعها مستوردة مسبقاً');
+      toast.info(t('no_new_trades'));
       return;
     }
 
@@ -481,7 +481,7 @@ function Mt5ImportModal({
       if (!error) inserted += batch.length;
     }
     setImporting(false);
-    toast.success(`تم استيراد ${inserted} صفقة بنجاح`);
+    toast.success(t('import_success').replace('{count}', String(inserted)));
     setShowReview(false);
     onClose();
     onImported();
@@ -737,14 +737,13 @@ function Mt5ImportModal({
 
       {/* ── Review Modal ── */}
       <Dialog open={showReview} onOpenChange={v => { if (!v && !importing) setShowReview(false); }}>
-        <DialogContent className="max-h-[90vh] flex flex-col sm:max-w-5xl p-0 gap-0" dir="rtl">
+        <DialogContent className="max-h-[90vh] flex flex-col sm:max-w-5xl p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
-            <DialogTitle className="text-lg font-bold">مراجعة الصفقات قبل الاستيراد</DialogTitle>
+            <DialogTitle className="text-lg font-bold">{t('review_modal_title')}</DialogTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              <span className="text-foreground font-semibold">{newTradesList.length} صفقة جديدة</span>
-              {duplicateCount > 0 && (
-                <> · <span className="text-yellow-400">{duplicateCount} مكررة تم تخطيها</span></>
-              )}
+              {t('review_modal_subtitle')
+                .replace('{new}', String(newTradesList.length))
+                .replace('{dupes}', String(duplicateCount))}
             </p>
           </DialogHeader>
 
@@ -752,15 +751,15 @@ function Mt5ImportModal({
             <table className="w-full text-sm border-separate border-spacing-0">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-secondary">
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">التذكرة</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">الرمز</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">الاتجاه</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">النتيجة</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">الربح/الخسارة</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">الجلسة</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">نسبة RR</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">الإعداد</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">ملاحظات</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_ticket')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_symbol')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_direction')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_result')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_pnl')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_session')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_rr')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_setup')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_notes')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -779,7 +778,7 @@ function Mt5ImportModal({
                             ? 'bg-profit/20 text-profit border-profit/30'
                             : 'bg-loss/20 text-loss border-loss/30'
                         }`}>
-                          {tr.direction === 'BUY' ? 'شراء' : 'بيع'}
+                          {tr.direction === 'BUY' ? t('direction_long') : t('direction_short')}
                         </span>
                       </td>
                       {/* Result */}
@@ -791,7 +790,7 @@ function Mt5ImportModal({
                             ? 'bg-loss/20 text-loss border-loss/30'
                             : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
                         }`}>
-                          {tr.result === 'Win' ? 'ربح' : tr.result === 'Loss' ? 'خسارة' : 'تعادل'}
+                          {tr.result === 'Win' ? t('result_win') : tr.result === 'Loss' ? t('result_loss') : t('result_be')}
                         </span>
                       </td>
                       {/* P&L */}
@@ -805,13 +804,13 @@ function Mt5ImportModal({
                           onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, session: val } : r))}
                         >
                           <SelectTrigger className="h-8 w-28 text-xs">
-                            <SelectValue placeholder="اختر..." />
+                            <SelectValue placeholder={t('select_placeholder')} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Asia">آسيوية</SelectItem>
-                            <SelectItem value="London">لندن</SelectItem>
-                            <SelectItem value="New York">نيويورك</SelectItem>
-                            <SelectItem value="NY Lunch">أخرى</SelectItem>
+                            <SelectItem value="Asia">{t('session_asian')}</SelectItem>
+                            <SelectItem value="London">{t('session_london')}</SelectItem>
+                            <SelectItem value="New York">{t('session_new_york')}</SelectItem>
+                            <SelectItem value="NY Lunch">{t('session_other')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </td>
@@ -834,7 +833,7 @@ function Mt5ImportModal({
                           onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, setup_tag: val } : r))}
                         >
                           <SelectTrigger className="h-8 w-32 text-xs">
-                            <SelectValue placeholder="اختر..." />
+                            <SelectValue placeholder={t('select_placeholder')} />
                           </SelectTrigger>
                           <SelectContent>
                             {userTags.map(tag => (
@@ -850,7 +849,7 @@ function Mt5ImportModal({
                           value={row.notes}
                           onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, notes: e.target.value } : r))}
                           className="h-8 w-40 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                          placeholder="ملاحظات..."
+                          placeholder={t('col_notes')}
                         />
                       </td>
                     </tr>
@@ -867,7 +866,7 @@ function Mt5ImportModal({
               onClick={() => setShowReview(false)}
               disabled={importing}
             >
-              إلغاء
+              {t('cancel')}
             </Button>
             <Button
               className="min-h-[40px] px-6 bg-teal-600 hover:bg-teal-500 text-white"
@@ -875,9 +874,9 @@ function Mt5ImportModal({
               disabled={importing}
             >
               {importing ? (
-                <><Loader2 className="me-2 h-4 w-4 animate-spin" />جارٍ الاستيراد...</>
+                <><Loader2 className="me-2 h-4 w-4 animate-spin" />{t('importing_in_progress')}</>
               ) : (
-                `استيراد الكل (${reviewRows.length})`
+                `${t('import_all')} (${reviewRows.length})`
               )}
             </Button>
           </div>
