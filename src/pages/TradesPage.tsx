@@ -149,6 +149,7 @@ const DEFAULT_TAGS = ['FVG', 'IFVG', 'Liquidity Sweep', 'Order Block', 'BOS/CHoC
 // ── MT5 HTML parser ─────────────────────────────────────────────────────────
 
 interface Mt5ParsedTrade {
+  ticket: number | null;
   symbol: string;
   direction: 'BUY' | 'SELL';
   volume: number;
@@ -158,6 +159,7 @@ interface Mt5ParsedTrade {
   close_time: string;
   profit: number;
   commission: number;
+  result: 'Win' | 'Loss' | 'Breakeven';
 }
 
 function parseMt5CellDate(s: string): string | null {
@@ -224,14 +226,16 @@ function parseMt5Html(html: string): Mt5ParsedTrade[] {
           if (isNaN(parseFloat(cells[1]))) continue;
         }
 
+        const ticket      = parseInt(cells[1], 10) || null;
         const volume      = parseFloat(cells[5].replace(',', '.'))                         || 0;
         const entry       = parseFloat(cells[6].replace(',', '.'))                         || 0;
         const close_time  = parseMt5CellDate(cells[9])                                     ?? open_time;
         const exit_price  = parseFloat(cells[10].replace(',', '.'))                        || 0;
         const commission  = parseFloat(cells[11].replace(/\s/g, '').replace(',', '.'))     || 0;
         const profit      = parseFloat(cells[13].replace(/\s/g, '').replace(',', '.'))     || 0;
+        const result: Mt5ParsedTrade['result'] = profit > 0 ? 'Win' : profit < 0 ? 'Loss' : 'Breakeven';
 
-        trades.push({ symbol, direction, volume, entry, exit_price, open_time, close_time, profit, commission });
+        trades.push({ ticket, symbol, direction, volume, entry, exit_price, open_time, close_time, profit, commission, result });
         continue;
       }
 
@@ -256,8 +260,9 @@ function parseMt5Html(html: string): Mt5ParsedTrade[] {
         const close_time = parseMt5CellDate(cells[7])                                  ?? open_time;
         const exit_price = parseFloat(cells[8].replace(',', '.'))                      || 0;
         const profit     = parseFloat(cells[11].replace(/\s/g, '').replace(',', '.')) || 0;
+        const result: Mt5ParsedTrade['result'] = profit > 0 ? 'Win' : profit < 0 ? 'Loss' : 'Breakeven';
 
-        trades.push({ symbol, direction, volume, entry, exit_price, open_time, close_time, profit, commission: 0 });
+        trades.push({ ticket: null, symbol, direction, volume, entry, exit_price, open_time, close_time, profit, commission: 0, result });
       }
     }
   }
@@ -312,6 +317,20 @@ function Mt5ImportModal({
   const [creatingAcc, setCreatingAcc] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Review modal state
+  interface ReviewRow {
+    trade: Mt5ParsedTrade;
+    session: string;
+    rr_ratio: string;
+    setup_tag: string;
+    notes: string;
+  }
+  const [showReview, setShowReview] = useState(false);
+  const [reviewRows, setReviewRows] = useState<ReviewRow[]>([]);
+  const [newTradesList, setNewTradesList] = useState<Mt5ParsedTrade[]>([]);
+  const [userTags, setUserTags] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
+
   const isMobile = typeof window !== 'undefined' && (
     window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
   );
@@ -323,6 +342,7 @@ function Mt5ImportModal({
       setSelectedAccountId(''); setImportProgress(0); setImportTotal(0);
       setImportedCount(0); setSkippedCount(0); setFileError(null); setHtmlDebug(null);
       setShowNewAccount(false); setNewAccFirm(''); setNewAccLogin(''); setNewAccName('');
+      setShowReview(false); setReviewRows([]); setNewTradesList([]); setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }, [open]);
@@ -367,11 +387,11 @@ function Mt5ImportModal({
       return;
     }
 
-    // Duplicate check preview
-    const { data: existing } = await supabase
-      .from('trades').select('open_time, symbol, profit').eq('user_id', userId);
-    const existingSet = new Set((existing ?? []).map(tr => `${tr.symbol}|${tr.open_time}|${tr.profit}`));
-    const dupes = trades.filter(tr => existingSet.has(`${tr.symbol}|${tr.open_time}|${tr.profit}`)).length;
+    // Duplicate check preview (by ticket)
+    const { data: existingData } = await supabase
+      .from('trades').select('ticket').eq('user_id', userId);
+    const existingTickets = new Set((existingData ?? []).map(tr => String(tr.ticket)));
+    const dupes = trades.filter(tr => tr.ticket !== null && existingTickets.has(String(tr.ticket))).length;
 
     setParsedTrades(trades);
     setDuplicateCount(dupes);
@@ -398,42 +418,73 @@ function Mt5ImportModal({
     setNewAccFirm(''); setNewAccLogin(''); setNewAccName('');
   };
 
-  const handleImport = async () => {
+  // Opens the review modal instead of importing directly
+  const handleReview = async () => {
     if (!selectedAccountId) return;
-    setStep(3);
 
-    const { data: existing } = await supabase
-      .from('trades').select('open_time, symbol, profit').eq('user_id', userId);
-    const existingSet = new Set((existing ?? []).map(tr => `${tr.symbol}|${tr.open_time}|${tr.profit}`));
+    const { data: existingData } = await supabase
+      .from('trades').select('ticket').eq('user_id', userId);
+    const existingTickets = new Set((existingData ?? []).map(tr => String(tr.ticket)));
+    const newTrades = parsedTrades.filter(tr => tr.ticket === null || !existingTickets.has(String(tr.ticket)));
+    const dupeCount = parsedTrades.length - newTrades.length;
 
-    const toInsert = parsedTrades.filter(tr => !existingSet.has(`${tr.symbol}|${tr.open_time}|${tr.profit}`));
-    const skipped = parsedTrades.length - toInsert.length;
-    setImportTotal(toInsert.length);
-    setImportProgress(0);
-
-    const BATCH = 50;
-    let inserted = 0;
-    for (let i = 0; i < toInsert.length; i += BATCH) {
-      const batch = toInsert.slice(i, i + BATCH).map(tr => ({
-        user_id: userId,
-        symbol: tr.symbol,
-        direction: tr.direction,
-        volume: tr.volume || null,
-        entry: tr.entry || null,
-        exit_price: tr.exit_price || null,
-        open_time: tr.open_time,
-        close_time: tr.close_time,
-        profit: tr.profit,
-        account_id: selectedAccountId,
-        duration: computeDuration(tr.open_time, tr.close_time) || null,
-      }));
-      const { error } = await supabase.from('trades').insert(batch);
-      if (!error) { inserted += batch.length; setImportProgress(inserted); }
+    if (newTrades.length === 0) {
+      toast.info('لا توجد صفقات جديدة، جميعها مستوردة مسبقاً');
+      return;
     }
 
-    setImportedCount(inserted);
-    setSkippedCount(skipped);
-    setStep(4);
+    // Fetch user custom tags for setup dropdown
+    const { data: prefs } = await supabase
+      .from('user_preferences').select('custom_tags').eq('user_id', userId).maybeSingle();
+    setUserTags(Array.isArray((prefs as any)?.custom_tags) ? (prefs as any).custom_tags : DEFAULT_TAGS);
+
+    setNewTradesList(newTrades);
+    setDuplicateCount(dupeCount);
+    setReviewRows(newTrades.map(tr => ({ trade: tr, session: '', rr_ratio: '', setup_tag: '', notes: '' })));
+    setShowReview(true);
+  };
+
+  // Called from review modal "استيراد الكل"
+  const handleImportAll = async () => {
+    setImporting(true);
+    const BATCH = 50;
+    let inserted = 0;
+    for (let i = 0; i < reviewRows.length; i += BATCH) {
+      const batch = reviewRows.slice(i, i + BATCH).map(row => {
+        const tr = row.trade;
+        const tagParts = [tr.result, row.session, row.setup_tag].filter(Boolean);
+        const rrNum = parseFloat(row.rr_ratio) || null;
+        const notesVal = [
+          rrNum ? `R:R ${rrNum}` : '',
+          row.notes.trim(),
+        ].filter(Boolean).join('\n') || null;
+        return {
+          user_id: userId,
+          symbol: tr.symbol,
+          direction: tr.direction,
+          volume: tr.volume || null,
+          entry: tr.entry || null,
+          exit_price: tr.exit_price || null,
+          open_time: tr.open_time,
+          close_time: tr.close_time,
+          profit: tr.profit,
+          commission: tr.commission || null,
+          ticket: tr.ticket,
+          account_id: selectedAccountId,
+          duration: computeDuration(tr.open_time, tr.close_time) || null,
+          session: row.session || null,
+          setup_tag: tagParts.join(', ') || null,
+          notes: notesVal,
+        };
+      });
+      const { error } = await supabase.from('trades').insert(batch);
+      if (!error) inserted += batch.length;
+    }
+    setImporting(false);
+    toast.success(`تم استيراد ${inserted} صفقة بنجاح`);
+    setShowReview(false);
+    onClose();
+    onImported();
   };
 
   const nonDupe = parsedTrades.length - duplicateCount;
@@ -638,7 +689,7 @@ function Mt5ImportModal({
 
             <Button
               className="w-full min-h-[44px] gradient-primary text-primary-foreground"
-              onClick={handleImport}
+              onClick={handleReview}
               disabled={!selectedAccountId || nonDupe === 0}
             >
               {t('importStartImport')} ({nonDupe} {lang === 'ar' ? 'صفقة' : lang === 'fr' ? 'trades' : 'trades'})
@@ -683,6 +734,155 @@ function Mt5ImportModal({
           </div>
         )}
       </DialogContent>
+
+      {/* ── Review Modal ── */}
+      <Dialog open={showReview} onOpenChange={v => { if (!v && !importing) setShowReview(false); }}>
+        <DialogContent className="max-h-[90vh] flex flex-col sm:max-w-5xl p-0 gap-0" dir="rtl">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
+            <DialogTitle className="text-lg font-bold">مراجعة الصفقات قبل الاستيراد</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              <span className="text-foreground font-semibold">{newTradesList.length} صفقة جديدة</span>
+              {duplicateCount > 0 && (
+                <> · <span className="text-yellow-400">{duplicateCount} مكررة تم تخطيها</span></>
+              )}
+            </p>
+          </DialogHeader>
+
+          <div className="overflow-auto flex-1 px-4 py-4">
+            <table className="w-full text-sm border-separate border-spacing-0">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-secondary">
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">التذكرة</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">الرمز</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">الاتجاه</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">النتيجة</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">الربح/الخسارة</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">الجلسة</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">نسبة RR</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">الإعداد</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground border-b border-border whitespace-nowrap">ملاحظات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviewRows.map((row, idx) => {
+                  const tr = row.trade;
+                  return (
+                    <tr key={idx} className="border-b border-border/40 hover:bg-secondary/30 transition-colors">
+                      {/* Ticket */}
+                      <td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap">{tr.ticket ?? '—'}</td>
+                      {/* Symbol */}
+                      <td className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">{tr.symbol}</td>
+                      {/* Direction */}
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
+                          tr.direction === 'BUY'
+                            ? 'bg-profit/20 text-profit border-profit/30'
+                            : 'bg-loss/20 text-loss border-loss/30'
+                        }`}>
+                          {tr.direction === 'BUY' ? 'شراء' : 'بيع'}
+                        </span>
+                      </td>
+                      {/* Result */}
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
+                          tr.result === 'Win'
+                            ? 'bg-profit/20 text-profit border-profit/30'
+                            : tr.result === 'Loss'
+                            ? 'bg-loss/20 text-loss border-loss/30'
+                            : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                        }`}>
+                          {tr.result === 'Win' ? 'ربح' : tr.result === 'Loss' ? 'خسارة' : 'تعادل'}
+                        </span>
+                      </td>
+                      {/* P&L */}
+                      <td className={`px-3 py-2 tabular-nums font-medium whitespace-nowrap ${tr.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {tr.profit >= 0 ? '+' : ''}${tr.profit.toFixed(2)}
+                      </td>
+                      {/* Session dropdown */}
+                      <td className="px-3 py-2">
+                        <Select
+                          value={row.session}
+                          onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, session: val } : r))}
+                        >
+                          <SelectTrigger className="h-8 w-28 text-xs">
+                            <SelectValue placeholder="اختر..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Asia">آسيوية</SelectItem>
+                            <SelectItem value="London">لندن</SelectItem>
+                            <SelectItem value="New York">نيويورك</SelectItem>
+                            <SelectItem value="NY Lunch">أخرى</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      {/* RR ratio */}
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.1}
+                          value={row.rr_ratio}
+                          onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, rr_ratio: e.target.value } : r))}
+                          className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          placeholder="0.0"
+                        />
+                      </td>
+                      {/* Setup dropdown */}
+                      <td className="px-3 py-2">
+                        <Select
+                          value={row.setup_tag}
+                          onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, setup_tag: val } : r))}
+                        >
+                          <SelectTrigger className="h-8 w-32 text-xs">
+                            <SelectValue placeholder="اختر..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {userTags.map(tag => (
+                              <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      {/* Notes */}
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={row.notes}
+                          onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, notes: e.target.value } : r))}
+                          className="h-8 w-40 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          placeholder="ملاحظات..."
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border shrink-0">
+            <Button
+              variant="outline"
+              className="min-h-[40px] px-6"
+              onClick={() => setShowReview(false)}
+              disabled={importing}
+            >
+              إلغاء
+            </Button>
+            <Button
+              className="min-h-[40px] px-6 bg-teal-600 hover:bg-teal-500 text-white"
+              onClick={handleImportAll}
+              disabled={importing}
+            >
+              {importing ? (
+                <><Loader2 className="me-2 h-4 w-4 animate-spin" />جارٍ الاستيراد...</>
+              ) : (
+                `استيراد الكل (${reviewRows.length})`
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
