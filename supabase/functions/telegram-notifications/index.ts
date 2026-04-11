@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('TG_SERVICE_KEY')!;
 const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!;
+const OWNER_CHAT_ID = Deno.env.get('OWNER_TELEGRAM_CHAT_ID')!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -80,9 +81,31 @@ async function runNotifications(): Promise<{ sent: number; total_users: number; 
   return { sent, total_users: prefs.length };
 }
 
-// Handle both GET (manual test) and POST (cron trigger)
+// Handle both GET (cron trigger) and POST (payment_request or manual)
 Deno.serve(async (req) => {
   try {
+    // Check for payment_request notification from frontend
+    if (req.method === 'POST') {
+      const body = await req.json().catch(() => null);
+      if (body?.type === 'payment_request') {
+        if (OWNER_CHAT_ID) {
+          const message =
+            `💎 New Pro Payment Request!\n\n` +
+            `👤 ${body.userEmail}\n` +
+            `🆔 User ID: ${body.userId}\n` +
+            `💳 Method: ${body.paymentMethod === 'baridimob' ? 'BaridiMob' : 'USDT'}\n` +
+            `💰 Amount: ${body.amount}\n` +
+            `📋 Reference: ${body.reference}\n` +
+            `🖼 Proof: ${body.proofUrl}\n\n` +
+            `➡️ Activate in Supabase → subscriptions table`;
+          await sendMessage(OWNER_CHAT_ID, message);
+        }
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const result = await runNotifications();
     return new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json' },

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -147,7 +148,8 @@ interface ChatMsg {
 // ─── Main page ────────────────────────────────────────────────
 export default function AICoachPage() {
   const { language } = useLanguage();
-  const { user } = useAuth();
+  const { user, userPlan } = useAuth();
+  const navigate = useNavigate();
   const lang = language as Lang;
   const t = L[lang];
 
@@ -390,6 +392,30 @@ ${tradesContext}`;
 
   const messagesRemaining = DAILY_MESSAGE_LIMIT - messagesUsedToday;
   const isLimitReached = messagesUsedToday >= DAILY_MESSAGE_LIMIT;
+
+  if (userPlan === 'free') {
+    return (
+      <div className="animate-fade-in flex flex-col items-center justify-center min-h-[60vh] gap-6 p-8 text-center">
+        <div className="text-6xl">🔒</div>
+        <h3 className="text-2xl font-black">
+          {lang === 'ar' ? 'المدرب الذكي للمشتركين Pro فقط' : lang === 'fr' ? 'Coach IA réservé aux abonnés Pro' : 'AI Coach is Pro only'}
+        </h3>
+        <p className="text-muted-foreground max-w-sm">
+          {lang === 'ar'
+            ? 'ترقّ إلى Pro للحصول على تحليل مخصص لصفقاتك ودردشة مع المدرب الذكي'
+            : lang === 'fr'
+            ? 'Passez à Pro pour obtenir une analyse personnalisée de vos trades et discuter avec le Coach IA'
+            : 'Upgrade to Pro to get personalized AI coaching based on your trades'}
+        </p>
+        <Button
+          onClick={() => navigate('/settings?tab=subscription')}
+          className="bg-teal-500 hover:bg-teal-600 text-black font-bold px-8 py-3 text-base"
+        >
+          {lang === 'ar' ? 'ترقية إلى Pro ⭐' : lang === 'fr' ? 'Passer à Pro ⭐' : 'Upgrade to Pro ⭐'}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in space-y-6">

@@ -6,6 +6,8 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  userPlan: 'free' | 'pro';
+  expiresAt: string | null;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -17,6 +19,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userPlan, setUserPlan] = useState<'free' | 'pro'>('free');
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
 
   useEffect(() => {
     // Restore session from storage first — sets loading=false exactly once
@@ -34,6 +38,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Fetch subscription plan whenever user changes
+  useEffect(() => {
+    if (!user) {
+      setUserPlan('free');
+      setExpiresAt(null);
+      return;
+    }
+    supabase
+      .from('subscriptions')
+      .select('plan, status, expires_at')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .gte('expires_at', new Date().toISOString())
+      .maybeSingle()
+      .then(({ data }) => {
+        setUserPlan((data?.plan as 'free' | 'pro') || 'free');
+        setExpiresAt(data?.expires_at || null);
+      });
+  }, [user]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -57,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, userPlan, expiresAt, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -79,7 +79,7 @@ const DEFAULT_FORM = {
 const ConnectPage = () => {
   const { language, t } = useLanguage();
   const lang = language as 'ar' | 'fr' | 'en';
-  const { user } = useAuth();
+  const { user, userPlan } = useAuth();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,6 +105,16 @@ const ConnectPage = () => {
   }, [user]);
 
   const openAdd = () => {
+    if (userPlan === 'free' && accounts.length >= 1) {
+      toast.error(
+        lang === 'ar'
+          ? 'الخطة المجانية: حساب واحد فقط. ترقّ إلى Pro للحسابات غير المحدودة.'
+          : lang === 'fr'
+          ? 'Plan gratuit: 1 compte seulement. Passez à Pro pour des comptes illimités.'
+          : 'Free plan: 1 account only. Upgrade to Pro for unlimited accounts.'
+      );
+      return;
+    }
     setEditingId(null);
     setForm(DEFAULT_FORM);
     setDialogOpen(true);
