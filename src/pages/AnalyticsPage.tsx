@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, ReferenceLine,
+  PieChart, Pie, ReferenceLine, LabelList,
 } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
 import { Loader2, FileDown, Calendar, Zap, Target, X as XIcon } from 'lucide-react';
@@ -167,39 +167,27 @@ function fmtPnl(v: number): string {
   return `${sign}$${v.toFixed(2)}`;
 }
 
-// ─── Dark tooltip ─────────────────────────────────────────────
-function DarkTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  const val = payload[0].value as number;
-  return (
-    <div style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: 8, padding: '8px 12px' }}>
-      <p style={{ color: '#e2e8f0', fontSize: 12, marginBottom: 2 }}>{label}</p>
-      <p style={{ color: val >= 0 ? '#22c55e' : '#ef4444', fontSize: 13, fontWeight: 600 }}>{fmtPnl(val)}</p>
-    </div>
-  );
-}
-
-function CountTooltip({ active, payload, label }: any) {
+// ─── Custom tooltip — theme-aware, no grey cursor box ────────
+function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: 8, padding: '8px 12px' }}>
-      <p style={{ color: '#e2e8f0', fontSize: 12, marginBottom: 2 }}>{label}</p>
+    <div className="bg-card border border-border rounded-xl shadow-xl shadow-black/10 px-4 py-3 text-sm animate-in fade-in zoom-in-95 duration-150 pointer-events-none">
+      {label !== undefined && (
+        <p className="font-semibold text-foreground mb-2 text-xs uppercase tracking-wide">{label}</p>
+      )}
       {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.color, fontSize: 12 }}>{p.name}: {p.value}</p>
+        <div key={i} className="flex items-center justify-between gap-6">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
+            <span className="text-muted-foreground text-xs">{p.name}</span>
+          </div>
+          <span className="font-bold text-foreground text-xs">
+            {typeof p.value === 'number' && (p.name?.toLowerCase().includes('pnl') || p.name?.toLowerCase().includes('p&l'))
+              ? `${p.value >= 0 ? '+' : ''}$${p.value.toFixed(2)}`
+              : p.value}
+          </span>
+        </div>
       ))}
-    </div>
-  );
-}
-
-function SymbolTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  const pnl = d.pnl as number;
-  return (
-    <div style={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: 8, padding: '8px 12px', minWidth: 140 }}>
-      <p style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{label}</p>
-      <p style={{ color: pnl >= 0 ? '#22c55e' : '#ef4444', fontSize: 13 }}>PnL: {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}</p>
-      <p style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>{d.count} trades · {d.winRate}% win</p>
     </div>
   );
 }
@@ -493,8 +481,8 @@ const AnalyticsPage = () => {
 
   // Heatmap detail popover state
   const [heatDetail, setHeatDetail] = useState<{
-    ses: string; day: string; pnl: number; cnt: number; wr: number; avg: number;
-    symbols: string[]; best: number; worst: number;
+    ses: string; day: string; totalPnl: number; cnt: number; winRate: number;
+    avgPnl: number; symbols: string[]; bestTrade: number;
   } | null>(null);
 
   const openHeatDetail = (ses: string, day: string) => {
@@ -507,13 +495,12 @@ const AnalyticsPage = () => {
     const profits = trs.map(t => t.profit ?? 0);
     setHeatDetail({
       ses, day,
-      pnl: pnlV,
+      totalPnl: pnlV,
       cnt,
-      wr: Math.round((winsV / cnt) * 100),
-      avg: pnlV / cnt,
+      winRate: Math.round((winsV / cnt) * 100),
+      avgPnl: pnlV / cnt,
       symbols,
-      best: Math.max(...profits),
-      worst: Math.min(...profits),
+      bestTrade: Math.max(...profits),
     });
   };
 
@@ -582,6 +569,7 @@ const AnalyticsPage = () => {
         name: g.label,
         count: ts.length,
         winRate: ts.length ? Math.round((wins / ts.length) * 100) : 0,
+        pnl: +ts.reduce((s, tr) => s + (tr.profit ?? 0), 0).toFixed(2),
       };
     });
   }, [trades, l]);
@@ -797,13 +785,14 @@ const AnalyticsPage = () => {
       <Section title={l.heatmap}>
         {trades.length === 0 ? <EmptyState msg={noDataMsg} /> : (
           <>
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="w-full overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr>
-                    <th className="text-left text-xs text-muted-foreground p-2 pr-4 whitespace-nowrap font-medium" />
+                    <th className="p-2 pr-3 w-24" />
                     {HEATMAP_DAYS.map(d => (
-                      <th key={d} className="text-center text-xs text-muted-foreground p-2 font-medium">
+                      <th key={d} className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground pb-2 text-center">
                         {l.days[d]}
                       </th>
                     ))}
@@ -812,29 +801,36 @@ const AnalyticsPage = () => {
                 <tbody>
                   {SESSIONS.map(ses => (
                     <tr key={ses}>
-                      <td className="text-xs text-muted-foreground p-2 pr-4 whitespace-nowrap font-medium text-left align-middle">
+                      <td className="text-sm font-medium text-foreground pr-3 text-right w-24 flex-shrink-0 whitespace-nowrap align-middle py-1">
                         {l.sessions[ses]}
                       </td>
                       {HEATMAP_DAYS.map(d => {
                         const val = heatmap.pnl[ses][d];
                         const cnt = heatmap.counts[ses][d];
-                        const cellClass = heatCellClass(val, cnt);
                         const hasTrades = cnt > 0;
+                        const cellStyle = hasTrades
+                          ? val > 0
+                            ? { background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.22))', border: '1px solid rgba(16,185,129,0.25)', boxShadow: '0 0 10px rgba(16,185,129,0.08)' }
+                            : val < 0
+                            ? { background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.22))', border: '1px solid rgba(239,68,68,0.25)', boxShadow: '0 0 10px rgba(239,68,68,0.08)' }
+                            : {}
+                          : {};
                         return (
                           <td key={d} className="p-1">
                             <div
                               onClick={() => openHeatDetail(ses, d)}
-                              className={`rounded-lg p-2 min-h-[70px] flex flex-col items-center justify-center gap-1 transition-opacity ${hasTrades ? 'cursor-pointer hover:opacity-80' : 'cursor-default'} ${cellClass}`}
+                              className={`rounded-xl flex flex-col items-center justify-center gap-0.5 min-w-[56px] h-[60px] md:min-w-[72px] md:h-[72px] transition-transform duration-150 ${hasTrades ? 'cursor-pointer hover:scale-105' : 'cursor-default bg-muted/20 border border-transparent'}`}
+                              style={cellStyle}
                             >
                               {hasTrades ? (
                                 <>
-                                  <span className="text-sm font-bold leading-tight">
+                                  <span className={`text-xs font-bold ${val >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                     {val >= 0 ? '+' : ''}{val.toFixed(0)}
                                   </span>
-                                  <span className="text-[10px] text-muted-foreground">{cnt}t</span>
+                                  <span className="text-[10px] text-muted-foreground">{cnt}</span>
                                 </>
                               ) : (
-                                <span className="text-xs text-muted-foreground/40">—</span>
+                                <span className="text-xs text-muted-foreground/30">—</span>
                               )}
                             </div>
                           </td>
@@ -845,57 +841,93 @@ const AnalyticsPage = () => {
                 </tbody>
               </table>
             </div>
+            </div>
 
-            {/* Heatmap detail modal */}
+            {/* Heatmap detail modal — premium theme-aware card */}
             {heatDetail && (
               <div
-                className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+                className="fixed inset-0 z-50 flex items-end justify-center md:items-center p-4"
                 onClick={() => setHeatDetail(null)}
               >
+                {/* Backdrop */}
+                <div className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-in fade-in duration-200" />
+                {/* Card */}
                 <div
-                  className="w-full max-w-sm rounded-2xl border p-5 shadow-2xl"
-                  style={{ background: '#0f1117', borderColor: '#00d4aa', borderWidth: 1 }}
+                  className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-5 z-10 animate-in fade-in slide-in-from-bottom-4 md:slide-in-from-bottom-0 md:zoom-in-95 duration-300"
                   onClick={e => e.stopPropagation()}
                 >
                   {/* Header */}
-                  <div className="mb-4 flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between mb-5">
                     <div>
-                      <h3 className="text-base font-bold text-foreground">
+                      <h3 className="font-bold text-foreground text-lg leading-tight">
                         {l.days[heatDetail.day as keyof typeof l.days]} — {l.sessions[heatDetail.ses as keyof typeof l.sessions]}
                       </h3>
-                      <p className="text-xs text-muted-foreground">{heatDetail.cnt} {l.trades}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{heatDetail.cnt} {l.trades}</p>
                     </div>
-                    <button onClick={() => setHeatDetail(null)} className="text-muted-foreground hover:text-foreground">
-                      <XIcon className="h-5 w-5" />
+                    <button
+                      onClick={() => setHeatDetail(null)}
+                      className="p-2 rounded-xl hover:bg-muted transition-colors -mt-1 -mr-1"
+                    >
+                      <XIcon className="w-4 h-4 text-muted-foreground" />
                     </button>
                   </div>
-                  {/* Stats */}
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="rounded-xl bg-secondary/40 p-3 text-center">
-                      <p className="text-[10px] text-muted-foreground mb-1">{l.winRate}</p>
-                      <p className={`text-lg font-bold ${heatDetail.wr >= 50 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{heatDetail.wr}%</p>
+
+                  {/* Win rate ring + stats */}
+                  <div className="flex items-center gap-5 mb-5">
+                    {/* SVG ring */}
+                    <div className="relative w-20 h-20 flex-shrink-0">
+                      <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
+                        <circle cx="18" cy="18" r="14" fill="none"
+                          stroke="currentColor" strokeOpacity="0.08" strokeWidth="3.5" />
+                        <circle cx="18" cy="18" r="14" fill="none"
+                          stroke={heatDetail.winRate >= 50 ? '#10b981' : '#ef4444'}
+                          strokeWidth="3.5"
+                          strokeDasharray={`${(heatDetail.winRate / 100) * 87.96} 87.96`}
+                          strokeLinecap="round"
+                          className="transition-all duration-700" />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className={`text-sm font-black leading-none ${heatDetail.winRate >= 50 ? 'text-green-500' : 'text-red-500'}`}>
+                          {heatDetail.winRate}%
+                        </span>
+                        <span className="text-[9px] text-muted-foreground mt-0.5">{l.winRate}</span>
+                      </div>
                     </div>
-                    <div className="rounded-xl bg-secondary/40 p-3 text-center">
-                      <p className="text-[10px] text-muted-foreground mb-1">{l.totalPnl}</p>
-                      <p className={`text-lg font-bold ${heatDetail.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{fmtPnl(heatDetail.pnl)}</p>
-                    </div>
-                    <div className="rounded-xl bg-secondary/40 p-3 text-center">
-                      <p className="text-[10px] text-muted-foreground mb-1">{l.avgPnl}</p>
-                      <p className={`text-sm font-bold ${heatDetail.avg >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{fmtPnl(heatDetail.avg)}</p>
-                    </div>
-                    <div className="rounded-xl bg-secondary/40 p-3 text-center">
-                      <p className="text-[10px] text-muted-foreground mb-1">{l.bestTrade}</p>
-                      <p className="text-sm font-bold text-[#22c55e]">+${heatDetail.best.toFixed(2)}</p>
+                    {/* Stats column */}
+                    <div className="flex-1 space-y-2.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">{l.totalPnl}</span>
+                        <span className={`text-sm font-bold ${heatDetail.totalPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {heatDetail.totalPnl >= 0 ? '+' : ''}${heatDetail.totalPnl.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">{l.avgPnl}</span>
+                        <span className={`text-sm font-medium ${heatDetail.avgPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {heatDetail.avgPnl >= 0 ? '+' : ''}${heatDetail.avgPnl.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">{l.bestTrade}</span>
+                        <span className="text-sm font-medium text-green-500">
+                          +${heatDetail.bestTrade.toFixed(2)}
+                        </span>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Divider */}
+                  <div className="h-px bg-border mb-4" />
+
                   {/* Symbols */}
                   {heatDetail.symbols.length > 0 && (
                     <div>
-                      <p className="text-[10px] text-muted-foreground mb-2">{l.setup}</p>
+                      <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">Symbols</p>
                       <div className="flex flex-wrap gap-1.5">
                         {heatDetail.symbols.map(sym => (
-                          <span key={sym} className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{sym}</span>
+                          <span key={sym} className="px-2.5 py-1 bg-muted rounded-full text-xs font-semibold text-foreground">
+                            {sym}
+                          </span>
                         ))}
                       </div>
                     </div>
@@ -944,41 +976,47 @@ const AnalyticsPage = () => {
       <Section title={l.symbolChart}>
         {symbolData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
           <div className="w-full overflow-x-auto">
-            <div style={{ minWidth: '320px' }}>
-              <ResponsiveContainer width="100%" height={Math.max(isMobile ? symbolData.length * 45 : 300, isMobile ? symbolData.length * 45 : symbolData.length * 60)}>
-                <BarChart
-                  data={isMobile ? symbolData.map(d => ({ ...d, name: d.name.slice(0, 6) })) : symbolData}
-                  layout="vertical"
-                  margin={{ top: 10, right: 80, left: isMobile ? 70 : 120, bottom: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                  <XAxis
-                    type="number"
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={isMobile ? 10 : 12}
-                    tickFormatter={(v) => `$${v}`}
+            <ResponsiveContainer width="100%" height={Math.max(120, symbolData.length * 56)}>
+              <BarChart
+                layout="vertical"
+                data={symbolData.map(d => ({ ...d, name: isMobile ? d.name.slice(0, 7) : d.name }))}
+                margin={{ top: 4, right: 70, left: 10, bottom: 4 }}
+                cursor={false}
+              >
+                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} horizontal={false} />
+                <XAxis
+                  type="number"
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={11}
+                  tickFormatter={(v) => `$${v}`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={11}
+                  width={isMobile ? 52 : 72}
+                  tick={{ fill: 'hsl(var(--foreground))' }}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={false} />
+                <ReferenceLine x={0} stroke="#6b7280" strokeDasharray="3 3" strokeOpacity={0.4} />
+                <Bar dataKey="pnl" name="PnL" radius={[0, 6, 6, 0]} cursor={false}>
+                  {symbolData.map((entry, index) => (
+                    <Cell
+                      key={index}
+                      fill={entry.pnl >= 0 ? '#10b981' : '#ef4444'}
+                      fillOpacity={0.9}
+                    />
+                  ))}
+                  <LabelList
+                    dataKey="pnl"
+                    position="right"
+                    formatter={(v: any) => `${Number(v) >= 0 ? '+' : ''}$${Math.abs(Number(v)).toFixed(0)}`}
+                    style={{ fontSize: '11px', fontWeight: '600', fill: 'hsl(var(--foreground))' }}
                   />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={isMobile ? 10 : 12}
-                    width={isMobile ? 65 : 110}
-                    tick={{ fill: 'hsl(var(--foreground))' }}
-                  />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }}
-                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'PnL']}
-                  />
-                  <ReferenceLine x={0} stroke="hsl(var(--border))" strokeWidth={2} />
-                  <Bar dataKey="pnl" radius={[0, 4, 4, 0]} barSize={isMobile ? 16 : 24}>
-                    {symbolData.map((entry, index) => (
-                      <Cell key={index} fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
       </Section>
@@ -989,30 +1027,33 @@ const AnalyticsPage = () => {
         <Section title={l.byDayTitle}>
           {byDayData.every(d => d.pnl === 0) ? <EmptyState msg={noDataMsg} /> : (
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={byDayData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="name" stroke="#475569" fontSize={11} />
-                <YAxis stroke="#475569" fontSize={10} tickFormatter={v => `$${v}`} />
-                <Tooltip content={<DarkTooltip />} />
-                <Bar dataKey="pnl" radius={[4,4,0,0]}>
-                  {byDayData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#22c55e' : '#ef4444'} />)}
+              <BarChart data={byDayData} cursor={false}>
+                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickFormatter={v => `$${v}`} />
+                <Tooltip content={<CustomTooltip />} cursor={false} />
+                <Bar dataKey="pnl" name="PnL" radius={[4,4,0,0]} cursor={false}>
+                  {byDayData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#10b981' : '#ef4444'} fillOpacity={0.9} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
         </Section>
 
-        {/* By Time Group */}
+        {/* By Time Group — single teal P&L bars */}
         <Section title={l.byHourTitle}>
-          {byTimeData.every(d => d.count === 0) ? <EmptyState msg={noDataMsg} /> : (
+          {byTimeData.every(d => d.pnl === 0) ? <EmptyState msg={noDataMsg} /> : (
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={byTimeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="name" stroke="#475569" fontSize={10} />
-                <YAxis stroke="#475569" fontSize={10} />
-                <Tooltip content={<CountTooltip />} />
-                <Bar dataKey="count" name={l.trades} fill="#00d4aa" radius={[4,4,0,0]} />
-                <Bar dataKey="winRate" name={l.winRate + ' %'} fill="#a78bfa" radius={[4,4,0,0]} />
+              <BarChart data={byTimeData} cursor={false}>
+                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickFormatter={v => `$${v}`} />
+                <Tooltip content={<CustomTooltip />} cursor={false} />
+                <Bar dataKey="pnl" name="PnL" radius={[6,6,0,0]} cursor={false}>
+                  {byTimeData.map((d, i) => (
+                    <Cell key={i} fill={d.pnl >= 0 ? '#14b8a6' : '#ef4444'} fillOpacity={0.9} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -1023,13 +1064,13 @@ const AnalyticsPage = () => {
       <Section title={l.weeklyConsistency}>
         {weeklyData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={weeklyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="name" stroke="#475569" fontSize={10} />
-              <YAxis stroke="#475569" fontSize={10} tickFormatter={v => `$${v}`} />
-              <Tooltip content={<DarkTooltip />} />
-              <Bar dataKey="pnl" radius={[4,4,0,0]}>
-                {weeklyData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#22c55e' : '#ef4444'} />)}
+            <BarChart data={weeklyData} cursor={false}>
+              <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} />
+              <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickFormatter={v => `$${v}`} />
+              <Tooltip content={<CustomTooltip />} cursor={false} />
+              <Bar dataKey="pnl" name="PnL" radius={[4,4,0,0]} cursor={false}>
+                {weeklyData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#10b981' : '#ef4444'} fillOpacity={0.9} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
