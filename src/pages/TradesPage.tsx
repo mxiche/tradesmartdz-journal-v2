@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check, CheckCircle } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
@@ -307,7 +307,7 @@ function Mt5ImportModal({
 }) {
   const { t, language: lang } = useLanguage();
 
-  const [step, setStep] = useState<1 | 2 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [isDragging, setIsDragging] = useState(false);
   const [parsedTrades, setParsedTrades] = useState<Mt5ParsedTrade[]>([]);
   const [duplicateCount, setDuplicateCount] = useState(0);
@@ -346,20 +346,9 @@ function Mt5ImportModal({
   const [importing, setImporting] = useState(false);
   const reviewFileRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Post-import quick review state
-  interface PostImportRow {
-    id: string;
-    symbol: string;
-    direction: 'BUY' | 'SELL';
-    profit: number;
-    result: string;
-    close_time: string;
-    session: string;
-    setup_tag: string;
-  }
-  const [postRows, setPostRows] = useState<PostImportRow[]>([]);
-  const [postStats, setPostStats] = useState({ inserted: 0, skipped: 0, wins: 0, losses: 0, bes: 0 });
-  const [savingPost, setSavingPost] = useState(false);
+  // Post-import summary state
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryRows, setSummaryRows] = useState<ReviewRow[]>([]);
 
   const isMobile = typeof window !== 'undefined' && (
     window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
@@ -374,7 +363,7 @@ function Mt5ImportModal({
       setShowNewAccount(false); setNewAccFirm(''); setNewAccLogin(''); setNewAccName('');
       setShowReview(false); setReviewRows([]); setNewTradesList([]); setImporting(false);
       reviewFileRefs.current = [];
-      setPostRows([]); setPostStats({ inserted: 0, skipped: 0, wins: 0, losses: 0, bes: 0 }); setSavingPost(false);
+      setShowSummary(false); setSummaryRows([]);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }, [open]);
@@ -492,7 +481,6 @@ function Mt5ImportModal({
   const handleImportAll = async () => {
     setImporting(true);
     const BATCH = 50;
-    const allPostRows: PostImportRow[] = [];
     // Track which reviewRow index maps to which inserted trade ID for screenshot upload
     const insertedIdByRowIndex: Map<number, string> = new Map();
 
@@ -528,22 +516,10 @@ function Mt5ImportModal({
       });
 
       const { data: inserted, error } = await supabase
-        .from('trades').insert(batch).select('id, symbol, direction, profit, close_time, session, setup_tag');
+        .from('trades').insert(batch).select('id');
       if (!error && inserted) {
         inserted.forEach((rec, j) => {
-          const globalIdx = i + j;
-          const origRow = slice[j];
-          insertedIdByRowIndex.set(globalIdx, rec.id);
-          allPostRows.push({
-            id: rec.id,
-            symbol: rec.symbol,
-            direction: rec.direction as 'BUY' | 'SELL',
-            profit: rec.profit ?? 0,
-            result: origRow.result,
-            close_time: rec.close_time ?? origRow.trade.close_time,
-            session: rec.session ?? origRow.session,
-            setup_tag: origRow.setup_tag,
-          });
+          insertedIdByRowIndex.set(i + j, rec.id);
         });
       }
     }
@@ -568,36 +544,14 @@ function Mt5ImportModal({
       }
     }
 
-    const wins = allPostRows.filter(r => r.result === 'Win').length;
-    const losses = allPostRows.filter(r => r.result === 'Loss').length;
-    const bes = allPostRows.filter(r => r.result === 'Breakeven').length;
-
     setImporting(false);
-    setPostRows(allPostRows);
-    setPostStats({ inserted: allPostRows.length, skipped: duplicateCount, wins, losses, bes });
+    setSummaryRows([...reviewRows]);   // snapshot of what the user set in step 2
     setShowReview(false);
-    setStep(4);
+    setShowSummary(true);
+    setStep(3);
     onImported();
   };
 
-  // Save changes made in the post-import quick review panel
-  const handleSavePost = async () => {
-    setSavingPost(true);
-    const BATCH = 50;
-    for (let i = 0; i < postRows.length; i += BATCH) {
-      const slice = postRows.slice(i, i + BATCH);
-      await Promise.all(slice.map(row => {
-        const tagParts = [row.result, row.session, row.setup_tag].filter(Boolean);
-        return supabase.from('trades').update({
-          session: row.session || null,
-          setup_tag: tagParts.join(', ') || null,
-        }).eq('id', row.id);
-      }));
-    }
-    setSavingPost(false);
-    onImported(); // refresh again after edits
-    onClose();
-  };
 
   const nonDupe = parsedTrades.length - duplicateCount;
 
@@ -610,7 +564,7 @@ function Mt5ImportModal({
 
         {/* Step indicators */}
         <div className="flex items-center gap-1 mb-4">
-          {([1, 2, 4] as const).map((s, idx) => (
+          {([1, 2, 3] as const).map((s, idx) => (
             <div key={s} className="flex items-center gap-1 flex-1">
               <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors ${
                 step >= s ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'
@@ -809,141 +763,6 @@ function Mt5ImportModal({
           </div>
         )}
 
-        {/* ── Step 4: Post-import Quick Review ── */}
-        {step === 4 && (
-          <div className="space-y-4">
-            {/* Summary stats */}
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-              <div className="rounded-lg bg-secondary/60 px-3 py-2 text-center">
-                <p className="text-lg font-bold text-foreground">{postStats.inserted}</p>
-                <p className="text-xs text-muted-foreground">{t('summary_imported')}</p>
-              </div>
-              {postStats.skipped > 0 && (
-                <div className="rounded-lg bg-yellow-500/10 px-3 py-2 text-center">
-                  <p className="text-lg font-bold text-yellow-400">{postStats.skipped}</p>
-                  <p className="text-xs text-muted-foreground">{t('summary_skipped')}</p>
-                </div>
-              )}
-              <div className="rounded-lg bg-profit/10 px-3 py-2 text-center">
-                <p className="text-lg font-bold text-profit">{postStats.wins}</p>
-                <p className="text-xs text-muted-foreground">{t('summary_wins')}</p>
-              </div>
-              <div className="rounded-lg bg-loss/10 px-3 py-2 text-center">
-                <p className="text-lg font-bold text-loss">{postStats.losses}</p>
-                <p className="text-xs text-muted-foreground">{t('summary_losses')}</p>
-              </div>
-              <div className="rounded-lg bg-yellow-500/10 px-3 py-2 text-center">
-                <p className="text-lg font-bold text-yellow-400">{postStats.bes}</p>
-                <p className="text-xs text-muted-foreground">{t('summary_be')}</p>
-              </div>
-            </div>
-
-            {/* Auto-session note */}
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Check className="h-3 w-3 text-profit shrink-0" />
-              {t('auto_sessions_note')}
-            </p>
-
-            {/* Quick review table */}
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full text-xs border-separate border-spacing-0">
-                <thead className="sticky top-0 z-10">
-                  <tr className="bg-secondary">
-                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_symbol')}</th>
-                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_direction')}</th>
-                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_result')}</th>
-                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_pnl')}</th>
-                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_session')}</th>
-                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_setup')}</th>
-                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_date')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {postRows.map((row, idx) => (
-                    <tr key={row.id} className="border-b border-border/40 hover:bg-secondary/30 transition-colors">
-                      <td className="px-3 py-1.5 font-semibold text-foreground whitespace-nowrap">{row.symbol}</td>
-                      <td className="px-3 py-1.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
-                          row.direction === 'BUY' ? 'bg-profit/20 text-profit border-profit/30' : 'bg-loss/20 text-loss border-loss/30'
-                        }`}>
-                          {row.direction === 'BUY' ? t('direction_long') : t('direction_short')}
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
-                          row.result === 'Win' ? 'bg-profit/20 text-profit border-profit/30'
-                          : row.result === 'Loss' ? 'bg-loss/20 text-loss border-loss/30'
-                          : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                        }`}>
-                          {row.result === 'Win' ? t('result_win') : row.result === 'Loss' ? t('result_loss') : t('result_be')}
-                        </span>
-                      </td>
-                      <td className={`px-3 py-1.5 tabular-nums font-medium whitespace-nowrap ${row.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {row.profit >= 0 ? '+' : ''}${row.profit.toFixed(2)}
-                      </td>
-                      {/* Session — editable dropdown */}
-                      <td className="px-3 py-1.5">
-                        <Select
-                          value={row.session}
-                          onValueChange={val => setPostRows(prev => prev.map((r, i) => i === idx ? { ...r, session: val } : r))}
-                        >
-                          <SelectTrigger className="h-7 w-24 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Asia">{t('session_asian')}</SelectItem>
-                            <SelectItem value="London">{t('session_london')}</SelectItem>
-                            <SelectItem value="New York">{t('session_new_york')}</SelectItem>
-                            <SelectItem value="NY Lunch">{t('session_other')}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      {/* Setup — editable dropdown */}
-                      <td className="px-3 py-1.5">
-                        <Select
-                          value={row.setup_tag}
-                          onValueChange={val => setPostRows(prev => prev.map((r, i) => i === idx ? { ...r, setup_tag: val } : r))}
-                        >
-                          <SelectTrigger className="h-7 w-28 text-xs">
-                            <SelectValue placeholder={t('select_placeholder')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {userTags.map(tag => (
-                              <SelectItem key={tag} value={tag}>{tag}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">
-                        {row.close_time.slice(0, 10)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1 min-h-[44px]"
-                onClick={() => onClose()}
-                disabled={savingPost}
-              >
-                {t('skip')}
-              </Button>
-              <Button
-                className="flex-1 min-h-[44px] bg-teal-600 hover:bg-teal-500 text-white"
-                onClick={handleSavePost}
-                disabled={savingPost}
-              >
-                {savingPost
-                  ? <><Loader2 className="me-2 h-4 w-4 animate-spin" />{t('saving')}</>
-                  : t('save_all')}
-              </Button>
-            </div>
-          </div>
-        )}
       </DialogContent>
 
       {/* ── Review Modal ── */}
@@ -1188,6 +1007,152 @@ function Mt5ImportModal({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Step 3: Import Summary ── */}
+      {(() => {
+        const importedCount = summaryRows.length;
+        const winCount   = summaryRows.filter(r => r.result === 'Win').length;
+        const lossCount  = summaryRows.filter(r => r.result === 'Loss').length;
+        const totalPnl   = summaryRows.reduce((sum, r) => sum + r.trade.profit, 0);
+        return (
+          <Dialog open={showSummary} onOpenChange={v => { if (!v) { setShowSummary(false); onClose(); } }}>
+            <DialogContent className="max-w-[95vw] w-[95vw] h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden">
+
+              {/* Fixed header */}
+              <div className="flex-shrink-0 px-8 py-6 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0">
+                    <CheckCircle className="w-6 h-6 text-teal-500" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl font-bold">
+                      {lang === 'ar' ? 'تم الاستيراد بنجاح' : lang === 'fr' ? 'Importation réussie' : 'Import Successful'}
+                    </DialogTitle>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {lang === 'ar'
+                        ? `تم إضافة ${importedCount} صفقة إلى مجلتك`
+                        : lang === 'fr'
+                        ? `${importedCount} trades ont été ajoutés à votre journal`
+                        : `${importedCount} trades have been added to your journal`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-auto min-h-0 px-8 py-6 space-y-6">
+
+                {/* Stat cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-card border border-border rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-foreground">{importedCount}</div>
+                    <div className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+                      {lang === 'ar' ? 'صفقات مستوردة' : lang === 'fr' ? 'Trades importés' : 'Trades Imported'}
+                    </div>
+                  </div>
+                  <div className="bg-card border border-green-500/20 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-profit">{winCount}</div>
+                    <div className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+                      {lang === 'ar' ? 'أرباح' : lang === 'fr' ? 'Gains' : 'Wins'}
+                    </div>
+                  </div>
+                  <div className="bg-card border border-red-500/20 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-loss">{lossCount}</div>
+                    <div className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+                      {lang === 'ar' ? 'خسائر' : lang === 'fr' ? 'Pertes' : 'Losses'}
+                    </div>
+                  </div>
+                  <div className={`bg-card border rounded-xl p-4 text-center ${totalPnl >= 0 ? 'border-green-500/20' : 'border-red-500/20'}`}>
+                    <div className={`text-3xl font-bold ${totalPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      {totalPnl >= 0 ? '+' : ''}{totalPnl.toFixed(2)}$
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 uppercase tracking-wider">
+                      {lang === 'ar' ? 'إجمالي الربح' : lang === 'fr' ? 'P&L Total' : 'Total P&L'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Trades summary table */}
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border">
+                    <h3 className="text-sm font-semibold text-foreground">
+                      {lang === 'ar' ? 'الصفقات المستوردة' : lang === 'fr' ? 'Trades importés' : 'Imported Trades'}
+                    </h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/30">
+                          <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground">{t('col_symbol')}</th>
+                          <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground">{t('col_direction')}</th>
+                          <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground">{t('col_result')}</th>
+                          <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground">{t('col_pnl')}</th>
+                          <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground">{t('col_session')}</th>
+                          <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground">{t('col_setup')}</th>
+                          <th className="text-left px-4 py-2 text-xs uppercase tracking-wider text-muted-foreground">{t('col_rr')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {summaryRows.map((row, index) => {
+                          const tr = row.trade;
+                          const resultBadge =
+                            row.result === 'Win'               ? { cls: 'bg-profit/20 text-profit border-profit/30',        label: t('result_win') } :
+                            row.result === 'Loss'              ? { cls: 'bg-loss/20 text-loss border-loss/30',              label: t('result_loss') } :
+                            row.result === 'Breakeven'         ? { cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', label: t('result_be') } :
+                            row.result === 'Partial Win - TP1' ? { cls: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30', label: 'Partial TP1' } :
+                            row.result === 'Partial Win - TP2' ? { cls: 'bg-blue-400/20 text-blue-400 border-blue-400/30',  label: 'Partial TP2' } :
+                            { cls: 'bg-secondary text-muted-foreground border-border', label: row.result };
+                          return (
+                            <tr key={index} className={`border-b border-border/50 ${index % 2 === 0 ? 'bg-muted/10' : ''}`}>
+                              <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">{tr.symbol}</td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${
+                                  tr.direction === 'BUY' ? 'bg-profit/20 text-profit border-profit/30' : 'bg-loss/20 text-loss border-loss/30'
+                                }`}>
+                                  {tr.direction === 'BUY' ? t('direction_long') : t('direction_short')}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${resultBadge.cls}`}>
+                                  {resultBadge.label}
+                                </span>
+                              </td>
+                              <td className={`px-4 py-3 text-sm font-medium tabular-nums whitespace-nowrap ${tr.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
+                                {tr.profit >= 0 ? '+' : ''}{tr.profit.toFixed(2)}$
+                              </td>
+                              <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                                {row.session || '—'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                                {row.setup_tag || '—'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                                {row.rr_ratio > 0 ? `${row.rr_ratio}R` : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Fixed footer */}
+              <div className="flex-shrink-0 px-8 py-4 border-t border-border flex justify-end">
+                <Button
+                  className="bg-teal-500 hover:bg-teal-600 text-black font-semibold px-10"
+                  onClick={() => { setShowSummary(false); onClose(); }}
+                >
+                  {lang === 'ar' ? 'الذهاب إلى صفقاتي' : lang === 'fr' ? 'Voir mes trades' : 'Go to My Trades'}
+                </Button>
+              </div>
+
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </Dialog>
   );
 }
