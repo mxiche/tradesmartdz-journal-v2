@@ -330,7 +330,8 @@ function Mt5ImportModal({
   interface ReviewRow {
     trade: Mt5ParsedTrade;
     session: string;
-    rr_ratio: number;           // auto-calculated (read-only display)
+    risk: number;               // user-entered risk $ amount
+    rr_ratio: number;           // auto-calculated from risk (read-only display)
     setup_tag: string;
     notes: string;
     rating: number;             // 0–5 stars
@@ -473,7 +474,7 @@ function Mt5ImportModal({
     setReviewRows(newTrades.map(tr => ({
       trade: tr,
       session: detectSession(tr.open_time),
-      // RR auto-calculated: MT5 doesn't export risk $, so always 0
+      risk: 0,
       rr_ratio: 0,
       setup_tag: '',
       notes: '',
@@ -499,6 +500,7 @@ function Mt5ImportModal({
         const tr = row.trade;
         const tagParts = [tr.result, row.session, row.setup_tag].filter(Boolean);
         const notesVal = [
+          row.risk > 0 ? `Risk $${row.risk}` : '',
           row.rr_ratio > 0 ? `R:R ${row.rr_ratio}` : '',
           row.notes.trim(),
         ].filter(Boolean).join('\n') || null;
@@ -944,31 +946,35 @@ function Mt5ImportModal({
 
       {/* ── Review Modal ── */}
       <Dialog open={showReview} onOpenChange={v => { if (!v && !importing) setShowReview(false); }}>
-        <DialogContent className="max-h-[90vh] flex flex-col sm:max-w-6xl p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
-            <DialogTitle className="text-lg font-bold">{t('review_modal_title')}</DialogTitle>
+        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col p-0 overflow-hidden gap-0">
+
+          {/* Fixed header */}
+          <div className="p-6 border-b border-border flex-shrink-0">
+            <h2 className="text-lg font-bold text-foreground">{t('review_modal_title')}</h2>
             <p className="text-sm text-muted-foreground mt-1">
               {t('review_modal_subtitle')
                 .replace('{new}', String(newTradesList.length))
                 .replace('{dupes}', String(duplicateCount))}
             </p>
-          </DialogHeader>
+          </div>
 
-          <div className="overflow-auto flex-1 px-4 py-4">
+          {/* Scrollable table area */}
+          <div className="overflow-auto flex-1 min-h-0">
             <table className="w-full text-sm border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10 bg-background border-b border-border">
+              <thead className="sticky top-0 z-20 bg-card border-b border-border">
                 <tr>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_ticket')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_symbol')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_direction')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_result')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_pnl')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_session')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_rr')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_setup')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_notes')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_rating')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_screenshot')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_ticket')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_symbol')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_direction')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_result')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_pnl')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('risk')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_rr')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_session')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_setup')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_rating')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_screenshot')}</th>
+                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_notes')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -977,9 +983,9 @@ function Mt5ImportModal({
                   return (
                     <tr key={idx} className="border-b border-border/40 hover:bg-secondary/30 transition-colors">
                       {/* Ticket */}
-                      <td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap">{tr.ticket ?? '—'}</td>
+                      <td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap text-xs">{tr.ticket ?? '—'}</td>
                       {/* Symbol */}
-                      <td className="px-3 py-2 font-semibold text-foreground whitespace-nowrap">{tr.symbol}</td>
+                      <td className="px-3 py-2 font-semibold text-foreground whitespace-nowrap text-xs">{tr.symbol}</td>
                       {/* Direction */}
                       <td className="px-3 py-2 whitespace-nowrap">
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
@@ -1003,49 +1009,67 @@ function Mt5ImportModal({
                         </span>
                       </td>
                       {/* P&L */}
-                      <td className={`px-3 py-2 tabular-nums font-medium whitespace-nowrap ${tr.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      <td className={`px-3 py-2 tabular-nums font-medium whitespace-nowrap text-xs ${tr.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {tr.profit >= 0 ? '+' : ''}${tr.profit.toFixed(2)}
                       </td>
-                      {/* Session dropdown — plain select, 3 options only */}
+                      {/* Risk $ — editable, triggers RR recalculation */}
                       <td className="px-3 py-2">
-                        <select
-                          value={row.session}
-                          onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, session: e.target.value } : r))}
-                          className="h-8 w-28 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          <option value="Asia">{t('session_asian')}</option>
-                          <option value="London">{t('session_london')}</option>
-                          <option value="New York">{t('session_new_york')}</option>
-                        </select>
-                      </td>
-                      {/* RR ratio — read-only */}
-                      <td className="px-3 py-2 tabular-nums text-muted-foreground whitespace-nowrap">
-                        {row.rr_ratio > 0 ? row.rr_ratio.toFixed(2) : '—'}
-                      </td>
-                      {/* Setup dropdown — plain select */}
-                      <td className="px-3 py-2">
-                        <select
-                          value={row.setup_tag}
-                          onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, setup_tag: e.target.value } : r))}
-                          className="h-8 w-32 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          <option value="">{t('select_placeholder')}</option>
-                          {userTags.map(tag => (
-                            <option key={tag} value={tag}>{tag}</option>
-                          ))}
-                        </select>
-                      </td>
-                      {/* Notes */}
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          value={row.notes}
-                          onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, notes: e.target.value } : r))}
-                          className="h-8 w-40 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                          placeholder={t('col_notes')}
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={row.risk || ''}
+                          onChange={e => {
+                            const riskVal = parseFloat(e.target.value) || 0;
+                            const rrVal = riskVal > 0 ? parseFloat(Math.abs(tr.profit / riskVal).toFixed(2)) : 0;
+                            setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, risk: riskVal, rr_ratio: rrVal } : r));
+                          }}
+                          className="h-8 w-20 text-xs"
+                          placeholder="0.00"
                         />
                       </td>
-                      {/* Star rating */}
+                      {/* RR — read-only, auto-calculated */}
+                      <td className="px-3 py-2">
+                        <Input
+                          readOnly
+                          value={row.rr_ratio > 0 ? row.rr_ratio.toFixed(2) : ''}
+                          className="h-8 w-16 text-xs bg-secondary cursor-default text-muted-foreground"
+                          placeholder="—"
+                        />
+                      </td>
+                      {/* Session — shadcn Select, 3 options */}
+                      <td className="px-3 py-2">
+                        <Select
+                          value={row.session || ''}
+                          onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, session: val } : r))}
+                        >
+                          <SelectTrigger className="h-8 w-28 text-xs">
+                            <SelectValue placeholder={t('select_placeholder')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Asia">{t('session_asian')}</SelectItem>
+                            <SelectItem value="London">{t('session_london')}</SelectItem>
+                            <SelectItem value="New York">{t('session_new_york')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      {/* Setup — shadcn Select from userTags */}
+                      <td className="px-3 py-2">
+                        <Select
+                          value={row.setup_tag || ''}
+                          onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, setup_tag: val } : r))}
+                        >
+                          <SelectTrigger className="h-8 w-36 text-xs">
+                            <SelectValue placeholder={t('select_placeholder')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {userTags.map(tag => (
+                              <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      {/* Star rating — same pattern as detail panel */}
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-0.5">
                           {[1,2,3,4,5].map(s => (
@@ -1059,7 +1083,7 @@ function Mt5ImportModal({
                           ))}
                         </div>
                       </td>
-                      {/* Screenshot upload */}
+                      {/* Screenshot upload — same compress + Storage pattern */}
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1.5">
                           {row.screenshot_preview ? (
@@ -1109,6 +1133,16 @@ function Mt5ImportModal({
                           />
                         </div>
                       </td>
+                      {/* Notes */}
+                      <td className="px-3 py-2">
+                        <Input
+                          type="text"
+                          value={row.notes}
+                          onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, notes: e.target.value } : r))}
+                          className="h-8 w-40 text-xs"
+                          placeholder={t('col_notes')}
+                        />
+                      </td>
                     </tr>
                   );
                 })}
@@ -1116,7 +1150,8 @@ function Mt5ImportModal({
             </table>
           </div>
 
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border shrink-0">
+          {/* Fixed footer */}
+          <div className="p-4 border-t border-border flex-shrink-0 flex gap-3 justify-end">
             <Button
               variant="outline"
               className="min-h-[40px] px-6"
