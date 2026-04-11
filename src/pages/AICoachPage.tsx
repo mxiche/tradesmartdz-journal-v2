@@ -5,12 +5,23 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bot, RefreshCw, Send, Loader2, Sparkles, TrendingUp, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 type Lang = 'ar' | 'fr' | 'en';
 
 const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'openrouter/auto';
+const MODEL = 'google/gemini-2.0-flash-lite-001';
+const DAILY_MESSAGE_LIMIT = 10;
+
+/*
+ * IMPORTANT: Run these SQL statements in Supabase SQL Editor before deploying:
+ *
+ * ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS ai_analysis_cache text;
+ * ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS ai_analysis_date timestamptz;
+ * ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS ai_messages_date date;
+ * ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS ai_messages_count int default 0;
+ */
 
 // ─── Translations ─────────────────────────────────────────────
 const L = {
@@ -30,6 +41,8 @@ const L = {
     thinking: 'يفكر...',
     you: 'أنت',
     coach: 'المدرب',
+    limitReached: 'لقد وصلت إلى حد 10 رسائل يومياً. عد غداً!',
+    messagesLeft: (n: number) => `${n} رسائل متبقية اليوم`,
   },
   fr: {
     title: 'Coach IA',
@@ -47,6 +60,8 @@ const L = {
     thinking: 'Réflexion...',
     you: 'Vous',
     coach: 'Coach',
+    limitReached: 'Limite de 10 messages par jour atteinte. Revenez demain!',
+    messagesLeft: (n: number) => `${n} messages restants aujourd'hui`,
   },
   en: {
     title: 'AI Coach',
@@ -64,62 +79,19 @@ const L = {
     thinking: 'Thinking...',
     you: 'You',
     coach: 'Coach',
+    limitReached: 'Daily limit of 10 messages reached. Come back tomorrow!',
+    messagesLeft: (n: number) => `${n} messages remaining today`,
   },
 };
 
-// ─── Build trade summary for context ─────────────────────────
-function buildTradeSummary(trades: any[], lang: Lang): string {
-  if (!trades.length) return lang === 'ar' ? 'لا توجد صفقات' : lang === 'fr' ? 'Aucun trade' : 'No trades';
-
-  const closed = trades.filter(t => t.profit !== null && t.profit !== undefined);
-  const wins = closed.filter(t => t.profit > 0);
-  const losses = closed.filter(t => t.profit <= 0);
-  const totalPnl = closed.reduce((s, t) => s + (t.profit || 0), 0);
-  const winRate = closed.length > 0 ? ((wins.length / closed.length) * 100).toFixed(1) : '0';
-  const avgWin = wins.length > 0 ? (wins.reduce((s, t) => s + t.profit, 0) / wins.length).toFixed(2) : '0';
-  const avgLoss = losses.length > 0 ? (losses.reduce((s, t) => s + t.profit, 0) / losses.length).toFixed(2) : '0';
-
-  // By day of week
-  const byDay: Record<string, { pnl: number; count: number }> = {};
-  closed.forEach(t => {
-    const d = new Date(t.open_time || t.created_at);
-    const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
-    if (!byDay[day]) byDay[day] = { pnl: 0, count: 0 };
-    byDay[day].pnl += t.profit || 0;
-    byDay[day].count++;
-  });
-
-  // By setup
-  const bySetup: Record<string, { pnl: number; count: number }> = {};
-  closed.forEach(t => {
-    const tag = t.setup_tag || t.session || 'Unknown';
-    if (!bySetup[tag]) bySetup[tag] = { pnl: 0, count: 0 };
-    bySetup[tag].pnl += t.profit || 0;
-    bySetup[tag].count++;
-  });
-
-  // By symbol
-  const bySymbol: Record<string, { pnl: number; count: number }> = {};
-  closed.forEach(t => {
-    const sym = t.symbol || 'Unknown';
-    if (!bySymbol[sym]) bySymbol[sym] = { pnl: 0, count: 0 };
-    bySymbol[sym].pnl += t.profit || 0;
-    bySymbol[sym].count++;
-  });
-
-  const dayLines = Object.entries(byDay).map(([d, v]) => `${d}: ${v.count} trades, PnL ${v.pnl.toFixed(2)}`).join(', ');
-  const setupLines = Object.entries(bySetup).map(([s, v]) => `${s}: ${v.count} trades, PnL ${v.pnl.toFixed(2)}`).join(', ');
-  const symbolLines = Object.entries(bySymbol).slice(0, 8).map(([s, v]) => `${s}: ${v.count} trades, PnL ${v.pnl.toFixed(2)}`).join(', ');
-
-  return `
-Total trades: ${closed.length}
-Win rate: ${winRate}%
-Total PnL: ${totalPnl.toFixed(2)}
-Avg win: ${avgWin} | Avg loss: ${avgLoss}
-By day: ${dayLines}
-By setup/tag: ${setupLines}
-By symbol: ${symbolLines}
-`.trim();
+// ─── Format time ago ──────────────────────────────────────────
+function formatTimeAgo(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor(diff / (1000 * 60));
+  if (hours >= 1) return `${hours}h ago`;
+  if (minutes >= 1) return `${minutes}m ago`;
+  return 'just now';
 }
 
 // ─── Call OpenRouter ──────────────────────────────────────────
@@ -132,7 +104,7 @@ async function callOpenRouter(messages: { role: string; content: string }[]): Pr
       'HTTP-Referer': 'https://tradesmartdz.com',
       'X-Title': 'TradeSmart DZ',
     },
-    body: JSON.stringify({ model: MODEL, messages, max_tokens: 800 }),
+    body: JSON.stringify({ model: MODEL, messages, max_tokens: 400 }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
@@ -141,7 +113,6 @@ async function callOpenRouter(messages: { role: string; content: string }[]): Pr
 
 // ─── Render markdown-like sections ───────────────────────────
 function AnalysisDisplay({ text }: { text: string }) {
-  // Split by lines and style headers (lines starting with # or **)
   const lines = text.split('\n');
   return (
     <div className="space-y-2 text-sm leading-relaxed">
@@ -186,102 +157,199 @@ export default function AICoachPage() {
   const [analysis, setAnalysis] = useState<string>('');
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
+  const [lastAnalysisTime, setLastAnalysisTime] = useState<string | null>(null);
+  const [cachedAnalysis, setCachedAnalysis] = useState<string | null>(null);
 
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [messagesUsedToday, setMessagesUsedToday] = useState(0);
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const cacheKey = user ? `tradesmartdz_ai_${user.id}` : null;
-
-  // Load trades
+  // Load trades (ascending so slice(-20) gives the 20 most recent)
   useEffect(() => {
     if (!user) return;
     supabase
       .from('trades')
       .select('*')
       .eq('user_id', user.id)
-      .order('open_time', { ascending: false })
+      .order('open_time', { ascending: true })
       .limit(200)
       .then(({ data }) => setTrades(data || []));
   }, [user]);
 
-  // Load cached analysis
+  // Load cached analysis and daily message count from Supabase
   useEffect(() => {
-    if (!cacheKey) return;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) setAnalysis(cached);
-  }, [cacheKey]);
+    if (!user) return;
+    (async () => {
+      const { data: prefs } = await supabase
+        .from('user_preferences')
+        .select('ai_analysis_cache, ai_analysis_date, ai_messages_date, ai_messages_count')
+        .eq('user_id', user.id)
+        .single();
+
+      if (prefs?.ai_analysis_cache && prefs?.ai_analysis_date) {
+        const hoursDiff = (Date.now() - new Date(prefs.ai_analysis_date).getTime()) / (1000 * 60 * 60);
+        if (hoursDiff < 24) {
+          setCachedAnalysis(prefs.ai_analysis_cache);
+          setLastAnalysisTime(prefs.ai_analysis_date);
+          setAnalysis(prefs.ai_analysis_cache);
+        }
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      if (prefs?.ai_messages_date === today) {
+        setMessagesUsedToday(prefs.ai_messages_count || 0);
+      }
+    })();
+  }, [user]);
 
   // Scroll chat to bottom
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMsgs]);
 
-  const tradeSummary = buildTradeSummary(trades, lang);
+  // ─── Computed stats for chat system prompt ────────────────
+  const closed = trades.filter(tr => tr.profit !== null && tr.profit !== undefined);
+  const wins = closed.filter(tr => tr.profit > 0);
+  const winRate = closed.length > 0 ? Math.round((wins.length / closed.length) * 100) : 0;
+  const totalPnl = closed.reduce((s, tr) => s + (tr.profit || 0), 0).toFixed(2);
 
-  const handleAnalyze = useCallback(async () => {
-    if (!trades.length) return;
+  const sessionCount: Record<string, number> = {};
+  closed.forEach(tr => { const s = tr.session || 'Unknown'; sessionCount[s] = (sessionCount[s] || 0) + 1; });
+  const topSession = Object.entries(sessionCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+
+  const setupCount: Record<string, number> = {};
+  closed.forEach(tr => { const s = tr.setup_tag || 'Unknown'; setupCount[s] = (setupCount[s] || 0) + 1; });
+  const topSetup = Object.entries(setupCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+
+  // ─── Run analysis ─────────────────────────────────────────
+  const runAnalysis = useCallback(async (force = false) => {
+    if (!trades.length || !user) return;
+
+    if (!force && cachedAnalysis) {
+      setAnalysis(cachedAnalysis);
+      return;
+    }
+
     setAnalysisLoading(true);
     setAnalysisError('');
     try {
-      const langInstruction =
-        lang === 'ar' ? 'Respond entirely in Arabic (العربية).' :
-        lang === 'fr' ? 'Respond entirely in French.' :
-        'Respond in English.';
+      const last20Trades = trades.slice(-20);
+      const tradesContext = last20Trades.map(tr =>
+        `${tr.symbol} ${tr.direction} ${tr.result} P&L:${tr.profit} RR:${tr.rr_ratio} Session:${tr.session} Setup:${tr.setup_tag}`
+      ).join('\n');
+
+      const analysisSystemPrompt = `You are an elite professional trading coach for prop firm traders. The user trades NQ/Nasdaq futures using ICT concepts.
+Be extremely concise, direct, and specific. Use their actual numbers.
+Respond in ${lang === 'ar' ? 'Arabic' : lang === 'fr' ? 'French' : 'English'}.
+
+Format your response EXACTLY like this structure, nothing more:
+
+📊 SNAPSHOT
+[Win rate]% win rate • [total PnL] total P&L • [X] trades analyzed
+
+⚠️ MAIN WEAKNESS
+[One specific pattern from their losing trades - be specific with numbers]
+
+✅ MAIN STRENGTH
+[One specific pattern from their winning trades - be specific with numbers]
+
+🎯 THIS WEEK'S FOCUS
+[One single actionable improvement - concrete and specific]
+
+💡 QUICK TIP
+[One ICT-specific tip based on their data]
+
+Maximum 180 words total. Never write essays. Be a coach not a reporter.`;
+
+      const analysisUserMessage = `My last ${last20Trades.length} trades:\n${tradesContext}\n\nAnalyze my trading.`;
+
       const result = await callOpenRouter([
-        {
-          role: 'system',
-          content: `You are a professional forex/trading coach analyzing a trader's performance data. ${langInstruction}
-Provide structured analysis with sections: strengths, weaknesses, best/worst patterns, and 3 actionable improvement tips.
-Use clear headers and bullet points. Be specific and data-driven. Keep it under 600 words.`,
-        },
-        {
-          role: 'user',
-          content: `Here is my trading data summary:\n\n${tradeSummary}\n\nPlease analyze my trading performance and give me actionable coaching feedback.`,
-        },
+        { role: 'system', content: analysisSystemPrompt },
+        { role: 'user', content: analysisUserMessage },
       ]);
+
       setAnalysis(result);
-      if (cacheKey) localStorage.setItem(cacheKey, result);
+      setCachedAnalysis(result);
+      const now = new Date().toISOString();
+      setLastAnalysisTime(now);
+
+      await supabase
+        .from('user_preferences')
+        .update({ ai_analysis_cache: result, ai_analysis_date: now })
+        .eq('user_id', user.id);
+
     } catch {
       setAnalysisError(t.errorApi);
     } finally {
       setAnalysisLoading(false);
     }
-  }, [trades, tradeSummary, lang, t.errorApi, cacheKey]);
+  }, [trades, lang, t.errorApi, cachedAnalysis, user]);
 
+  // ─── Send chat message ────────────────────────────────────
   const handleSendChat = useCallback(async (text?: string) => {
     const message = (text ?? chatInput).trim();
     if (!message || chatLoading) return;
-    setChatInput('');
 
+    if (messagesUsedToday >= DAILY_MESSAGE_LIMIT) {
+      toast.error(t.limitReached);
+      return;
+    }
+
+    setChatInput('');
     const now = new Date().toLocaleTimeString(lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US', { hour: '2-digit', minute: '2-digit' });
     const userMsg: ChatMsg = { role: 'user', content: message, ts: now };
     setChatMsgs(prev => [...prev, userMsg]);
     setChatLoading(true);
 
     try {
-      const langInstruction =
-        lang === 'ar' ? 'Respond entirely in Arabic (العربية).' :
-        lang === 'fr' ? 'Respond entirely in French.' :
-        'Respond in English.';
+      const last20Trades = trades.slice(-20);
+      const tradesContext = last20Trades.map(tr =>
+        `${tr.symbol} ${tr.direction} ${tr.result} P&L:${tr.profit} RR:${tr.rr_ratio} Session:${tr.session} Setup:${tr.setup_tag}`
+      ).join('\n');
 
-      // Build context: last 20 messages
+      const chatSystemPrompt = `You are an elite trading coach for prop firm traders specializing in ICT concepts and NQ/Nasdaq futures.
+Respond in ${lang === 'ar' ? 'Arabic' : lang === 'fr' ? 'French' : 'English'}.
+
+Rules:
+- Maximum 120 words per response
+- Be direct and specific, never vague
+- Reference their actual trade data when relevant
+- Give actionable advice only
+- No long introductions or conclusions
+- Talk like a coach, not a professor
+
+The trader's recent context:
+- Last 20 trades win rate: ${winRate}%
+- Total P&L: ${totalPnl}
+- Most used session: ${topSession}
+- Most used setup: ${topSetup}
+
+Last 20 trades for reference:
+${tradesContext}`;
+
       const history = [...chatMsgs.slice(-19), userMsg];
       const messages = [
-        {
-          role: 'system',
-          content: `You are a professional forex trading coach. ${langInstruction}
-The trader's data summary:\n${tradeSummary}\nAnswer questions about their trading clearly and concisely. Max 300 words.`,
-        },
+        { role: 'system', content: chatSystemPrompt },
         ...history.map(m => ({ role: m.role, content: m.content })),
       ];
 
       const reply = await callOpenRouter(messages);
       const replyTs = new Date().toLocaleTimeString(lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US', { hour: '2-digit', minute: '2-digit' });
       setChatMsgs(prev => [...prev, { role: 'assistant', content: reply, ts: replyTs }]);
+
+      // Increment and persist daily counter
+      const newCount = messagesUsedToday + 1;
+      setMessagesUsedToday(newCount);
+      const today = new Date().toISOString().split('T')[0];
+      await supabase
+        .from('user_preferences')
+        .update({ ai_messages_date: today, ai_messages_count: newCount })
+        .eq('user_id', user!.id);
+
     } catch {
       const errTs = new Date().toLocaleTimeString();
       setChatMsgs(prev => [...prev, { role: 'assistant', content: t.errorApi, ts: errTs }]);
@@ -289,7 +357,7 @@ The trader's data summary:\n${tradeSummary}\nAnswer questions about their tradin
       setChatLoading(false);
       inputRef.current?.focus();
     }
-  }, [chatInput, chatLoading, chatMsgs, tradeSummary, lang, t.errorApi]);
+  }, [chatInput, chatLoading, chatMsgs, trades, lang, t.errorApi, winRate, totalPnl, topSession, topSetup, messagesUsedToday, user]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -297,6 +365,9 @@ The trader's data summary:\n${tradeSummary}\nAnswer questions about their tradin
       handleSendChat();
     }
   };
+
+  const messagesRemaining = DAILY_MESSAGE_LIMIT - messagesUsedToday;
+  const isLimitReached = messagesUsedToday >= DAILY_MESSAGE_LIMIT;
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -321,7 +392,7 @@ The trader's data summary:\n${tradeSummary}\nAnswer questions about their tradin
           <div className="flex gap-2">
             {!analysis ? (
               <Button
-                onClick={handleAnalyze}
+                onClick={() => runAnalysis()}
                 disabled={analysisLoading || trades.length === 0}
                 className="gap-2"
               >
@@ -334,14 +405,14 @@ The trader's data summary:\n${tradeSummary}\nAnswer questions about their tradin
             ) : (
               <Button
                 variant="outline"
-                onClick={handleAnalyze}
+                onClick={() => runAnalysis(true)}
                 disabled={analysisLoading}
                 className="gap-2"
               >
                 {analysisLoading ? (
                   <><Loader2 className="h-4 w-4 animate-spin" />{t.analyzing}</>
                 ) : (
-                  <><RefreshCw className="h-4 w-4" />{t.regenerate}</>
+                  <><RefreshCw className="h-4 w-4" />{lastAnalysisTime ? `Last updated: ${formatTimeAgo(lastAnalysisTime)}` : t.regenerate}</>
                 )}
               </Button>
             )}
@@ -399,7 +470,8 @@ The trader's data summary:\n${tradeSummary}\nAnswer questions about their tradin
                     <button
                       key={i}
                       onClick={() => handleSendChat(s)}
-                      className="rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-primary/10"
+                      disabled={isLimitReached}
+                      className="rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs text-primary transition-colors hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {s}
                     </button>
@@ -454,6 +526,11 @@ The trader's data summary:\n${tradeSummary}\nAnswer questions about their tradin
             )}
           </div>
 
+          {/* Messages remaining counter */}
+          <p className={`text-xs ${isLimitReached ? 'text-destructive' : 'text-muted-foreground'}`}>
+            {t.messagesLeft(messagesRemaining)}
+          </p>
+
           {/* Input row */}
           <div className="flex gap-2">
             <textarea
@@ -463,19 +540,25 @@ The trader's data summary:\n${tradeSummary}\nAnswer questions about their tradin
               onKeyDown={handleKeyDown}
               placeholder={t.chatPlaceholder}
               rows={1}
-              disabled={chatLoading}
+              maxLength={500}
+              disabled={chatLoading || isLimitReached}
               className="min-h-[42px] flex-1 resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
               style={{ maxHeight: 120 }}
             />
             <Button
               onClick={() => handleSendChat()}
-              disabled={!chatInput.trim() || chatLoading}
+              disabled={!chatInput.trim() || chatLoading || isLimitReached}
               size="icon"
               className="h-[42px] w-[42px] shrink-0 rounded-xl"
             >
               {chatLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
+
+          {/* Character counter */}
+          <p className="text-xs text-muted-foreground text-right -mt-1">
+            {chatInput.length}/500
+          </p>
         </CardContent>
       </Card>
     </div>
