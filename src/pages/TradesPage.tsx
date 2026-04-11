@@ -330,15 +330,19 @@ function Mt5ImportModal({
   interface ReviewRow {
     trade: Mt5ParsedTrade;
     session: string;
-    rr_ratio: string;
+    rr_ratio: number;           // auto-calculated (read-only display)
     setup_tag: string;
     notes: string;
+    rating: number;             // 0–5 stars
+    screenshot_file: File | null;
+    screenshot_preview: string | null;  // local object URL for thumbnail
   }
   const [showReview, setShowReview] = useState(false);
   const [reviewRows, setReviewRows] = useState<ReviewRow[]>([]);
   const [newTradesList, setNewTradesList] = useState<Mt5ParsedTrade[]>([]);
   const [userTags, setUserTags] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
+  const reviewFileRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Post-import quick review state
   interface PostImportRow {
@@ -367,6 +371,7 @@ function Mt5ImportModal({
       setImportedCount(0); setSkippedCount(0); setFileError(null); setHtmlDebug(null);
       setShowNewAccount(false); setNewAccFirm(''); setNewAccLogin(''); setNewAccName('');
       setShowReview(false); setReviewRows([]); setNewTradesList([]); setImporting(false);
+      reviewFileRefs.current = [];
       setPostRows([]); setPostStats({ inserted: 0, skipped: 0, wins: 0, losses: 0, bes: 0 }); setSavingPost(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -467,11 +472,16 @@ function Mt5ImportModal({
     setDuplicateCount(dupeCount);
     setReviewRows(newTrades.map(tr => ({
       trade: tr,
-      session: detectSession(tr.open_time),  // auto-detected from UTC hour
-      rr_ratio: '',
+      session: detectSession(tr.open_time),
+      // RR auto-calculated: MT5 doesn't export risk $, so always 0
+      rr_ratio: 0,
       setup_tag: '',
       notes: '',
+      rating: 0,
+      screenshot_file: null,
+      screenshot_preview: null,
     })));
+    reviewFileRefs.current = new Array(newTrades.length).fill(null);
     setShowReview(true);
   };
 
@@ -480,15 +490,16 @@ function Mt5ImportModal({
     setImporting(true);
     const BATCH = 50;
     const allPostRows: PostImportRow[] = [];
+    // Track which reviewRow index maps to which inserted trade ID for screenshot upload
+    const insertedIdByRowIndex: Map<number, string> = new Map();
 
     for (let i = 0; i < reviewRows.length; i += BATCH) {
       const slice = reviewRows.slice(i, i + BATCH);
       const batch = slice.map(row => {
         const tr = row.trade;
         const tagParts = [tr.result, row.session, row.setup_tag].filter(Boolean);
-        const rrNum = parseFloat(row.rr_ratio) || null;
         const notesVal = [
-          rrNum ? `R:R ${rrNum}` : '',
+          row.rr_ratio > 0 ? `R:R ${row.rr_ratio}` : '',
           row.notes.trim(),
         ].filter(Boolean).join('\n') || null;
         return {
@@ -508,6 +519,7 @@ function Mt5ImportModal({
           session: row.session || null,
           setup_tag: tagParts.join(', ') || null,
           notes: notesVal,
+          rating: row.rating || null,
         };
       });
 
@@ -515,7 +527,9 @@ function Mt5ImportModal({
         .from('trades').insert(batch).select('id, symbol, direction, profit, close_time, session, setup_tag');
       if (!error && inserted) {
         inserted.forEach((rec, j) => {
+          const globalIdx = i + j;
           const origRow = slice[j];
+          insertedIdByRowIndex.set(globalIdx, rec.id);
           allPostRows.push({
             id: rec.id,
             symbol: rec.symbol,
@@ -524,9 +538,29 @@ function Mt5ImportModal({
             result: origRow.trade.result,
             close_time: rec.close_time ?? origRow.trade.close_time,
             session: rec.session ?? origRow.session,
-            setup_tag: origRow.setup_tag,  // user's custom tag (without result/session prefix)
+            setup_tag: origRow.setup_tag,
           });
         });
+      }
+    }
+
+    // Upload screenshots for rows that have a file attached
+    for (let i = 0; i < reviewRows.length; i++) {
+      const row = reviewRows[i];
+      const tradeId = insertedIdByRowIndex.get(i);
+      if (row.screenshot_file && tradeId) {
+        try {
+          const compressed = await compressImage(row.screenshot_file);
+          const path = `${userId}/${tradeId}/${Date.now()}.jpg`;
+          const { error: upErr } = await supabase.storage
+            .from('trade-screenshots')
+            .upload(path, compressed, { contentType: 'image/jpeg' });
+          if (!upErr) {
+            const { data: { publicUrl } } = supabase.storage
+              .from('trade-screenshots').getPublicUrl(path);
+            await supabase.from('trades').update({ screenshot_url: publicUrl }).eq('id', tradeId);
+          }
+        } catch { /* screenshot upload is non-critical */ }
       }
     }
 
@@ -538,8 +572,8 @@ function Mt5ImportModal({
     setPostRows(allPostRows);
     setPostStats({ inserted: allPostRows.length, skipped: duplicateCount, wins, losses, bes });
     setShowReview(false);
-    setStep(4);  // transition to post-import quick review
-    onImported(); // refresh the trades list in the background
+    setStep(4);
+    onImported();
   };
 
   // Save changes made in the post-import quick review panel
@@ -910,7 +944,7 @@ function Mt5ImportModal({
 
       {/* ── Review Modal ── */}
       <Dialog open={showReview} onOpenChange={v => { if (!v && !importing) setShowReview(false); }}>
-        <DialogContent className="max-h-[90vh] flex flex-col sm:max-w-5xl p-0 gap-0">
+        <DialogContent className="max-h-[90vh] flex flex-col sm:max-w-6xl p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
             <DialogTitle className="text-lg font-bold">{t('review_modal_title')}</DialogTitle>
             <p className="text-sm text-muted-foreground mt-1">
@@ -922,17 +956,19 @@ function Mt5ImportModal({
 
           <div className="overflow-auto flex-1 px-4 py-4">
             <table className="w-full text-sm border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10">
-                <tr className="bg-secondary">
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_ticket')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_symbol')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_direction')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_result')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_pnl')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_session')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_rr')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_setup')}</th>
-                  <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_notes')}</th>
+              <thead className="sticky top-0 z-10 bg-background border-b border-border">
+                <tr>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_ticket')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_symbol')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_direction')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_result')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_pnl')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_session')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_rr')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_setup')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_notes')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_rating')}</th>
+                  <th className="px-3 py-2 text-start font-medium text-muted-foreground whitespace-nowrap">{t('col_screenshot')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -970,50 +1006,34 @@ function Mt5ImportModal({
                       <td className={`px-3 py-2 tabular-nums font-medium whitespace-nowrap ${tr.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {tr.profit >= 0 ? '+' : ''}${tr.profit.toFixed(2)}
                       </td>
-                      {/* Session dropdown */}
+                      {/* Session dropdown — plain select, 3 options only */}
                       <td className="px-3 py-2">
-                        <Select
+                        <select
                           value={row.session}
-                          onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, session: val } : r))}
+                          onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, session: e.target.value } : r))}
+                          className="h-8 w-28 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         >
-                          <SelectTrigger className="h-8 w-28 text-xs">
-                            <SelectValue placeholder={t('select_placeholder')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Asia">{t('session_asian')}</SelectItem>
-                            <SelectItem value="London">{t('session_london')}</SelectItem>
-                            <SelectItem value="New York">{t('session_new_york')}</SelectItem>
-                            <SelectItem value="NY Lunch">{t('session_other')}</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          <option value="Asia">{t('session_asian')}</option>
+                          <option value="London">{t('session_london')}</option>
+                          <option value="New York">{t('session_new_york')}</option>
+                        </select>
                       </td>
-                      {/* RR ratio */}
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.1}
-                          value={row.rr_ratio}
-                          onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, rr_ratio: e.target.value } : r))}
-                          className="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                          placeholder="0.0"
-                        />
+                      {/* RR ratio — read-only */}
+                      <td className="px-3 py-2 tabular-nums text-muted-foreground whitespace-nowrap">
+                        {row.rr_ratio > 0 ? row.rr_ratio.toFixed(2) : '—'}
                       </td>
-                      {/* Setup dropdown */}
+                      {/* Setup dropdown — plain select */}
                       <td className="px-3 py-2">
-                        <Select
+                        <select
                           value={row.setup_tag}
-                          onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, setup_tag: val } : r))}
+                          onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, setup_tag: e.target.value } : r))}
+                          className="h-8 w-32 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         >
-                          <SelectTrigger className="h-8 w-32 text-xs">
-                            <SelectValue placeholder={t('select_placeholder')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {userTags.map(tag => (
-                              <SelectItem key={tag} value={tag}>{tag}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          <option value="">{t('select_placeholder')}</option>
+                          {userTags.map(tag => (
+                            <option key={tag} value={tag}>{tag}</option>
+                          ))}
+                        </select>
                       </td>
                       {/* Notes */}
                       <td className="px-3 py-2">
@@ -1024,6 +1044,70 @@ function Mt5ImportModal({
                           className="h-8 w-40 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                           placeholder={t('col_notes')}
                         />
+                      </td>
+                      {/* Star rating */}
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-0.5">
+                          {[1,2,3,4,5].map(s => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, rating: s === r.rating ? 0 : s } : r))}
+                            >
+                              <Star className={`h-4 w-4 transition-colors ${s <= row.rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-400/60'}`} />
+                            </button>
+                          ))}
+                        </div>
+                      </td>
+                      {/* Screenshot upload */}
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1.5">
+                          {row.screenshot_preview ? (
+                            <div className="relative group">
+                              <img
+                                src={row.screenshot_preview}
+                                alt="preview"
+                                className="h-8 w-12 object-cover rounded border border-border cursor-pointer"
+                                onClick={() => reviewFileRefs.current[idx]?.click()}
+                              />
+                              <button
+                                type="button"
+                                className="absolute -top-1 -right-1 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] leading-none"
+                                onClick={() => setReviewRows(prev => prev.map((r, i) => {
+                                  if (i !== idx) return r;
+                                  if (r.screenshot_preview) URL.revokeObjectURL(r.screenshot_preview);
+                                  return { ...r, screenshot_file: null, screenshot_preview: null };
+                                }))}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="h-8 w-8 flex items-center justify-center rounded border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                              onClick={() => reviewFileRefs.current[idx]?.click()}
+                            >
+                              <Camera className="h-4 w-4" />
+                            </button>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            ref={el => { reviewFileRefs.current[idx] = el; }}
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const preview = URL.createObjectURL(file);
+                              setReviewRows(prev => prev.map((r, i) => {
+                                if (i !== idx) return r;
+                                if (r.screenshot_preview) URL.revokeObjectURL(r.screenshot_preview);
+                                return { ...r, screenshot_file: file, screenshot_preview: preview };
+                              }));
+                            }}
+                          />
+                        </div>
                       </td>
                     </tr>
                   );
