@@ -86,12 +86,10 @@ const L = {
 
 // ─── Format time ago ──────────────────────────────────────────
 function formatTimeAgo(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime();
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor(diff / (1000 * 60));
-  if (hours >= 1) return `${hours}h ago`;
-  if (minutes >= 1) return `${minutes}m ago`;
-  return 'just now';
+  const diff = (Date.now() - new Date(isoString).getTime()) / 1000;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
 // ─── Call OpenRouter ──────────────────────────────────────────
@@ -226,14 +224,38 @@ export default function AICoachPage() {
   const topSetup = Object.entries(setupCount).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
 
   // ─── Run analysis ─────────────────────────────────────────
-  const runAnalysis = useCallback(async (force = false) => {
+  // Always queries Supabase fresh — 24h limit applies regardless of force flag
+  const runAnalysis = useCallback(async () => {
     if (!trades.length || !user) return;
 
-    if (!force && cachedAnalysis) {
-      setAnalysis(cachedAnalysis);
-      return;
+    // Always check fresh from Supabase — never rely on stale state
+    const { data: prefs } = await supabase
+      .from('user_preferences')
+      .select('ai_analysis_cache, ai_analysis_date')
+      .eq('user_id', user.id)
+      .single();
+
+    if (prefs?.ai_analysis_cache && prefs?.ai_analysis_date) {
+      const hoursDiff = (Date.now() - new Date(prefs.ai_analysis_date).getTime()) / (1000 * 60 * 60);
+
+      if (hoursDiff < 24) {
+        // Show cached result and block the call
+        setAnalysis(prefs.ai_analysis_cache);
+        setCachedAnalysis(prefs.ai_analysis_cache);
+        setLastAnalysisTime(prefs.ai_analysis_date);
+        const hoursRemaining = Math.ceil(24 - hoursDiff);
+        toast.error(
+          lang === 'ar'
+            ? `يمكنك التحليل مرة واحدة يومياً. باقي ${hoursRemaining} ساعة`
+            : lang === 'fr'
+            ? `1 analyse par jour. Encore ${hoursRemaining}h à attendre`
+            : `1 analysis per day. ${hoursRemaining}h remaining`
+        );
+        return;
+      }
     }
 
+    // No cache or cache expired — call the API
     setAnalysisLoading(true);
     setAnalysisError('');
     try {
@@ -287,7 +309,7 @@ Maximum 180 words total. Never write essays. Be a coach not a reporter.`;
     } finally {
       setAnalysisLoading(false);
     }
-  }, [trades, lang, t.errorApi, cachedAnalysis, user]);
+  }, [trades, lang, t.errorApi, user]);
 
   // ─── Send chat message ────────────────────────────────────
   const handleSendChat = useCallback(async (text?: string) => {
@@ -389,32 +411,43 @@ ${tradesContext}`;
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Action button */}
-          <div className="flex gap-2">
-            {!analysis ? (
-              <Button
-                onClick={() => runAnalysis()}
-                disabled={analysisLoading || trades.length === 0}
-                className="gap-2"
-              >
-                {analysisLoading ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />{t.analyzing}</>
-                ) : (
-                  <><TrendingUp className="h-4 w-4" />{t.analyzeBtn}</>
-                )}
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => runAnalysis(true)}
-                disabled={analysisLoading}
-                className="gap-2"
-              >
-                {analysisLoading ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />{t.analyzing}</>
-                ) : (
-                  <><RefreshCw className="h-4 w-4" />{lastAnalysisTime ? `Last updated: ${formatTimeAgo(lastAnalysisTime)}` : t.regenerate}</>
-                )}
-              </Button>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              {!analysis ? (
+                <Button
+                  onClick={() => runAnalysis()}
+                  disabled={analysisLoading || trades.length === 0}
+                  className="gap-2"
+                >
+                  {analysisLoading ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" />{t.analyzing}</>
+                  ) : (
+                    <><TrendingUp className="h-4 w-4" />{t.analyzeBtn}</>
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => runAnalysis()}
+                  disabled={analysisLoading}
+                  className="gap-2"
+                >
+                  {analysisLoading ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" />{t.analyzing}</>
+                  ) : (
+                    <><RefreshCw className="h-4 w-4" />{t.regenerate}</>
+                  )}
+                </Button>
+              )}
+            </div>
+            {lastAnalysisTime && (
+              <p className="text-xs text-muted-foreground">
+                {lang === 'ar'
+                  ? `آخر تحليل: ${formatTimeAgo(lastAnalysisTime)}`
+                  : lang === 'fr'
+                  ? `Dernière analyse: ${formatTimeAgo(lastAnalysisTime)}`
+                  : `Last analysis: ${formatTimeAgo(lastAnalysisTime)}`}
+              </p>
             )}
           </div>
 
