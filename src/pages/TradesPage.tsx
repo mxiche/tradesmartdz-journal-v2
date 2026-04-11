@@ -119,6 +119,15 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function detectSession(openTimeISO: string): string {
+  const date = new Date(openTimeISO);
+  const utcHour = date.getUTCHours();
+  if (utcHour >= 7 && utcHour < 12) return 'London';
+  if (utcHour >= 12 && utcHour < 17) return 'New York';
+  if (utcHour >= 17 && utcHour < 21) return 'NY Lunch';
+  return 'Asia';
+}
+
 function computeDuration(open: string, close: string): string {
   const diffMs = new Date(close).getTime() - new Date(open).getTime();
   if (isNaN(diffMs) || diffMs < 0) return '';
@@ -298,7 +307,7 @@ function Mt5ImportModal({
 }) {
   const { t, language: lang } = useLanguage();
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 4>(1);
   const [isDragging, setIsDragging] = useState(false);
   const [parsedTrades, setParsedTrades] = useState<Mt5ParsedTrade[]>([]);
   const [duplicateCount, setDuplicateCount] = useState(0);
@@ -317,7 +326,7 @@ function Mt5ImportModal({
   const [creatingAcc, setCreatingAcc] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Review modal state
+  // Pre-import review state
   interface ReviewRow {
     trade: Mt5ParsedTrade;
     session: string;
@@ -331,6 +340,21 @@ function Mt5ImportModal({
   const [userTags, setUserTags] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
 
+  // Post-import quick review state
+  interface PostImportRow {
+    id: string;
+    symbol: string;
+    direction: 'BUY' | 'SELL';
+    profit: number;
+    result: 'Win' | 'Loss' | 'Breakeven';
+    close_time: string;
+    session: string;
+    setup_tag: string;
+  }
+  const [postRows, setPostRows] = useState<PostImportRow[]>([]);
+  const [postStats, setPostStats] = useState({ inserted: 0, skipped: 0, wins: 0, losses: 0, bes: 0 });
+  const [savingPost, setSavingPost] = useState(false);
+
   const isMobile = typeof window !== 'undefined' && (
     window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
   );
@@ -343,6 +367,7 @@ function Mt5ImportModal({
       setImportedCount(0); setSkippedCount(0); setFileError(null); setHtmlDebug(null);
       setShowNewAccount(false); setNewAccFirm(''); setNewAccLogin(''); setNewAccName('');
       setShowReview(false); setReviewRows([]); setNewTradesList([]); setImporting(false);
+      setPostRows([]); setPostStats({ inserted: 0, skipped: 0, wins: 0, losses: 0, bes: 0 }); setSavingPost(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }, [open]);
@@ -440,17 +465,25 @@ function Mt5ImportModal({
 
     setNewTradesList(newTrades);
     setDuplicateCount(dupeCount);
-    setReviewRows(newTrades.map(tr => ({ trade: tr, session: '', rr_ratio: '', setup_tag: '', notes: '' })));
+    setReviewRows(newTrades.map(tr => ({
+      trade: tr,
+      session: detectSession(tr.open_time),  // auto-detected from UTC hour
+      rr_ratio: '',
+      setup_tag: '',
+      notes: '',
+    })));
     setShowReview(true);
   };
 
-  // Called from review modal "استيراد الكل"
+  // Called from pre-import review modal
   const handleImportAll = async () => {
     setImporting(true);
     const BATCH = 50;
-    let inserted = 0;
+    const allPostRows: PostImportRow[] = [];
+
     for (let i = 0; i < reviewRows.length; i += BATCH) {
-      const batch = reviewRows.slice(i, i + BATCH).map(row => {
+      const slice = reviewRows.slice(i, i + BATCH);
+      const batch = slice.map(row => {
         const tr = row.trade;
         const tagParts = [tr.result, row.session, row.setup_tag].filter(Boolean);
         const rrNum = parseFloat(row.rr_ratio) || null;
@@ -477,14 +510,55 @@ function Mt5ImportModal({
           notes: notesVal,
         };
       });
-      const { error } = await supabase.from('trades').insert(batch);
-      if (!error) inserted += batch.length;
+
+      const { data: inserted, error } = await supabase
+        .from('trades').insert(batch).select('id, symbol, direction, profit, close_time, session, setup_tag');
+      if (!error && inserted) {
+        inserted.forEach((rec, j) => {
+          const origRow = slice[j];
+          allPostRows.push({
+            id: rec.id,
+            symbol: rec.symbol,
+            direction: rec.direction as 'BUY' | 'SELL',
+            profit: rec.profit ?? 0,
+            result: origRow.trade.result,
+            close_time: rec.close_time ?? origRow.trade.close_time,
+            session: rec.session ?? origRow.session,
+            setup_tag: origRow.setup_tag,  // user's custom tag (without result/session prefix)
+          });
+        });
+      }
     }
+
+    const wins = allPostRows.filter(r => r.result === 'Win').length;
+    const losses = allPostRows.filter(r => r.result === 'Loss').length;
+    const bes = allPostRows.filter(r => r.result === 'Breakeven').length;
+
     setImporting(false);
-    toast.success(t('import_success').replace('{count}', String(inserted)));
+    setPostRows(allPostRows);
+    setPostStats({ inserted: allPostRows.length, skipped: duplicateCount, wins, losses, bes });
     setShowReview(false);
+    setStep(4);  // transition to post-import quick review
+    onImported(); // refresh the trades list in the background
+  };
+
+  // Save changes made in the post-import quick review panel
+  const handleSavePost = async () => {
+    setSavingPost(true);
+    const BATCH = 50;
+    for (let i = 0; i < postRows.length; i += BATCH) {
+      const slice = postRows.slice(i, i + BATCH);
+      await Promise.all(slice.map(row => {
+        const tagParts = [row.result, row.session, row.setup_tag].filter(Boolean);
+        return supabase.from('trades').update({
+          session: row.session || null,
+          setup_tag: tagParts.join(', ') || null,
+        }).eq('id', row.id);
+      }));
+    }
+    setSavingPost(false);
+    onImported(); // refresh again after edits
     onClose();
-    onImported();
   };
 
   const nonDupe = parsedTrades.length - duplicateCount;
@@ -498,12 +572,12 @@ function Mt5ImportModal({
 
         {/* Step indicators */}
         <div className="flex items-center gap-1 mb-4">
-          {([1, 2, 3, 4] as const).map((s, idx) => (
+          {([1, 2, 4] as const).map((s, idx) => (
             <div key={s} className="flex items-center gap-1 flex-1">
               <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors ${
                 step >= s ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'
-              }`}>{s}</div>
-              {idx < 3 && <div className={`h-0.5 flex-1 transition-colors ${step > s ? 'bg-primary' : 'bg-secondary'}`} />}
+              }`}>{idx + 1}</div>
+              {idx < 2 && <div className={`h-0.5 flex-1 transition-colors ${step > s ? 'bg-primary' : 'bg-secondary'}`} />}
             </div>
           ))}
         </div>
@@ -697,40 +771,139 @@ function Mt5ImportModal({
           </div>
         )}
 
-        {/* ── Step 3: Progress ── */}
-        {step === 3 && (
-          <div className="flex flex-col items-center gap-6 py-8">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-lg font-semibold text-foreground">{t('importImporting')}</p>
-            <div className="w-full space-y-2">
-              <div className="h-3 w-full overflow-hidden rounded-full bg-secondary">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-300"
-                  style={{ width: `${importTotal > 0 ? Math.round((importProgress / importTotal) * 100) : 0}%` }}
-                />
-              </div>
-              <p className="text-center text-sm text-muted-foreground">{importProgress} / {importTotal}</p>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 4: Success ── */}
+        {/* ── Step 4: Post-import Quick Review ── */}
         {step === 4 && (
-          <div className="flex flex-col items-center gap-5 py-8">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-profit/20">
-              <CheckSquare className="h-8 w-8 text-profit" />
-            </div>
-            <p className="text-xl font-bold text-foreground">{t('importSuccess')}</p>
-            <p className="text-center text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">{importedCount}</span>{' '}
-              {lang === 'ar' ? 'صفقة تم استيرادها' : lang === 'fr' ? 'trades importés' : 'trades imported'}
-              {skippedCount > 0 && (
-                <> · <span className="text-yellow-400">{skippedCount} {t('importDuplicatesSkipped')}</span></>
+          <div className="space-y-4">
+            {/* Summary stats */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              <div className="rounded-lg bg-secondary/60 px-3 py-2 text-center">
+                <p className="text-lg font-bold text-foreground">{postStats.inserted}</p>
+                <p className="text-xs text-muted-foreground">{t('summary_imported')}</p>
+              </div>
+              {postStats.skipped > 0 && (
+                <div className="rounded-lg bg-yellow-500/10 px-3 py-2 text-center">
+                  <p className="text-lg font-bold text-yellow-400">{postStats.skipped}</p>
+                  <p className="text-xs text-muted-foreground">{t('summary_skipped')}</p>
+                </div>
               )}
+              <div className="rounded-lg bg-profit/10 px-3 py-2 text-center">
+                <p className="text-lg font-bold text-profit">{postStats.wins}</p>
+                <p className="text-xs text-muted-foreground">{t('summary_wins')}</p>
+              </div>
+              <div className="rounded-lg bg-loss/10 px-3 py-2 text-center">
+                <p className="text-lg font-bold text-loss">{postStats.losses}</p>
+                <p className="text-xs text-muted-foreground">{t('summary_losses')}</p>
+              </div>
+              <div className="rounded-lg bg-yellow-500/10 px-3 py-2 text-center">
+                <p className="text-lg font-bold text-yellow-400">{postStats.bes}</p>
+                <p className="text-xs text-muted-foreground">{t('summary_be')}</p>
+              </div>
+            </div>
+
+            {/* Auto-session note */}
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Check className="h-3 w-3 text-profit shrink-0" />
+              {t('auto_sessions_note')}
             </p>
-            <Button className="min-h-[44px] gradient-primary text-primary-foreground px-8" onClick={() => { onClose(); onImported(); }}>
-              {t('importGoToTrades')}
-            </Button>
+
+            {/* Quick review table */}
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-xs border-separate border-spacing-0">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-secondary">
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_symbol')}</th>
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_direction')}</th>
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_result')}</th>
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_pnl')}</th>
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_session')}</th>
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_setup')}</th>
+                    <th className="px-3 py-2 text-start font-medium text-muted-foreground border-b border-border whitespace-nowrap">{t('col_date')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {postRows.map((row, idx) => (
+                    <tr key={row.id} className="border-b border-border/40 hover:bg-secondary/30 transition-colors">
+                      <td className="px-3 py-1.5 font-semibold text-foreground whitespace-nowrap">{row.symbol}</td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
+                          row.direction === 'BUY' ? 'bg-profit/20 text-profit border-profit/30' : 'bg-loss/20 text-loss border-loss/30'
+                        }`}>
+                          {row.direction === 'BUY' ? t('direction_long') : t('direction_short')}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
+                          row.result === 'Win' ? 'bg-profit/20 text-profit border-profit/30'
+                          : row.result === 'Loss' ? 'bg-loss/20 text-loss border-loss/30'
+                          : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                        }`}>
+                          {row.result === 'Win' ? t('result_win') : row.result === 'Loss' ? t('result_loss') : t('result_be')}
+                        </span>
+                      </td>
+                      <td className={`px-3 py-1.5 tabular-nums font-medium whitespace-nowrap ${row.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
+                        {row.profit >= 0 ? '+' : ''}${row.profit.toFixed(2)}
+                      </td>
+                      {/* Session — editable dropdown */}
+                      <td className="px-3 py-1.5">
+                        <Select
+                          value={row.session}
+                          onValueChange={val => setPostRows(prev => prev.map((r, i) => i === idx ? { ...r, session: val } : r))}
+                        >
+                          <SelectTrigger className="h-7 w-24 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Asia">{t('session_asian')}</SelectItem>
+                            <SelectItem value="London">{t('session_london')}</SelectItem>
+                            <SelectItem value="New York">{t('session_new_york')}</SelectItem>
+                            <SelectItem value="NY Lunch">{t('session_other')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      {/* Setup — editable dropdown */}
+                      <td className="px-3 py-1.5">
+                        <Select
+                          value={row.setup_tag}
+                          onValueChange={val => setPostRows(prev => prev.map((r, i) => i === idx ? { ...r, setup_tag: val } : r))}
+                        >
+                          <SelectTrigger className="h-7 w-28 text-xs">
+                            <SelectValue placeholder={t('select_placeholder')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {userTags.map(tag => (
+                              <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">
+                        {row.close_time.slice(0, 10)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 min-h-[44px]"
+                onClick={() => onClose()}
+                disabled={savingPost}
+              >
+                {t('skip')}
+              </Button>
+              <Button
+                className="flex-1 min-h-[44px] bg-teal-600 hover:bg-teal-500 text-white"
+                onClick={handleSavePost}
+                disabled={savingPost}
+              >
+                {savingPost
+                  ? <><Loader2 className="me-2 h-4 w-4 animate-spin" />{t('saving')}</>
+                  : t('save_all')}
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>
