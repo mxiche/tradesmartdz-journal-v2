@@ -557,10 +557,15 @@ function Mt5ImportModal({
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t('importMt5Title')}</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-h-[92vh] flex flex-col p-0 overflow-hidden sm:max-w-lg">
+        {/* Mobile drag handle */}
+        <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+        </div>
+        <div className="px-6 pb-2 pt-2 flex-shrink-0">
+          <DialogTitle className="text-lg">{t('importMt5Title')}</DialogTitle>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
 
         {/* Step indicators */}
         <div className="flex items-center gap-1 mb-4">
@@ -763,14 +768,20 @@ function Mt5ImportModal({
           </div>
         )}
 
+        </div>{/* end flex-1 overflow-y-auto */}
       </DialogContent>
 
       {/* ── Review Modal ── */}
       <Dialog open={showReview} onOpenChange={v => { if (!v && !importing) setShowReview(false); }}>
-        <DialogContent className="max-w-[95vw] w-[95vw] h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[95vw] sm:w-[95vw] sm:h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden">
+
+          {/* Mobile drag handle */}
+          <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
+            <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+          </div>
 
           {/* Fixed header */}
-          <div className="flex-shrink-0 px-8 py-5 border-b border-border">
+          <div className="flex-shrink-0 px-6 sm:px-8 py-4 sm:py-5 border-b border-border">
             <DialogTitle className="text-xl font-bold">{t('review_modal_title')}</DialogTitle>
             <p className="text-sm text-muted-foreground mt-1">
               {t('review_modal_subtitle')
@@ -1016,10 +1027,15 @@ function Mt5ImportModal({
         const totalPnl   = summaryRows.reduce((sum, r) => sum + r.trade.profit, 0);
         return (
           <Dialog open={showSummary} onOpenChange={v => { if (!v) { setShowSummary(false); onClose(); } }}>
-            <DialogContent className="max-w-[95vw] w-[95vw] h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden">
+            <DialogContent className="sm:max-w-[95vw] sm:w-[95vw] sm:h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden">
+
+              {/* Mobile drag handle */}
+              <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
+                <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+              </div>
 
               {/* Fixed header */}
-              <div className="flex-shrink-0 px-8 py-6 border-b border-border">
+              <div className="flex-shrink-0 px-6 sm:px-8 py-5 sm:py-6 border-b border-border">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0">
                     <CheckCircle className="w-6 h-6 text-teal-500" />
@@ -2056,12 +2072,17 @@ const TradesPage = () => {
 
       {/* Add Trade Dialog */}
       <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) resetForm(); }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="max-h-[92vh] flex flex-col p-0 overflow-hidden sm:max-w-lg">
+          {/* Mobile drag handle */}
+          <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
+            <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+          </div>
+          <div className="px-6 pb-2 pt-2 flex-shrink-0">
+            <DialogTitle className="text-lg">
               {lang === 'ar' ? 'إضافة صفقة يدوية' : lang === 'fr' ? 'Ajouter un trade manuel' : 'Add Manual Trade'}
             </DialogTitle>
-          </DialogHeader>
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
           <div className="space-y-4 pt-2">
             {/* Account */}
             <div className="space-y-1.5">
@@ -2322,6 +2343,7 @@ const TradesPage = () => {
               {submitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {lang === 'ar' ? 'حفظ الصفقة' : lang === 'fr' ? 'Enregistrer' : 'Save Trade'}
             </Button>
+          </div>
           </div>
         </DialogContent>
       </Dialog>

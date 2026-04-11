@@ -36,21 +36,26 @@ export default function AppLayout() {
   return (
     <div className="flex min-h-screen bg-background">
 
-      {/* Overlay */}
-      <div
-        className={`fixed inset-0 z-40 bg-black/50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}
-        onClick={() => setSidebarOpen(false)}
-      />
+      {/* Overlay — covers full screen, fires immediately on touch */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          onPointerDown={() => setSidebarOpen(false)}
+        />
+      )}
 
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 start-0 z-50 w-64 flex flex-col border-e border-border bg-card transition-transform duration-300 lg:static lg:translate-x-0 rtl:lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'}`}>
+      <aside className={`fixed top-0 left-0 h-full w-72 z-50 flex flex-col border-e border-border bg-card transition-transform duration-300 ease-in-out lg:static lg:h-auto lg:w-64 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
           <Logo size="sm" />
           <button
             type="button"
-            className="lg:hidden p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
-            style={{ touchAction: 'manipulation' }}
-            onClick={() => setSidebarOpen(false)}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              setSidebarOpen(false);
+            }}
+            className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors touch-manipulation"
+            aria-label="Close menu"
           >
             <X className="h-5 w-5" />
           </button>
@@ -85,17 +90,22 @@ export default function AppLayout() {
 
       {/* Main content */}
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
+        <header className="h-14 px-4 flex items-center justify-between border-b border-border bg-background shrink-0">
+          {/* Left: hamburger (mobile only) */}
           <Button
             variant="ghost"
             size="icon"
-            className="h-11 w-11 lg:hidden"
-            onClick={() => setSidebarOpen(true)}
+            className="h-11 w-11 lg:hidden touch-manipulation"
+            onPointerDown={() => setSidebarOpen(true)}
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex-1 lg:hidden" />
+          {/* Center: logo on mobile / spacer on desktop */}
+          <div className="absolute left-1/2 -translate-x-1/2 lg:hidden pointer-events-none">
+            <Logo size="sm" />
+          </div>
           <div className="hidden lg:flex flex-1" />
+          {/* Right: language + theme + user */}
           <div className="flex items-center gap-1 sm:gap-2">
             <LanguageSwitcher variant="compact" />
             <ThemeToggle />
