@@ -329,7 +329,8 @@ function Mt5ImportModal({
   // Pre-import review state
   interface ReviewRow {
     trade: Mt5ParsedTrade;
-    session: string;
+    result: string;             // editable (defaults from profit sign)
+    session: string;            // user picks manually (empty by default)
     risk: number;               // user-entered risk $ amount
     rr_ratio: number;           // auto-calculated from risk (read-only display)
     setup_tag: string;
@@ -351,7 +352,7 @@ function Mt5ImportModal({
     symbol: string;
     direction: 'BUY' | 'SELL';
     profit: number;
-    result: 'Win' | 'Loss' | 'Breakeven';
+    result: string;
     close_time: string;
     session: string;
     setup_tag: string;
@@ -473,7 +474,8 @@ function Mt5ImportModal({
     setDuplicateCount(dupeCount);
     setReviewRows(newTrades.map(tr => ({
       trade: tr,
-      session: detectSession(tr.open_time),
+      result: tr.result,        // default from profit sign, user can override
+      session: '',              // user picks manually
       risk: 0,
       rr_ratio: 0,
       setup_tag: '',
@@ -498,7 +500,7 @@ function Mt5ImportModal({
       const slice = reviewRows.slice(i, i + BATCH);
       const batch = slice.map(row => {
         const tr = row.trade;
-        const tagParts = [tr.result, row.session, row.setup_tag].filter(Boolean);
+        const tagParts = [row.result, row.session, row.setup_tag].filter(Boolean);
         const notesVal = [
           row.risk > 0 ? `Risk $${row.risk}` : '',
           row.rr_ratio > 0 ? `R:R ${row.rr_ratio}` : '',
@@ -537,7 +539,7 @@ function Mt5ImportModal({
             symbol: rec.symbol,
             direction: rec.direction as 'BUY' | 'SELL',
             profit: rec.profit ?? 0,
-            result: origRow.trade.result,
+            result: origRow.result,
             close_time: rec.close_time ?? origRow.trade.close_time,
             session: rec.session ?? origRow.session,
             setup_tag: origRow.setup_tag,
@@ -946,11 +948,11 @@ function Mt5ImportModal({
 
       {/* ── Review Modal ── */}
       <Dialog open={showReview} onOpenChange={v => { if (!v && !importing) setShowReview(false); }}>
-        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col p-0 overflow-hidden gap-0">
+        <DialogContent className="max-w-[95vw] w-[95vw] h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden">
 
           {/* Fixed header */}
-          <div className="p-6 border-b border-border flex-shrink-0">
-            <h2 className="text-lg font-bold text-foreground">{t('review_modal_title')}</h2>
+          <div className="flex-shrink-0 px-8 py-5 border-b border-border">
+            <DialogTitle className="text-xl font-bold">{t('review_modal_title')}</DialogTitle>
             <p className="text-sm text-muted-foreground mt-1">
               {t('review_modal_subtitle')
                 .replace('{new}', String(newTradesList.length))
@@ -959,36 +961,39 @@ function Mt5ImportModal({
           </div>
 
           {/* Scrollable table area */}
-          <div className="overflow-auto flex-1 min-h-0">
-            <table className="w-full text-sm border-separate border-spacing-0">
-              <thead className="sticky top-0 z-20 bg-card border-b border-border">
-                <tr>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_ticket')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_symbol')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_direction')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_result')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_pnl')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('risk')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_rr')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_session')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_setup')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_rating')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_screenshot')}</th>
-                  <th className="px-3 py-2.5 text-start text-xs font-semibold text-muted-foreground whitespace-nowrap">{t('col_notes')}</th>
+          <div className="flex-1 overflow-auto min-h-0">
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 z-20 bg-card">
+                <tr className="border-b border-border">
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('col_symbol')}</th>
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('col_direction')}</th>
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('col_result')}</th>
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('col_pnl')}</th>
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('risk')}</th>
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('col_rr')}</th>
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('col_session')}</th>
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('col_setup')}</th>
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('col_rating')}</th>
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('col_screenshot')}</th>
+                  <th className="px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{t('col_notes')}</th>
                 </tr>
               </thead>
               <tbody>
                 {reviewRows.map((row, idx) => {
                   const tr = row.trade;
+                  const resultColorClass =
+                    row.result === 'Win'               ? 'text-profit' :
+                    row.result === 'Loss'              ? 'text-loss' :
+                    row.result === 'Breakeven'         ? 'text-yellow-400' :
+                    row.result === 'Partial Win - TP1' ? 'text-yellow-500' :
+                    row.result === 'Partial Win - TP2' ? 'text-blue-400' : '';
                   return (
-                    <tr key={idx} className="border-b border-border/40 hover:bg-secondary/30 transition-colors">
-                      {/* Ticket */}
-                      <td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap text-xs">{tr.ticket ?? '—'}</td>
+                    <tr key={idx} className={`border-b border-border/30 hover:bg-secondary/40 transition-colors ${idx % 2 === 0 ? 'bg-muted/20' : ''}`}>
                       {/* Symbol */}
-                      <td className="px-3 py-2 font-semibold text-foreground whitespace-nowrap text-xs">{tr.symbol}</td>
-                      {/* Direction */}
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
+                      <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{tr.symbol}</td>
+                      {/* Direction badge */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${
                           tr.direction === 'BUY'
                             ? 'bg-profit/20 text-profit border-profit/30'
                             : 'bg-loss/20 text-loss border-loss/30'
@@ -996,24 +1001,30 @@ function Mt5ImportModal({
                           {tr.direction === 'BUY' ? t('direction_long') : t('direction_short')}
                         </span>
                       </td>
-                      {/* Result */}
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
-                          tr.result === 'Win'
-                            ? 'bg-profit/20 text-profit border-profit/30'
-                            : tr.result === 'Loss'
-                            ? 'bg-loss/20 text-loss border-loss/30'
-                            : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                        }`}>
-                          {tr.result === 'Win' ? t('result_win') : tr.result === 'Loss' ? t('result_loss') : t('result_be')}
-                        </span>
+                      {/* Result — editable Select */}
+                      <td className="px-4 py-3">
+                        <Select
+                          value={row.result}
+                          onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, result: val } : r))}
+                        >
+                          <SelectTrigger className={`h-8 w-36 text-xs font-medium ${resultColorClass}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Win"><span className="text-profit font-medium">{t('result_win')}</span></SelectItem>
+                            <SelectItem value="Loss"><span className="text-loss font-medium">{t('result_loss')}</span></SelectItem>
+                            <SelectItem value="Breakeven"><span className="text-yellow-400 font-medium">{t('result_be')}</span></SelectItem>
+                            <SelectItem value="Partial Win - TP1"><span className="text-yellow-500 font-medium">Partial TP1</span></SelectItem>
+                            <SelectItem value="Partial Win - TP2"><span className="text-blue-400 font-medium">Partial TP2</span></SelectItem>
+                          </SelectContent>
+                        </Select>
                       </td>
                       {/* P&L */}
-                      <td className={`px-3 py-2 tabular-nums font-medium whitespace-nowrap text-xs ${tr.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      <td className={`px-4 py-3 tabular-nums font-medium whitespace-nowrap ${tr.profit >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {tr.profit >= 0 ? '+' : ''}${tr.profit.toFixed(2)}
                       </td>
                       {/* Risk $ — editable, triggers RR recalculation */}
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-3">
                         <Input
                           type="number"
                           min={0}
@@ -1029,7 +1040,7 @@ function Mt5ImportModal({
                         />
                       </td>
                       {/* RR — read-only, auto-calculated */}
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-3">
                         <Input
                           readOnly
                           value={row.rr_ratio > 0 ? row.rr_ratio.toFixed(2) : ''}
@@ -1037,14 +1048,14 @@ function Mt5ImportModal({
                           placeholder="—"
                         />
                       </td>
-                      {/* Session — shadcn Select, 3 options */}
-                      <td className="px-3 py-2">
+                      {/* Session — shadcn Select, 3 options, empty default */}
+                      <td className="px-4 py-3">
                         <Select
                           value={row.session || ''}
                           onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, session: val } : r))}
                         >
-                          <SelectTrigger className="h-8 w-28 text-xs">
-                            <SelectValue placeholder={t('select_placeholder')} />
+                          <SelectTrigger className="h-8 w-32 text-xs">
+                            <SelectValue placeholder={lang === 'ar' ? 'الجلسة...' : lang === 'fr' ? 'Session...' : 'Session...'} />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Asia">{t('session_asian')}</SelectItem>
@@ -1054,13 +1065,13 @@ function Mt5ImportModal({
                         </Select>
                       </td>
                       {/* Setup — shadcn Select from userTags */}
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-3">
                         <Select
                           value={row.setup_tag || ''}
                           onValueChange={val => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, setup_tag: val } : r))}
                         >
-                          <SelectTrigger className="h-8 w-36 text-xs">
-                            <SelectValue placeholder={t('select_placeholder')} />
+                          <SelectTrigger className="h-8 w-44 text-xs">
+                            <SelectValue placeholder={lang === 'ar' ? 'الإعداد...' : lang === 'fr' ? 'Setup...' : 'Setup...'} />
                           </SelectTrigger>
                           <SelectContent>
                             {userTags.map(tag => (
@@ -1070,7 +1081,7 @@ function Mt5ImportModal({
                         </Select>
                       </td>
                       {/* Star rating — same pattern as detail panel */}
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-0.5">
                           {[1,2,3,4,5].map(s => (
                             <button
@@ -1083,15 +1094,15 @@ function Mt5ImportModal({
                           ))}
                         </div>
                       </td>
-                      {/* Screenshot upload — same compress + Storage pattern */}
-                      <td className="px-3 py-2">
+                      {/* Screenshot upload */}
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           {row.screenshot_preview ? (
                             <div className="relative group">
                               <img
                                 src={row.screenshot_preview}
                                 alt="preview"
-                                className="h-8 w-12 object-cover rounded border border-border cursor-pointer"
+                                className="h-9 w-14 object-cover rounded border border-border cursor-pointer"
                                 onClick={() => reviewFileRefs.current[idx]?.click()}
                               />
                               <button
@@ -1102,14 +1113,12 @@ function Mt5ImportModal({
                                   if (r.screenshot_preview) URL.revokeObjectURL(r.screenshot_preview);
                                   return { ...r, screenshot_file: null, screenshot_preview: null };
                                 }))}
-                              >
-                                ×
-                              </button>
+                              >×</button>
                             </div>
                           ) : (
                             <button
                               type="button"
-                              className="h-8 w-8 flex items-center justify-center rounded border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                              className="h-9 w-9 flex items-center justify-center rounded border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary transition-colors"
                               onClick={() => reviewFileRefs.current[idx]?.click()}
                             >
                               <Camera className="h-4 w-4" />
@@ -1134,12 +1143,12 @@ function Mt5ImportModal({
                         </div>
                       </td>
                       {/* Notes */}
-                      <td className="px-3 py-2">
+                      <td className="px-4 py-3">
                         <Input
                           type="text"
                           value={row.notes}
                           onChange={e => setReviewRows(prev => prev.map((r, i) => i === idx ? { ...r, notes: e.target.value } : r))}
-                          className="h-8 w-40 text-xs"
+                          className="h-8 w-44 text-xs"
                           placeholder={t('col_notes')}
                         />
                       </td>
@@ -1151,26 +1160,31 @@ function Mt5ImportModal({
           </div>
 
           {/* Fixed footer */}
-          <div className="p-4 border-t border-border flex-shrink-0 flex gap-3 justify-end">
-            <Button
-              variant="outline"
-              className="min-h-[40px] px-6"
-              onClick={() => setShowReview(false)}
-              disabled={importing}
-            >
-              {t('cancel')}
-            </Button>
-            <Button
-              className="min-h-[40px] px-6 bg-teal-600 hover:bg-teal-500 text-white"
-              onClick={handleImportAll}
-              disabled={importing}
-            >
-              {importing ? (
-                <><Loader2 className="me-2 h-4 w-4 animate-spin" />{t('importing_in_progress')}</>
-              ) : (
-                `${t('import_all')} (${reviewRows.length})`
-              )}
-            </Button>
+          <div className="flex-shrink-0 px-8 py-4 border-t border-border flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              {reviewRows.length} {lang === 'ar' ? 'صفقة جاهزة للاستيراد' : lang === 'fr' ? 'trades prêts à importer' : 'trades ready to import'}
+            </span>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="min-h-[40px] px-6"
+                onClick={() => setShowReview(false)}
+                disabled={importing}
+              >
+                {t('cancel')}
+              </Button>
+              <Button
+                className="min-h-[40px] px-8 bg-teal-500 hover:bg-teal-600 text-black font-semibold"
+                onClick={handleImportAll}
+                disabled={importing}
+              >
+                {importing ? (
+                  <><Loader2 className="me-2 h-4 w-4 animate-spin" />{t('importing_in_progress')}</>
+                ) : (
+                  `${t('import_all')} (${reviewRows.length})`
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
