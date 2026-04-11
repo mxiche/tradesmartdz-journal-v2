@@ -26,6 +26,10 @@ const SettingsPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
 
+  // Profile
+  const [fullName, setFullName] = useState((user?.user_metadata?.full_name as string) || '');
+  const [isSaving, setIsSaving] = useState(false);
+
   // Change password
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
@@ -104,6 +108,28 @@ const SettingsPage = () => {
     startPolling();
   };
 
+  const handleSaveProfile = async () => {
+    if (!user || !fullName.trim()) return;
+    setIsSaving(true);
+    try {
+      const { error: authError } = await supabase.auth.updateUser({
+        data: { full_name: fullName.trim() },
+      });
+      if (authError) throw authError;
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, full_name: fullName.trim(), email: user.email });
+      if (profileError) throw profileError;
+
+      toast.success(t('saved_successfully') || 'Saved successfully!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPwd !== confirmPwd) {
@@ -167,13 +193,23 @@ const SettingsPage = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>{t('fullName')}</Label>
-                <Input defaultValue={user?.user_metadata?.full_name || ''} />
+                <Input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Full Name"
+                />
               </div>
               <div className="space-y-2">
                 <Label>{t('email')}</Label>
                 <Input defaultValue={user?.email || ''} disabled />
               </div>
-              <Button className="gradient-primary text-primary-foreground" onClick={() => toast.success('Saved!')}>{t('save')}</Button>
+              <Button
+                onClick={handleSaveProfile}
+                disabled={isSaving || !fullName.trim()}
+                className="bg-teal-500 hover:bg-teal-600 text-black font-semibold"
+              >
+                {isSaving ? <><Loader2 className="me-2 h-4 w-4 animate-spin" />{t('save')}</> : t('save')}
+              </Button>
 
               <div className="border-t border-border pt-4">
                 <h3 className="mb-3 font-medium">{t('changePassword')}</h3>
