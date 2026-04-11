@@ -1,0 +1,296 @@
+/**
+ * send-email — Supabase Edge Function
+ *
+ * Handles two event types:
+ *
+ *  1. payment_confirmation  — triggered from frontend after subscription insert
+ *     Body: { type, userEmail, paymentMethod, amount }
+ *
+ *  2. pro_activated          — triggered by Postgres trigger on subscriptions table
+ *     when status changes to 'active'.
+ *
+ * ─── Postgres trigger setup ────────────────────────────────────────────────
+ *
+ * Enable pg_net extension (once):
+ *   CREATE EXTENSION IF NOT EXISTS pg_net;
+ *
+ * Function:
+ *   CREATE OR REPLACE FUNCTION notify_pro_activated()
+ *   RETURNS trigger LANGUAGE plpgsql AS $$
+ *   DECLARE
+ *     user_email text;
+ *   BEGIN
+ *     -- Only fire when status transitions to 'active'
+ *     IF NEW.status = 'active' AND (OLD.status IS DISTINCT FROM 'active') THEN
+ *       SELECT email INTO user_email FROM auth.users WHERE id = NEW.user_id;
+ *       PERFORM net.http_post(
+ *         url     := current_setting('app.supabase_url') || '/functions/v1/send-email',
+ *         headers := jsonb_build_object(
+ *           'Content-Type',  'application/json',
+ *           'Authorization', 'Bearer ' || current_setting('app.service_role_key')
+ *         ),
+ *         body    := jsonb_build_object(
+ *           'type',          'pro_activated',
+ *           'userEmail',     user_email,
+ *           'paymentMethod', NEW.payment_method,
+ *           'amount',        NEW.amount
+ *         )
+ *       );
+ *     END IF;
+ *     RETURN NEW;
+ *   END;
+ *   $$;
+ *
+ * Trigger:
+ *   CREATE TRIGGER trg_notify_pro_activated
+ *   AFTER UPDATE ON subscriptions
+ *   FOR EACH ROW EXECUTE FUNCTION notify_pro_activated();
+ *
+ * Set app settings (run once per environment):
+ *   ALTER DATABASE postgres SET app.supabase_url = 'https://<project>.supabase.co';
+ *   ALTER DATABASE postgres SET app.service_role_key = '<service-role-key>';
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ */
+
+import { Resend } from 'npm:resend';
+
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
+const FROM_EMAIL = 'TradeSmartDz <noreply@tradesmartdz.com>';
+
+const resend = new Resend(RESEND_API_KEY);
+
+// ── HTML email builders ────────────────────────────────────────────────────
+
+function buildPaymentConfirmationEmail(userEmail: string, paymentMethod: string, amount: string): string {
+  return `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تأكيد طلب الدفع</title>
+</head>
+<body style="margin:0;padding:0;background:#0f0f0f;font-family:Arial,sans-serif;direction:rtl;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f0f;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border-radius:16px;overflow:hidden;max-width:560px;width:100%;">
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#14b8a6,#0d9488);padding:32px 32px 24px;text-align:center;">
+              <p style="margin:0;font-size:40px;">📋</p>
+              <h1 style="margin:12px 0 0;color:#fff;font-size:22px;font-weight:800;">تم استلام طلبك</h1>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px;">
+              <p style="color:#e5e7eb;font-size:15px;line-height:1.7;margin:0 0 24px;">
+                مرحباً، شكراً لك على اشتراكك في <strong style="color:#14b8a6;">TradeSmartDz Pro</strong>.
+                لقد استلمنا طلب الدفع الخاص بك وسنقوم بالتحقق منه في أقرب وقت ممكن.
+              </p>
+
+              <!-- Summary box -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f0f;border-radius:12px;margin-bottom:24px;">
+                <tr><td style="padding:20px;">
+                  <p style="margin:0 0 12px;color:#9ca3af;font-size:11px;text-transform:uppercase;letter-spacing:1px;">ملخص الطلب</p>
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">الحساب</td>
+                      <td style="color:#f3f4f6;font-size:14px;font-weight:600;text-align:left;">${userEmail}</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">الخطة</td>
+                      <td style="color:#14b8a6;font-size:14px;font-weight:800;text-align:left;">Pro ⭐</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">طريقة الدفع</td>
+                      <td style="color:#f3f4f6;font-size:14px;font-weight:600;text-align:left;">${paymentMethod === 'baridimob' ? 'BaridiMob' : 'USDT'}</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">المبلغ</td>
+                      <td style="color:#f3f4f6;font-size:14px;font-weight:600;text-align:left;">${amount}</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">الحالة</td>
+                      <td style="color:#f59e0b;font-size:14px;font-weight:600;text-align:left;">⏳ قيد التحقق</td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+
+              <p style="color:#e5e7eb;font-size:14px;line-height:1.7;margin:0 0 24px;">
+                سيتم تفعيل حسابك خلال <strong>24 ساعة</strong> وستصلك رسالة تأكيد بالبريد الإلكتروني.
+                للمتابعة، يمكنك التواصل معنا عبر Telegram.
+              </p>
+
+              <!-- Telegram CTA -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:0 0 24px;">
+                    <a href="https://t.me/TradeSmartDz"
+                       style="display:inline-block;background:#229ED9;color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:700;font-size:15px;">
+                      📱 تواصل عبر Telegram
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="color:#6b7280;font-size:12px;text-align:center;margin:0;">
+                للمساعدة: <a href="mailto:support@tradesmartdz.com" style="color:#14b8a6;">support@tradesmartdz.com</a>
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background:#111;padding:20px 32px;text-align:center;">
+              <p style="margin:0;color:#4b5563;font-size:12px;">TradeSmartDz © ${new Date().getFullYear()}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function buildProActivatedEmail(userEmail: string, paymentMethod: string, amount: string): string {
+  return `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تم تفعيل Pro</title>
+</head>
+<body style="margin:0;padding:0;background:#0f0f0f;font-family:Arial,sans-serif;direction:rtl;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f0f;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border-radius:16px;overflow:hidden;max-width:560px;width:100%;">
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#14b8a6,#0d9488);padding:32px 32px 24px;text-align:center;">
+              <p style="margin:0;font-size:48px;">🎉</p>
+              <h1 style="margin:12px 0 0;color:#fff;font-size:24px;font-weight:800;">تم تفعيل Pro!</h1>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px;">
+              <p style="color:#e5e7eb;font-size:15px;line-height:1.7;margin:0 0 24px;">
+                مرحباً! 🚀 يسعدنا إبلاغك بأن حسابك في <strong style="color:#14b8a6;">TradeSmartDz</strong>
+                قد تم ترقيته إلى <strong style="color:#14b8a6;">Pro ⭐</strong>. يمكنك الآن الاستمتاع بجميع الميزات الحصرية.
+              </p>
+
+              <!-- Summary box -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f0f;border-radius:12px;margin-bottom:24px;">
+                <tr><td style="padding:20px;">
+                  <p style="margin:0 0 12px;color:#9ca3af;font-size:11px;text-transform:uppercase;letter-spacing:1px;">تفاصيل الاشتراك</p>
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">الحساب</td>
+                      <td style="color:#f3f4f6;font-size:14px;font-weight:600;text-align:left;">${userEmail}</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">الخطة</td>
+                      <td style="color:#14b8a6;font-size:14px;font-weight:800;text-align:left;">Pro ⭐</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">طريقة الدفع</td>
+                      <td style="color:#f3f4f6;font-size:14px;font-weight:600;text-align:left;">${paymentMethod === 'baridimob' ? 'BaridiMob' : 'USDT'}</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">المبلغ</td>
+                      <td style="color:#f3f4f6;font-size:14px;font-weight:600;text-align:left;">${amount}</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">الحالة</td>
+                      <td style="color:#22c55e;font-size:14px;font-weight:700;text-align:left;">✅ مفعّل</td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+
+              <!-- Open app CTA -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:0 0 24px;">
+                    <a href="https://tradesmartdz.com"
+                       style="display:inline-block;background:#14b8a6;color:#000;text-decoration:none;padding:14px 40px;border-radius:12px;font-weight:800;font-size:16px;">
+                      🚀 افتح التطبيق
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="color:#6b7280;font-size:12px;text-align:center;margin:0;">
+                للمساعدة: <a href="mailto:support@tradesmartdz.com" style="color:#14b8a6;">support@tradesmartdz.com</a>
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background:#111;padding:20px 32px;text-align:center;">
+              <p style="margin:0;color:#4b5563;font-size:12px;">TradeSmartDz © ${new Date().getFullYear()}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+// ── Handler ────────────────────────────────────────────────────────────────
+
+Deno.serve(async (req) => {
+  try {
+    const body = await req.json();
+    const { type, userEmail, paymentMethod, amount } = body;
+
+    if (!userEmail || !type) {
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    let subject: string;
+    let html: string;
+
+    if (type === 'payment_confirmation') {
+      subject = '📋 TradeSmartDz — تأكيد استلام طلب الدفع';
+      html = buildPaymentConfirmationEmail(userEmail, paymentMethod ?? '', amount ?? '');
+    } else if (type === 'pro_activated') {
+      subject = '🎉 TradeSmartDz — تم تفعيل حسابك Pro!';
+      html = buildProActivatedEmail(userEmail, paymentMethod ?? '', amount ?? '');
+    } else {
+      return new Response(JSON.stringify({ error: 'Unknown type' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data, error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: [userEmail],
+      subject,
+      html,
+    });
+
+    if (error) throw new Error(error.message);
+
+    return new Response(JSON.stringify({ ok: true, id: data?.id }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+});

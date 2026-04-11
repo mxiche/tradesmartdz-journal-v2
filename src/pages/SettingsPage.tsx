@@ -251,6 +251,24 @@ const SettingsPage = () => {
         }
       );
 
+      // Send confirmation email via edge function
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            type: 'payment_confirmation',
+            userEmail: user.email,
+            paymentMethod,
+            amount: paymentMethod === 'baridimob' ? '3,700 DA' : '15 USDT',
+          }),
+        }
+      ).catch(() => { /* non-blocking */ });
+
       setUpgradeStep(4);
       setPendingSubmission({ submitted_at: new Date().toISOString() });
     } catch (error: any) {
@@ -627,6 +645,14 @@ const SettingsPage = () => {
               </div>
             )}
 
+            {/* Support footer */}
+            <p className="text-xs text-center text-muted-foreground pt-2">
+              {lang === 'ar' ? 'هل تحتاج مساعدة؟' : lang === 'fr' ? 'Besoin d\'aide ?' : 'Need help?'}{' '}
+              <a href="mailto:support@tradesmartdz.com" className="text-teal-500 hover:underline">
+                support@tradesmartdz.com
+              </a>
+            </p>
+
           </div>
         </TabsContent>
       </Tabs>
@@ -891,37 +917,76 @@ const SettingsPage = () => {
             {/* STEP 4: Success */}
             {upgradeStep === 4 && (
               <div className="animate-in fade-in zoom-in-95 duration-300 text-center py-8">
-                <div className="text-6xl mb-4">🎉</div>
+                {/* ✅ icon in teal circle */}
+                <div className="w-20 h-20 rounded-full bg-teal-500/15 flex items-center justify-center mx-auto mb-5">
+                  <CheckCircle2 className="w-10 h-10 text-teal-500" />
+                </div>
+
                 <h2 className="text-2xl font-black mb-2">
-                  {lang === 'ar' ? 'تم الإرسال!' : lang === 'fr' ? 'Soumis !' : 'Submitted!'}
+                  {lang === 'ar' ? 'تم الإرسال بنجاح!' : lang === 'fr' ? 'Soumis avec succès !' : 'Successfully Submitted!'}
                 </h2>
-                <p className="text-muted-foreground mb-6">
+                <p className="text-muted-foreground text-sm mb-6">
                   {lang === 'ar'
-                    ? 'يتم التحقق من دفعك. سنفعّل خطة Pro خلال 24 ساعة وسنخبرك عبر Telegram أو البريد الإلكتروني.'
+                    ? 'يتم التحقق من دفعك. سنفعّل خطة Pro خلال 24 ساعة.'
                     : lang === 'fr'
-                    ? 'Votre paiement est en cours de vérification. Nous activerons votre plan Pro dans les 24h.'
-                    : 'Your payment is being verified. We\'ll activate your Pro plan within 24 hours and notify you via Telegram or email.'}
+                    ? 'Votre paiement est en cours de vérification. Activation sous 24h.'
+                    : 'Your payment is being verified. We\'ll activate your Pro plan within 24 hours.'}
                 </p>
-                <div className="bg-muted/50 rounded-xl p-4 mb-6 text-left">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
+
+                {/* Summary card */}
+                <div className="bg-muted/50 rounded-xl p-4 mb-4 text-left">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
                     {lang === 'ar' ? 'الملخص' : lang === 'fr' ? 'Résumé' : 'Summary'}
                   </p>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-muted-foreground">{lang === 'ar' ? 'الحساب' : lang === 'fr' ? 'Compte' : 'Account'}</span>
+                    <span className="font-semibold truncate max-w-[55%] text-right">{user?.email}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mb-2">
                     <span className="text-muted-foreground">{lang === 'ar' ? 'الخطة' : 'Plan'}</span>
                     <span className="font-bold">Pro ⭐</span>
                   </div>
-                  <div className="flex justify-between text-sm mt-1">
+                  <div className="flex justify-between text-sm mb-2">
                     <span className="text-muted-foreground">{lang === 'ar' ? 'الطريقة' : lang === 'fr' ? 'Méthode' : 'Method'}</span>
                     <span className="font-bold capitalize">{paymentMethod}</span>
                   </div>
-                  <div className="flex justify-between text-sm mt-1">
+                  <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{lang === 'ar' ? 'المبلغ' : lang === 'fr' ? 'Montant' : 'Amount'}</span>
                     <span className="font-bold">{paymentMethod === 'baridimob' ? '3,700 DA' : '15 USDT'}</span>
                   </div>
                 </div>
+
+                {/* Telegram CTA */}
+                <a
+                  href="https://t.me/TradeSmartDz"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-xl bg-blue-500/10 border border-blue-500/30 p-4 mb-4 text-left hover:bg-blue-500/15 transition-colors"
+                >
+                  <p className="font-semibold text-sm text-blue-400 mb-1">
+                    📸 {lang === 'ar' ? 'أرسل لنا لقطة الشاشة عبر Telegram' : lang === 'fr' ? 'Envoyez la capture sur Telegram' : 'Send your screenshot on Telegram'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {lang === 'ar'
+                      ? 'للتسريع، أرسل إثبات الدفع مباشرة عبر Telegram @TradeSmartDz'
+                      : lang === 'fr'
+                      ? 'Pour accélérer, envoyez la preuve sur Telegram @TradeSmartDz'
+                      : 'To speed things up, send your proof directly via Telegram @TradeSmartDz'}
+                  </p>
+                </a>
+
+                {/* Support email */}
+                <p className="text-xs text-muted-foreground mb-6">
+                  {lang === 'ar' ? 'للمساعدة:' : lang === 'fr' ? 'Support :' : 'Need help?'}{' '}
+                  <a href="mailto:support@tradesmartdz.com" className="text-teal-500 hover:underline">
+                    support@tradesmartdz.com
+                  </a>
+                </p>
+
                 <Button
+                  variant="outline"
                   onClick={resetModal}
-                  className="w-full bg-teal-500 hover:bg-teal-600 text-black font-bold"
+                  className="w-full font-bold"
                 >
                   {lang === 'ar' ? 'العودة للتطبيق' : lang === 'fr' ? "Retour à l'app" : 'Back to App'}
                 </Button>
