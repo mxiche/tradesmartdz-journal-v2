@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo, KeyboardEvent, DragEvent } from 'react';
+import { useSwipeToDismiss } from '@/hooks/useSwipeToDismiss';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -354,6 +355,8 @@ function Mt5ImportModal({
     window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
   );
 
+  const { sheetRef: importSheetRef, onTouchStart: importTouchStart, onTouchMove: importTouchMove, onTouchEnd: importTouchEnd } = useSwipeToDismiss(onClose);
+
   // Reset when closed
   useEffect(() => {
     if (!open) {
@@ -557,10 +560,16 @@ function Mt5ImportModal({
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="max-h-[92vh] flex flex-col p-0 overflow-hidden sm:max-w-lg">
-        {/* Mobile drag handle */}
-        <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
-          <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+      <DialogContent className="max-h-[92vh] flex flex-col p-0 sm:overflow-hidden sm:max-w-lg">
+        <div ref={importSheetRef} className="flex flex-col flex-1 min-h-0">
+        {/* Mobile drag handle — swipe to dismiss */}
+        <div
+          className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0 cursor-grab active:cursor-grabbing"
+          onTouchStart={importTouchStart}
+          onTouchMove={importTouchMove}
+          onTouchEnd={importTouchEnd}
+        >
+          <div className="w-12 h-1.5 bg-muted-foreground/40 rounded-full" />
         </div>
         <div className="px-6 pb-2 pt-2 flex-shrink-0">
           <DialogTitle className="text-lg">{t('importMt5Title')}</DialogTitle>
@@ -769,6 +778,7 @@ function Mt5ImportModal({
         )}
 
         </div>{/* end flex-1 overflow-y-auto */}
+        </div>{/* end importSheetRef */}
       </DialogContent>
 
       {/* ── Review Modal ── */}
@@ -1400,6 +1410,8 @@ const TradesPage = () => {
     });
     setAddScreenshotFile(null);
   };
+
+  const { sheetRef: addSheetRef, onTouchStart: addTouchStart, onTouchMove: addTouchMove, onTouchEnd: addTouchEnd } = useSwipeToDismiss(() => { setAddOpen(false); resetForm(); });
 
   const handleAddTrade = async () => {
     const hasAmount = isPartial ? form.tp1Amount !== '' : form.profit !== '';
@@ -2072,10 +2084,16 @@ const TradesPage = () => {
 
       {/* Add Trade Dialog */}
       <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) resetForm(); }}>
-        <DialogContent className="max-h-[92vh] flex flex-col p-0 overflow-hidden sm:max-w-lg">
-          {/* Mobile drag handle */}
-          <div className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0">
-            <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+        <DialogContent className="max-h-[92vh] flex flex-col p-0 sm:overflow-hidden sm:max-w-lg">
+          <div ref={addSheetRef} className="flex flex-col flex-1 min-h-0">
+          {/* Mobile drag handle — swipe to dismiss */}
+          <div
+            className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0 cursor-grab active:cursor-grabbing"
+            onTouchStart={addTouchStart}
+            onTouchMove={addTouchMove}
+            onTouchEnd={addTouchEnd}
+          >
+            <div className="w-12 h-1.5 bg-muted-foreground/40 rounded-full" />
           </div>
           <div className="px-6 pb-2 pt-2 flex-shrink-0">
             <DialogTitle className="text-lg">
@@ -2345,6 +2363,7 @@ const TradesPage = () => {
             </Button>
           </div>
           </div>
+          </div>{/* end addSheetRef */}
         </DialogContent>
       </Dialog>
 

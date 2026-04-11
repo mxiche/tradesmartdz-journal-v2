@@ -36,11 +36,15 @@ export default function AppLayout() {
   return (
     <div className="flex min-h-screen bg-background">
 
-      {/* Overlay — covers full screen, fires immediately on touch */}
+      {/* Overlay — full screen, both click and touch */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/60 lg:hidden"
-          onPointerDown={() => setSidebarOpen(false)}
+          onClick={() => setSidebarOpen(false)}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            setSidebarOpen(false);
+          }}
         />
       )}
 
@@ -48,13 +52,16 @@ export default function AppLayout() {
       <aside className={`fixed top-0 left-0 h-full w-72 z-50 flex flex-col border-e border-border bg-card transition-transform duration-300 ease-in-out lg:static lg:h-auto lg:w-64 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
           <Logo size="sm" />
+          {/* X button — 44px tap target, both click and touchEnd */}
           <button
             type="button"
-            onPointerDown={(e) => {
+            onClick={() => setSidebarOpen(false)}
+            onTouchEnd={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               setSidebarOpen(false);
             }}
-            className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors touch-manipulation"
+            className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />
@@ -90,23 +97,41 @@ export default function AppLayout() {
 
       {/* Main content */}
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        <header className="h-14 px-4 flex items-center justify-between border-b border-border bg-background shrink-0">
-          {/* Left: hamburger (mobile only) */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-11 w-11 lg:hidden touch-manipulation"
-            onPointerDown={() => setSidebarOpen(true)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          {/* Center: logo on mobile / spacer on desktop */}
-          <div className="absolute left-1/2 -translate-x-1/2 lg:hidden pointer-events-none">
-            <Logo size="sm" />
+
+        {/* Mobile-only header — 3-column: hamburger | logo | icons */}
+        <header className="h-14 px-3 flex items-center border-b border-border bg-background lg:hidden sticky top-0 z-30 shrink-0">
+          <div className="flex flex-1 items-center">
+            <button
+              type="button"
+              onPointerDown={() => setSidebarOpen(true)}
+              className="p-2 rounded-lg hover:bg-muted touch-manipulation"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
           </div>
-          <div className="hidden lg:flex flex-1" />
-          {/* Right: language + theme + user */}
-          <div className="flex items-center gap-1 sm:gap-2">
+          <Logo size="sm" />
+          <div className="flex flex-1 items-center justify-end gap-1">
+            <LanguageSwitcher variant="compact" />
+            <ThemeToggle />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+                  <User className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-w-[200px]">
+                <DropdownMenuItem className="truncate text-xs text-muted-foreground">{user?.email}</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                  <LogOut className="me-2 h-4 w-4" /> {t('logout')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+
+        {/* Desktop-only header — icons on right */}
+        <header className="h-14 px-4 hidden lg:flex items-center justify-end border-b border-border bg-background shrink-0">
+          <div className="flex items-center gap-2">
             <LanguageSwitcher variant="compact" />
             <ThemeToggle />
             <DropdownMenu>
@@ -124,6 +149,7 @@ export default function AppLayout() {
             </DropdownMenu>
           </div>
         </header>
+
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <Outlet />
         </main>

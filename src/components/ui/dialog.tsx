@@ -37,7 +37,7 @@ const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         // Base
-        "fixed z-50 grid w-full gap-4 border bg-background p-6 shadow-lg duration-200",
+        "fixed z-50 grid w-full gap-4 border bg-background p-6 shadow-lg duration-300",
         // Animations (common)
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
