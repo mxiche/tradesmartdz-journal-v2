@@ -106,14 +106,18 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => null);
       if (body?.type === 'payment_request') {
         if (OWNER_CHAT_ID) {
+          const trialNote = body.isTrial
+            ? '\n⚡ هذا المستخدم على التجربة المجانية حالياً'
+            : '';
           const message =
             `💎 New Pro Payment Request!\n\n` +
             `👤 ${body.userEmail}\n` +
             `🆔 User ID: ${body.userId}\n` +
             `💳 Method: ${body.paymentMethod === 'baridimob' ? 'BaridiMob' : 'USDT'}\n` +
             `💰 Amount: ${body.amount}\n` +
-            `📋 Reference: ${body.reference}\n\n` +
-            `➡️ Activate in Supabase → subscriptions table`;
+            `📋 Reference: ${body.reference}` +
+            trialNote +
+            `\n\n➡️ Activate in Supabase → subscriptions table`;
           await sendMessage(OWNER_CHAT_ID, message);
         }
         return new Response(JSON.stringify({ ok: true }), {

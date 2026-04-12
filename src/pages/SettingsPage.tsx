@@ -1,3 +1,14 @@
+// To activate a trial user who paid:
+// 1. Run in Supabase SQL Editor:
+//    UPDATE subscriptions SET status = 'expired'
+//    WHERE user_id = (SELECT id FROM auth.users WHERE email = 'user@email.com')
+//    AND status = 'trial';
+//
+//    UPDATE subscriptions
+//    SET status = 'active', activated_at = now(), expires_at = now() + interval '30 days'
+//    WHERE user_id = (SELECT id FROM auth.users WHERE email = 'user@email.com')
+//    AND status = 'pending';
+
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -30,8 +41,10 @@ const SettingsPage = () => {
   const { t, language, setLanguage } = useLanguage();
   const lang = language as 'ar' | 'fr' | 'en';
   const { theme, toggleTheme } = useTheme();
-  const { user, userPlan, userStatus, expiresAt } = useAuth();
+  const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
   const navigate = useNavigate();
+  const isTrial = userStatus === 'trial';
+  const isPro = userStatus === 'active';
   const canUseTelegram = userPlan === 'pro' || userStatus === 'trial';
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
@@ -205,18 +218,40 @@ const SettingsPage = () => {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      // Insert subscription request
-      const { error: subError } = await supabase
+      // Check for existing pending subscription
+      const { data: existing } = await supabase
         .from('subscriptions')
-        .insert({
-          user_id: user.id,
-          plan: 'pro',
-          status: 'pending',
-          payment_method: paymentMethod,
-          payment_reference: reference || null,
-          amount: paymentMethod === 'baridimob' ? '3700 DA' : '15 USDT',
-        });
-      if (subError) throw subError;
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (existing) {
+        // Update existing pending row
+        const { error } = await supabase
+          .from('subscriptions')
+          .update({
+            payment_method: paymentMethod,
+            payment_reference: reference || null,
+            amount: paymentMethod === 'baridimob' ? '3700 DA' : '15 USDT',
+            submitted_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        // Insert new pending row
+        const { error } = await supabase
+          .from('subscriptions')
+          .insert({
+            user_id: user.id,
+            plan: 'pro',
+            status: 'pending',
+            payment_method: paymentMethod,
+            payment_reference: reference || null,
+            amount: paymentMethod === 'baridimob' ? '3700 DA' : '15 USDT',
+          });
+        if (error) throw error;
+      }
 
       // Notify owner via Telegram edge function
       await fetch(
@@ -234,6 +269,7 @@ const SettingsPage = () => {
             paymentMethod,
             amount: paymentMethod === 'baridimob' ? '3,700 DA' : '15 USDT',
             reference: reference || 'Not provided',
+            isTrial,
           }),
         }
       );
@@ -249,6 +285,7 @@ const SettingsPage = () => {
           },
           body: JSON.stringify({
             type: 'payment_confirmation',
+            to: user.email,
             userEmail: user.email,
             paymentMethod,
             amount: paymentMethod === 'baridimob' ? '3,700 DA' : '15 USDT',
@@ -528,24 +565,50 @@ const SettingsPage = () => {
 
             {/* Current Plan Card */}
             <div className="rounded-2xl border border-border bg-card p-6 mb-6">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">
-                    {lang === 'ar' ? 'الخطة الحالية' : lang === 'fr' ? 'Plan actuel' : 'Current Plan'}
+                    {t('current_plan') || 'Current Plan'}
                   </p>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-2xl font-black text-foreground">
-                      {userPlan === 'pro' ? 'Pro ⭐' : 'Free'}
+                      {isPro ? 'Pro ⭐' : isTrial ? 'Trial ⚡' : 'Free'}
                     </span>
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                      userPlan === 'pro'
+                      isPro
                         ? 'bg-teal-500/20 text-teal-500'
+                        : isTrial
+                        ? 'bg-yellow-500/20 text-yellow-600'
                         : 'bg-muted text-muted-foreground'
                     }`}>
-                      {userPlan === 'pro' ? 'ACTIVE' : 'LIMITED'}
+                      {isPro ? 'ACTIVE' : isTrial ? 'TRIAL' : 'FREE'}
                     </span>
                   </div>
-                  {userPlan === 'pro' && expiresAt && (
+
+                  {/* Trial countdown */}
+                  {isTrial && trialDaysRemaining !== null && (
+                    <div className="mt-2">
+                      <p className={`text-sm font-medium ${
+                        trialDaysRemaining <= 1 ? 'text-red-500' :
+                        trialDaysRemaining <= 2 ? 'text-yellow-500' :
+                        'text-muted-foreground'
+                      }`}>
+                        {trialDaysRemaining <= 0
+                          ? (lang === 'ar' ? 'انتهت التجربة المجانية' :
+                             lang === 'fr' ? 'Essai expiré' :
+                             'Trial expired')
+                          : lang === 'ar'
+                          ? `⚡ ${trialDaysRemaining} ${trialDaysRemaining === 1 ? 'يوم متبقي' : 'أيام متبقية'} في تجربتك المجانية`
+                          : lang === 'fr'
+                          ? `⚡ ${trialDaysRemaining} jour${trialDaysRemaining > 1 ? 's' : ''} restant${trialDaysRemaining > 1 ? 's' : ''} dans votre essai`
+                          : `⚡ ${trialDaysRemaining} day${trialDaysRemaining !== 1 ? 's' : ''} left in your trial`
+                        }
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Pro expiry date */}
+                  {isPro && expiresAt && (
                     <p className="text-xs text-muted-foreground mt-1">
                       {lang === 'ar' ? `يتجدد في ${new Date(expiresAt).toLocaleDateString('ar')}` :
                        lang === 'fr' ? `Renouvellement le ${new Date(expiresAt).toLocaleDateString('fr')}` :
@@ -553,16 +616,71 @@ const SettingsPage = () => {
                     </p>
                   )}
                 </div>
-                {userPlan === 'free' && (
+
+                {/* Upgrade button — show for both free AND trial users */}
+                {!isPro && (
                   <Button
                     onClick={() => setShowUpgradeModal(true)}
-                    className="bg-teal-500 hover:bg-teal-600 text-black font-bold px-6"
+                    className={`font-bold px-6 ${
+                      isTrial
+                        ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                        : 'bg-teal-500 hover:bg-teal-600 text-black'
+                    }`}
                   >
-                    {lang === 'ar' ? 'ترقية إلى Pro' : lang === 'fr' ? 'Passer à Pro' : 'Upgrade to Pro'}
+                    {isTrial
+                      ? (lang === 'ar' ? 'اشترك قبل انتهاء التجربة ⭐' :
+                         lang === 'fr' ? "S'abonner avant la fin de l'essai ⭐" :
+                         'Subscribe before trial ends ⭐')
+                      : (lang === 'ar' ? 'ترقية إلى Pro' :
+                         lang === 'fr' ? 'Passer à Pro' :
+                         'Upgrade to Pro')
+                    }
                   </Button>
                 )}
               </div>
             </div>
+
+            {/* Trial user — special banner above plan cards */}
+            {isTrial && (
+              <div className={`rounded-2xl p-4 mb-5 border ${
+                trialDaysRemaining !== null && trialDaysRemaining <= 2
+                  ? 'bg-red-500/10 border-red-500/20'
+                  : 'bg-yellow-500/10 border-yellow-500/20'
+              }`}>
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl flex-shrink-0">
+                    {trialDaysRemaining !== null && trialDaysRemaining <= 2 ? '🚨' : '⚡'}
+                  </span>
+                  <div className="flex-1">
+                    <p className={`font-bold text-sm ${
+                      trialDaysRemaining !== null && trialDaysRemaining <= 2
+                        ? 'text-red-500' : 'text-yellow-600'
+                    }`}>
+                      {lang === 'ar'
+                        ? trialDaysRemaining !== null && trialDaysRemaining <= 2
+                          ? 'تجربتك المجانية على وشك الانتهاء!'
+                          : 'أنت تستخدم التجربة المجانية'
+                        : lang === 'fr'
+                        ? trialDaysRemaining !== null && trialDaysRemaining <= 2
+                          ? 'Votre essai se termine bientôt!'
+                          : "Vous utilisez la version d'essai"
+                        : trialDaysRemaining !== null && trialDaysRemaining <= 2
+                          ? 'Your trial is ending soon!'
+                          : 'You are on a free trial'
+                      }
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {lang === 'ar'
+                        ? 'اشترك الآن واستمر في استخدام جميع المميزات بدون انقطاع'
+                        : lang === 'fr'
+                        ? 'Abonnez-vous maintenant pour continuer sans interruption'
+                        : 'Subscribe now to continue using all features without interruption'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Feature comparison */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -628,7 +746,7 @@ const SettingsPage = () => {
                     </li>
                   ))}
                 </ul>
-                {userPlan === 'free' && (
+                {!isPro && (
                   <Button
                     onClick={() => setShowUpgradeModal(true)}
                     className="w-full mt-5 bg-teal-500 hover:bg-teal-600 text-black font-bold"
@@ -640,7 +758,7 @@ const SettingsPage = () => {
             </div>
 
             {/* Pending verification notice */}
-            {pendingSubmission && userPlan === 'free' && (
+            {pendingSubmission && !isPro && (
               <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 flex items-center gap-3">
                 <span className="text-yellow-500 text-xl">⏳</span>
                 <div>
@@ -692,12 +810,44 @@ const SettingsPage = () => {
             {/* STEP 1: Choose payment method */}
             {upgradeStep === 1 && (
               <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                <h2 className="text-xl font-black mb-1">
-                  {lang === 'ar' ? 'ترقية إلى Pro ⭐' : lang === 'fr' ? 'Passer à Pro ⭐' : 'Upgrade to Pro ⭐'}
-                </h2>
-                <p className="text-muted-foreground text-sm mb-6">
-                  {lang === 'ar' ? 'اختر طريقة الدفع' : lang === 'fr' ? 'Choisissez votre méthode de paiement' : 'Choose your payment method'}
-                </p>
+                {isTrial ? (
+                  <div>
+                    <h2 className="text-xl font-black mb-1">
+                      {lang === 'ar' ? 'استمر مع Pro ⭐' :
+                       lang === 'fr' ? 'Continuez avec Pro ⭐' :
+                       'Continue with Pro ⭐'}
+                    </h2>
+                    <p className="text-muted-foreground text-sm mb-2">
+                      {lang === 'ar'
+                        ? `لديك ${trialDaysRemaining} أيام متبقية في تجربتك — اشترك الآن واستمر بدون انقطاع`
+                        : lang === 'fr'
+                        ? `Il vous reste ${trialDaysRemaining} jours d'essai — abonnez-vous maintenant`
+                        : `You have ${trialDaysRemaining} days left in your trial — subscribe now to continue`
+                      }
+                    </p>
+                    {trialDaysRemaining !== null && trialDaysRemaining <= 2 && (
+                      <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 mb-4">
+                        <p className="text-xs text-red-500 font-bold text-center">
+                          {lang === 'ar'
+                            ? `⚠️ تجربتك تنتهي خلال ${trialDaysRemaining === 1 ? 'يوم واحد' : `${trialDaysRemaining} أيام`}`
+                            : lang === 'fr'
+                            ? `⚠️ Votre essai expire dans ${trialDaysRemaining} jour${trialDaysRemaining > 1 ? 's' : ''}`
+                            : `⚠️ Your trial expires in ${trialDaysRemaining} day${trialDaysRemaining !== 1 ? 's' : ''}`
+                          }
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <h2 className="text-xl font-black mb-1">
+                      {lang === 'ar' ? 'ترقية إلى Pro ⭐' : lang === 'fr' ? 'Passer à Pro ⭐' : 'Upgrade to Pro ⭐'}
+                    </h2>
+                    <p className="text-muted-foreground text-sm mb-6">
+                      {lang === 'ar' ? 'اختر طريقة الدفع' : lang === 'fr' ? 'Choisissez votre méthode de paiement' : 'Choose your payment method'}
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <button
