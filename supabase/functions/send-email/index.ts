@@ -244,6 +244,113 @@ function buildProActivatedEmail(userEmail: string, paymentMethod: string, amount
 </html>`;
 }
 
+function buildRenewalReminderEmail(userEmail: string, expiresAt: string): string {
+  return `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تجديد الاشتراك</title>
+</head>
+<body style="margin:0;padding:0;background:#0f0f0f;font-family:Arial,sans-serif;direction:rtl;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f0f;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0"
+          style="background:#1a1a1a;border-radius:16px;overflow:hidden;max-width:560px;width:100%;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#f59e0b,#d97706);
+              padding:32px;text-align:center;">
+              <p style="margin:0;font-size:48px;">⏰</p>
+              <h1 style="margin:12px 0 0;color:#fff;font-size:22px;font-weight:800;">
+                اشتراكك على وشك الانتهاء
+              </h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <p style="color:#e5e7eb;font-size:15px;line-height:1.7;margin:0 0 24px;">
+                مرحباً! نود إعلامك بأن اشتراكك في
+                <strong style="color:#14b8a6;">TradeSmartDz Pro</strong>
+                سينتهي قريباً.
+              </p>
+
+              <table width="100%" cellpadding="0" cellspacing="0"
+                style="background:#0f0f0f;border-radius:12px;margin-bottom:24px;">
+                <tr><td style="padding:20px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">الحساب</td>
+                      <td style="color:#f3f4f6;font-size:14px;font-weight:600;
+                        text-align:left;">${userEmail}</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">
+                        تاريخ الانتهاء</td>
+                      <td style="color:#f59e0b;font-size:14px;font-weight:700;
+                        text-align:left;">${expiresAt}</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#9ca3af;font-size:14px;padding:6px 0;">
+                        المتبقي</td>
+                      <td style="color:#ef4444;font-size:14px;font-weight:700;
+                        text-align:left;">3 أيام أو أقل</td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+
+              <p style="color:#e5e7eb;font-size:14px;line-height:1.7;margin:0 0 24px;">
+                لتجديد اشتراكك والحفاظ على وصولك لجميع الميزات،
+                قم بالدفع وأرسل لنا الإثبات عبر Telegram.
+              </p>
+
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:0 0 16px;">
+                    <a href="https://neuroport.xyz/settings?tab=subscription"
+                      style="display:inline-block;background:#14b8a6;color:#000;
+                      text-decoration:none;padding:14px 40px;border-radius:12px;
+                      font-weight:800;font-size:16px;">
+                      🔄 جدد اشتراكك الآن
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding:0 0 24px;">
+                    <a href="https://t.me/tradesmartdzz"
+                      style="display:inline-block;background:#229ED9;color:#fff;
+                      text-decoration:none;padding:12px 32px;border-radius:12px;
+                      font-weight:700;font-size:14px;">
+                      📱 تواصل معنا على Telegram
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="color:#6b7280;font-size:12px;text-align:center;margin:0;">
+                للمساعدة:
+                <a href="mailto:tradesmartdz2@gmail.com"
+                  style="color:#14b8a6;">tradesmartdz2@gmail.com</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#111;padding:20px 32px;text-align:center;">
+              <p style="margin:0;color:#4b5563;font-size:12px;">
+                TradeSmartDz © ${new Date().getFullYear()}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 // ── CORS ───────────────────────────────────────────────────────────────────
 
 const corsHeaders = {
@@ -280,6 +387,9 @@ Deno.serve(async (req) => {
     } else if (type === 'pro_activated') {
       subject = '🎉 TradeSmartDz — تم تفعيل حسابك Pro!';
       html = buildProActivatedEmail(userEmail, paymentMethod ?? '', amount ?? '');
+    } else if (type === 'renewal_reminder') {
+      subject = '⏰ TradeSmartDz — اشتراكك على وشك الانتهاء';
+      html = buildRenewalReminderEmail(userEmail, body.expiresAt || '');
     } else {
       return new Response(JSON.stringify({ error: 'Unknown type' }), {
         status: 400,
