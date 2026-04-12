@@ -47,7 +47,7 @@ export function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
     <div className="flex items-center gap-2">
       <LogoIcon className={iconSizes[size]} />
       <span className={`${textSizes[size]} font-bold`}>
-        <span className="text-foreground">TradeSmart</span><span className="text-primary">Dz</span>
+        <span className="logo-text text-foreground">TradeSmart</span><span className="logo-dz text-primary">Dz</span>
       </span>
     </div>
   );

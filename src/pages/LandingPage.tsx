@@ -21,6 +21,26 @@ const useInView = (threshold = 0.1) => {
   return { ref, inView };
 };
 
+// ── Count-up animation hook ────────────────────────────────────
+const useCountUp = (end: number, duration = 2000, inView = false) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!inView) return;
+    let startTime: number;
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime;
+      const progress = Math.min((currentTime - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.floor(eased * end));
+      if (progress < 1) requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  }, [inView, end, duration]);
+
+  return count;
+};
+
 // ── FAQ accordion item ─────────────────────────────────────────
 const FaqItem = ({ question, answer }: { question: string; answer: string }) => {
   const [open, setOpen] = useState(false);
@@ -46,25 +66,41 @@ const FaqItem = ({ question, answer }: { question: string; answer: string }) => 
 const LandingPage = () => {
   const { t, language, setLanguage } = useLanguage();
   const lang = language as 'ar' | 'fr' | 'en';
-
-  const cycleLanguage = () => {
-    const order: Language[] = ['ar', 'fr', 'en'];
-    const next = order[(order.indexOf(lang) + 1) % order.length];
-    setLanguage(next);
-  };
-
   const isAr = lang === 'ar';
 
+  // Navbar scroll shadow
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Language selector dropdown
+  const [showLangSelector, setShowLangSelector] = useState(false);
+  const languages: { code: Language; label: string; flag: string; native: string }[] = [
+    { code: 'ar', label: 'العربية', flag: '🇸🇦', native: 'Arabic' },
+    { code: 'fr', label: 'Français', flag: '🇫🇷', native: 'French' },
+    { code: 'en', label: 'English', flag: '🇬🇧', native: 'English' },
+  ];
+
+  // Section animations
+  const statsAnim = useInView(0.3);
   const featuresAnim = useInView();
   const howAnim = useInView();
   const pricingAnim = useInView();
   const testimonialsAnim = useInView();
 
+  // Count-up for stats
+  const tradersCount = useCountUp(500, 1500, statsAnim.inView);
+  const winRateCount = useCountUp(68, 1500, statsAnim.inView);
+  const firmsCount = useCountUp(4, 800, statsAnim.inView);
+
   return (
     <div className="min-h-screen bg-white" dir={isAr ? 'rtl' : 'ltr'}>
 
       {/* ── NAVBAR ── */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+      <nav className={`sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100 transition-all duration-300 ${scrolled ? 'shadow-lg shadow-gray-200/50' : 'shadow-none'}`}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
 
           {/* Logo */}
@@ -85,12 +121,64 @@ const LandingPage = () => {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={cycleLanguage}
-              className="text-xs font-bold text-gray-500 hover:text-teal-600 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              {language.toUpperCase()}
-            </button>
+
+            {/* Premium language selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowLangSelector(!showLangSelector)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition-all duration-200 group"
+              >
+                <span className="text-base">
+                  {languages.find(l => l.code === language)?.flag}
+                </span>
+                <span className="text-xs font-bold text-gray-600 group-hover:text-teal-600 uppercase">{language}</span>
+                <svg
+                  className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${showLangSelector ? 'rotate-180' : ''}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showLangSelector && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowLangSelector(false)}
+                  />
+                  {/* Dropdown panel */}
+                  <div className="absolute top-full mt-2 right-0 z-50 bg-white rounded-2xl shadow-xl shadow-gray-200/80 border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 w-48">
+                    <div className="p-1.5">
+                      {languages.map((langOption) => (
+                        <button
+                          key={langOption.code}
+                          onClick={() => {
+                            setLanguage(langOption.code);
+                            setShowLangSelector(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-150 ${
+                            language === langOption.code
+                              ? 'bg-teal-50 text-teal-700'
+                              : 'hover:bg-gray-50 text-gray-700'
+                          }`}
+                        >
+                          <span className="text-xl">{langOption.flag}</span>
+                          <div>
+                            <p className="text-sm font-bold">{langOption.label}</p>
+                            <p className="text-xs text-gray-400">{langOption.native}</p>
+                          </div>
+                          {language === langOption.code && (
+                            <span className="ml-auto text-teal-500 text-sm">✓</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             <Link
               to="/login"
               className="hidden md:block text-sm font-semibold text-gray-700 hover:text-teal-600 transition-colors px-3 py-2"
@@ -153,7 +241,7 @@ const LandingPage = () => {
               <div className="flex flex-wrap gap-3 mb-4">
                 <Link
                   to="/register"
-                  className="bg-teal-500 hover:bg-teal-600 text-white font-black text-base px-8 py-4 rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-teal-500/30 hover:-translate-y-0.5 inline-block"
+                  className="btn-pulse bg-teal-500 hover:bg-teal-600 text-white font-black text-base px-8 py-4 rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-teal-500/30 hover:-translate-y-0.5 inline-block"
                 >
                   {t('landing_hero_cta')}
                 </Link>
@@ -170,7 +258,6 @@ const LandingPage = () => {
               {/* Mobile-only app preview */}
               <div className="mt-8 lg:hidden">
                 <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/80 border border-gray-100 overflow-hidden mx-auto max-w-sm">
-                  {/* Browser bar */}
                   <div className="bg-gray-50 border-b border-gray-100 px-3 py-2 flex items-center gap-2">
                     <div className="flex gap-1">
                       <div className="w-2 h-2 rounded-full bg-red-400" />
@@ -181,7 +268,6 @@ const LandingPage = () => {
                       app.tradesmartdz.com
                     </div>
                   </div>
-                  {/* Mini stats */}
                   <div className="p-3 bg-gray-50 space-y-2">
                     <div className="grid grid-cols-3 gap-2">
                       {[
@@ -195,17 +281,11 @@ const LandingPage = () => {
                         </div>
                       ))}
                     </div>
-                    {/* Mini bars chart */}
                     <div className="bg-white rounded-xl p-2 border border-gray-100 flex items-end gap-0.5 h-16">
                       {[40, 65, 45, 80, 60, 90, 75, 85, 70, 95, 60, 88].map((h, i) => (
-                        <div key={i} className="flex-1 rounded-t-sm transition-all"
-                          style={{
-                            height: `${h}%`,
-                            background: h > 70 ? '#14b8a6' : '#e2e8f0'
-                          }} />
+                        <div key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, background: h > 70 ? '#14b8a6' : '#e2e8f0' }} />
                       ))}
                     </div>
-                    {/* Mini trades */}
                     {[
                       { symbol: 'NQ', result: 'Win', pnl: '+$125' },
                       { symbol: 'GOLD', result: 'Loss', pnl: '-$45' },
@@ -230,7 +310,6 @@ const LandingPage = () => {
             {/* App mockup — desktop only */}
             <div className="relative hidden lg:block">
               <div className="relative bg-white rounded-3xl shadow-2xl shadow-gray-200/80 border border-gray-100 overflow-hidden">
-                {/* Browser bar */}
                 <div className="bg-gray-50 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
                   <div className="flex gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-red-400" />
@@ -241,7 +320,6 @@ const LandingPage = () => {
                     app.tradesmartdz.com/dashboard
                   </div>
                 </div>
-                {/* Dashboard preview */}
                 <div className="bg-gray-50 p-4 space-y-3">
                   <div className="grid grid-cols-3 gap-2">
                     {[
@@ -283,14 +361,14 @@ const LandingPage = () => {
                 </div>
               </div>
               {/* Floating badges */}
-              <div className="absolute -top-4 -right-4 bg-white rounded-2xl shadow-lg border border-gray-100 px-4 py-3 flex items-center gap-2">
+              <div className="animate-float absolute -top-4 -right-4 bg-white rounded-2xl shadow-lg border border-gray-100 px-4 py-3 flex items-center gap-2">
                 <span className="text-green-500 text-lg">✓</span>
                 <div>
                   <p className="text-xs font-black text-gray-800">Win Rate</p>
                   <p className="text-xs text-gray-400">+12% this month</p>
                 </div>
               </div>
-              <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-lg border border-gray-100 px-4 py-3 flex items-center gap-2">
+              <div className="animate-float-delayed absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-lg border border-gray-100 px-4 py-3 flex items-center gap-2">
                 <span className="text-2xl">🤖</span>
                 <div>
                   <p className="text-xs font-black text-gray-800">AI Coach</p>
@@ -303,33 +381,36 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+
       {/* ── STATS BAR ── */}
-      <section className="bg-gray-50 border-y border-gray-100 py-8">
+      <section className="bg-gray-50 border-b border-gray-100 py-8">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="grid grid-cols-3 gap-8 text-center">
+          <div ref={statsAnim.ref} className="grid grid-cols-3 gap-8 text-center">
             <div>
-              <p className="text-4xl md:text-3xl font-black text-teal-600">500+</p>
+              <p className="text-4xl md:text-3xl font-black text-teal-600">{tradersCount}+</p>
               <p className="text-sm text-gray-500 mt-1">{t('landing_stats_traders')}</p>
             </div>
             <div>
-              <p className="text-4xl md:text-3xl font-black text-teal-600">68%</p>
+              <p className="text-4xl md:text-3xl font-black text-teal-600">{winRateCount}%</p>
               <p className="text-sm text-gray-500 mt-1">{t('landing_stats_winrate')}</p>
             </div>
             <div>
-              <p className="text-4xl md:text-3xl font-black text-teal-600">4</p>
+              <p className="text-4xl md:text-3xl font-black text-teal-600">{firmsCount}</p>
               <p className="text-sm text-gray-500 mt-1">{t('landing_stats_firms')}</p>
             </div>
           </div>
         </div>
       </section>
 
+      {/* Divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+
       {/* ── FEATURES ── */}
       <section id="features" className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4">
-          <div
-            ref={featuresAnim.ref}
-            className={`transition-all duration-700 ${featuresAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-          >
+          <div ref={featuresAnim.ref}>
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_features_title')}</h2>
             </div>
@@ -342,12 +423,20 @@ const LandingPage = () => {
                 { icon: '🎯', title: t('landing_f5_title'), desc: t('landing_f5_desc') },
                 { icon: '📓', title: t('landing_f6_title'), desc: t('landing_f6_desc') },
               ].map((feature, i) => (
-                <div key={i} className="group p-5 rounded-2xl border border-gray-100 hover:border-teal-500/30 hover:shadow-lg hover:shadow-teal-500/10 transition-all duration-300 bg-white flex gap-4 md:flex-col md:gap-0">
-                  <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center text-xl flex-shrink-0 md:mb-4 group-hover:bg-teal-500/10 transition-colors">
-                    {feature.icon}
+                <div
+                  key={i}
+                  className={`group p-5 rounded-2xl border border-gray-100 hover:border-teal-500/30 hover:shadow-xl hover:shadow-teal-500/10 transition-all duration-300 hover:-translate-y-2 bg-white cursor-default flex gap-4 md:flex-col md:gap-0 ${
+                    featuresAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+                  }`}
+                  style={{ transitionDelay: `${i * 100}ms` }}
+                >
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-teal-50 rounded-xl md:rounded-2xl flex items-center justify-center text-xl md:text-2xl flex-shrink-0 md:mb-4 group-hover:bg-teal-500 group-hover:scale-110 transition-all duration-300">
+                    <span className="group-hover:scale-110 transition-transform duration-300 inline-block">
+                      {feature.icon}
+                    </span>
                   </div>
                   <div>
-                    <h3 className="font-black text-gray-900 mb-1 text-base">{feature.title}</h3>
+                    <h3 className="font-black text-gray-900 mb-1 text-base group-hover:text-teal-600 transition-colors duration-300">{feature.title}</h3>
                     <p className="text-gray-500 text-sm leading-relaxed">{feature.desc}</p>
                   </div>
                 </div>
@@ -357,24 +446,30 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+
       {/* ── HOW IT WORKS ── */}
       <section id="how" className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
-          <div
-            ref={howAnim.ref}
-            className={`transition-all duration-700 ${howAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-          >
+          <div ref={howAnim.ref}>
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_how_title')}</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
               <div className="hidden md:block absolute top-8 left-1/4 right-1/4 h-0.5 bg-teal-100" />
               {[
-                { num: '01', title: t('landing_step1_title'), desc: t('landing_step1_desc'), icon: '🏦' },
-                { num: '02', title: t('landing_step2_title'), desc: t('landing_step2_desc'), icon: '📝' },
-                { num: '03', title: t('landing_step3_title'), desc: t('landing_step3_desc'), icon: '🚀' },
+                { num: '01', title: t('landing_step1_title'), desc: t('landing_step1_desc') },
+                { num: '02', title: t('landing_step2_title'), desc: t('landing_step2_desc') },
+                { num: '03', title: t('landing_step3_title'), desc: t('landing_step3_desc') },
               ].map((step, i) => (
-                <div key={i} className="flex md:flex-col md:text-center items-start md:items-center gap-4">
+                <div
+                  key={i}
+                  className={`flex md:flex-col md:text-center items-start md:items-center gap-4 transition-all duration-700 ${
+                    howAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+                  }`}
+                  style={{ transitionDelay: `${i * 150}ms` }}
+                >
                   <div className="w-12 h-12 bg-teal-500 text-white rounded-2xl flex items-center justify-center text-lg font-black flex-shrink-0 shadow-lg shadow-teal-500/30">
                     {step.num}
                   </div>
@@ -389,13 +484,13 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+
       {/* ── PRICING ── */}
       <section id="pricing" className="py-24 bg-white">
         <div className="max-w-5xl mx-auto px-4">
-          <div
-            ref={pricingAnim.ref}
-            className={`transition-all duration-700 ${pricingAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-          >
+          <div ref={pricingAnim.ref}>
             <div className="text-center mb-6">
               <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_pricing_title')}</h2>
               <div className="inline-flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm font-bold px-4 py-2 rounded-full">
@@ -405,7 +500,12 @@ const LandingPage = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
               {/* Pro — first on mobile */}
-              <div className="order-first md:order-last rounded-3xl border-2 border-teal-500 p-8 relative bg-gradient-to-br from-teal-50/50 to-white shadow-xl shadow-teal-500/10">
+              <div
+                className={`order-first md:order-last rounded-3xl border-2 border-teal-500 p-8 relative bg-gradient-to-br from-teal-50/50 to-white shadow-xl shadow-teal-500/10 hover:scale-[1.03] hover:shadow-2xl hover:shadow-teal-500/20 transition-all duration-300 ${
+                  pricingAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+                }`}
+                style={{ transitionDelay: '0ms' }}
+              >
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-teal-500 text-white text-xs font-black px-4 py-1 rounded-full whitespace-nowrap">
                   {isAr ? 'الأفضل قيمة' : lang === 'fr' ? 'Meilleur rapport' : 'Best Value'}
                 </div>
@@ -435,7 +535,12 @@ const LandingPage = () => {
               </div>
 
               {/* Free — second on mobile */}
-              <div className="order-last md:order-first rounded-3xl border-2 border-gray-200 p-8">
+              <div
+                className={`order-last md:order-first rounded-3xl border-2 border-gray-200 p-8 hover:scale-[1.02] hover:shadow-xl transition-all duration-300 cursor-default ${
+                  pricingAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+                }`}
+                style={{ transitionDelay: '150ms' }}
+              >
                 <h3 className="text-xl font-black text-gray-900 mb-1">{t('landing_free_plan')}</h3>
                 <div className="flex items-baseline gap-1 mb-6">
                   <span className="text-4xl font-black text-gray-900">0</span>
@@ -461,13 +566,13 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+
       {/* ── TESTIMONIALS ── */}
       <section className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
-          <div
-            ref={testimonialsAnim.ref}
-            className={`transition-all duration-700 ${testimonialsAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-          >
+          <div ref={testimonialsAnim.ref}>
             <h2 className="text-3xl font-black text-gray-900 text-center mb-12">{t('landing_testimonials_title')}</h2>
             <div className="flex md:grid md:grid-cols-3 gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide">
               {[
@@ -502,7 +607,13 @@ const LandingPage = () => {
                   rating: 5,
                 },
               ].map((item, i) => (
-                <div key={i} className="min-w-[280px] md:min-w-0 snap-start bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex-shrink-0 md:flex-shrink">
+                <div
+                  key={i}
+                  className={`min-w-[280px] md:min-w-0 snap-start bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex-shrink-0 md:flex-shrink transition-all duration-700 ${
+                    testimonialsAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+                  }`}
+                  style={{ transitionDelay: `${i * 100}ms` }}
+                >
                   <div className="flex gap-0.5 mb-4">
                     {[...Array(item.rating)].map((_, j) => (
                       <span key={j} className="text-yellow-400 text-sm">★</span>
@@ -524,6 +635,9 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+
+      {/* Divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
 
       {/* ── FAQ ── */}
       <section className="py-24 bg-white">
@@ -552,7 +666,13 @@ const LandingPage = () => {
                 a: isAr ? 'نعم، TradeSmartDz مصمم عربياً أولاً مع دعم كامل للغة العربية والفرنسية والإنجليزية.' : lang === 'fr' ? "Oui, TradeSmartDz est conçu en arabe en premier avec support complet AR/FR/EN." : 'Yes, TradeSmartDz is designed Arabic-first with full AR/FR/EN support.',
               },
             ].map((faq, i) => (
-              <FaqItem key={i} question={faq.q} answer={faq.a} />
+              <div
+                key={i}
+                className="transition-all duration-700"
+                style={{ transitionDelay: `${i * 75}ms` }}
+              >
+                <FaqItem question={faq.q} answer={faq.a} />
+              </div>
             ))}
           </div>
         </div>
@@ -577,7 +697,9 @@ const LandingPage = () => {
       <footer className="bg-gray-900 text-gray-400 py-12">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <Logo size="sm" />
+            <div className="[&_.logo-text]:text-white [&_.logo-dz]:text-teal-400">
+              <Logo size="sm" />
+            </div>
             <div className="flex items-center gap-6 text-sm">
               <a href="mailto:tradesmartdz2@gmail.com" className="hover:text-teal-400 transition-colors">
                 {t('landing_footer_support')}
