@@ -641,14 +641,14 @@ const AnalyticsPage = () => {
   const renderCustomLabel = (props: any) => {
     const { x, y, width, height, value } = props;
     const isNegative = value < 0;
-    const label = `${value >= 0 ? '+' : ''}$${Math.abs(value).toFixed(0)}`;
+    const label = `${value >= 0 ? '+' : '-'}$${Math.abs(value).toFixed(0)}`;
     return (
       <text
-        x={isNegative ? x - 5 : x + width + 5}
+        x={isNegative ? x - 8 : x + width + 8}
         y={y + height / 2}
         textAnchor={isNegative ? 'end' : 'start'}
         dominantBaseline="middle"
-        fontSize={12}
+        fontSize={11}
         fontWeight={700}
         fill={value >= 0 ? '#10b981' : '#ef4444'}
       >
@@ -1010,12 +1010,12 @@ const AnalyticsPage = () => {
       {!isPro && <ProLockOverlay feature={l.symbolChart} />}
       <Section title={l.symbolChart}>
         {symbolData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
-          <div className="w-full overflow-x-auto">
+          <div className="w-full overflow-hidden">
             <ResponsiveContainer width="100%" height={Math.max(150, symbolData.length * 64)}>
               <BarChart
                 layout="vertical"
                 data={symbolData}
-                margin={{ top: 8, right: 80, left: 60, bottom: 8 }}
+                margin={{ top: 8, right: 70, left: 70, bottom: 8 }}
                 cursor={false}
               >
                 <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} horizontal={false} />
@@ -1033,7 +1033,7 @@ const AnalyticsPage = () => {
                   tickFormatter={(value) => value.length > 7 ? value.substring(0, 7) + '…' : value}
                 />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
-                <ReferenceLine x={0} stroke="#6b7280" strokeDasharray="3 3" strokeOpacity={0.4} />
+                <ReferenceLine x={0} stroke="#6b7280" strokeOpacity={0.4} strokeDasharray="3 3" />
                 <Bar dataKey="pnl" name="PnL" radius={[0, 6, 6, 0]} cursor={false}>
                   {symbolData.map((entry, index) => (
                     <Cell
