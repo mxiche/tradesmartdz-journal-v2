@@ -4,7 +4,6 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('TG_SERVICE_KEY')!;
 const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!;
 const OWNER_CHAT_ID = Deno.env.get('OWNER_TELEGRAM_CHAT_ID')!;
-const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -92,17 +91,6 @@ async function runNotifications(): Promise<{ sent: number; total_users: number; 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
-  }
-
-  const authHeader = req.headers.get('Authorization') || '';
-  const token = authHeader.replace('Bearer ', '');
-  const validServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || SERVICE_KEY;
-
-  if (token !== ANON_KEY && token !== validServiceKey) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
   }
 
   try {
