@@ -7,6 +7,12 @@ const OWNER_CHAT_ID = Deno.env.get('OWNER_TELEGRAM_CHAT_ID')!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+};
+
 async function sendMessage(chatId: string, text: string): Promise<void> {
   await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: 'POST',
@@ -83,6 +89,10 @@ async function runNotifications(): Promise<{ sent: number; total_users: number; 
 
 // Handle both GET (cron trigger) and POST (payment_request or manual)
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   try {
     // Check for payment_request notification from frontend
     if (req.method === 'POST') {
@@ -95,25 +105,24 @@ Deno.serve(async (req) => {
             `🆔 User ID: ${body.userId}\n` +
             `💳 Method: ${body.paymentMethod === 'baridimob' ? 'BaridiMob' : 'USDT'}\n` +
             `💰 Amount: ${body.amount}\n` +
-            `📋 Reference: ${body.reference}\n` +
-            `🖼 Proof: ${body.proofUrl}\n\n` +
+            `📋 Reference: ${body.reference}\n\n` +
             `➡️ Activate in Supabase → subscriptions table`;
           await sendMessage(OWNER_CHAT_ID, message);
         }
         return new Response(JSON.stringify({ ok: true }), {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
     }
 
     const result = await runNotifications();
     return new Response(JSON.stringify(result), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

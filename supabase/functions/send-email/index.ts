@@ -129,9 +129,9 @@ function buildPaymentConfirmationEmail(userEmail: string, paymentMethod: string,
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:0 0 24px;">
-                    <a href="https://t.me/TradeSmartDz"
+                    <a href="https://t.me/tradesmartdzz"
                        style="display:inline-block;background:#229ED9;color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:700;font-size:15px;">
-                      📱 تواصل عبر Telegram
+                      📸 أرسل صورة إثبات الدفع على Telegram
                     </a>
                   </td>
                 </tr>
@@ -245,9 +245,21 @@ function buildProActivatedEmail(userEmail: string, paymentMethod: string, amount
 </html>`;
 }
 
+// ── CORS ───────────────────────────────────────────────────────────────────
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+};
+
 // ── Handler ────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   try {
     const body = await req.json();
     const { type, userEmail, paymentMethod, amount } = body;
@@ -255,7 +267,7 @@ Deno.serve(async (req) => {
     if (!userEmail || !type) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -271,7 +283,7 @@ Deno.serve(async (req) => {
     } else {
       return new Response(JSON.stringify({ error: 'Unknown type' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -285,12 +297,12 @@ Deno.serve(async (req) => {
     if (error) throw new Error(error.message);
 
     return new Response(JSON.stringify({ ok: true, id: data?.id }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

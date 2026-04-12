@@ -861,7 +861,7 @@ const SettingsPage = () => {
 
                 {/* Telegram screenshot CTA */}
                 <a
-                  href="https://t.me/Tradesmartdzbot"
+                  href="https://t.me/tradesmartdzz"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-start gap-3 rounded-xl bg-blue-500/10 border border-blue-500/30 p-4 mb-6 hover:bg-blue-500/15 transition-colors"
@@ -869,14 +869,14 @@ const SettingsPage = () => {
                   <span className="text-2xl flex-shrink-0">📸</span>
                   <div>
                     <p className="font-semibold text-sm text-blue-400">
-                      {lang === 'ar' ? 'أرسل لقطة الشاشة عبر Telegram' : lang === 'fr' ? 'Envoyez la capture sur Telegram' : 'Send your screenshot via Telegram'}
+                      {lang === 'ar' ? 'أرسل صورة إثبات الدفع على Telegram' : lang === 'fr' ? 'Envoyez la capture sur Telegram' : 'Send payment screenshot on Telegram'}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {lang === 'ar'
-                        ? 'افتح البوت @Tradesmartdzbot وأرسل صورة إثبات الدفع مباشرةً'
+                        ? 'تواصل مع @tradesmartdzz وأرسل صورة إثبات الدفع مباشرةً'
                         : lang === 'fr'
-                        ? 'Ouvrez le bot @Tradesmartdzbot et envoyez votre capture de paiement'
-                        : 'Open @Tradesmartdzbot and send your payment proof image directly'}
+                        ? 'Contactez @tradesmartdzz et envoyez votre capture de paiement'
+                        : 'Contact @tradesmartdzz and send your payment proof image directly'}
                     </p>
                   </div>
                 </a>
@@ -937,20 +937,20 @@ const SettingsPage = () => {
 
                 {/* Telegram CTA */}
                 <a
-                  href="https://t.me/TradeSmartDz"
+                  href="https://t.me/tradesmartdzz"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block rounded-xl bg-blue-500/10 border border-blue-500/30 p-4 mb-4 text-left hover:bg-blue-500/15 transition-colors"
                 >
                   <p className="font-semibold text-sm text-blue-400 mb-1">
-                    📸 {lang === 'ar' ? 'أرسل لنا لقطة الشاشة عبر Telegram' : lang === 'fr' ? 'Envoyez la capture sur Telegram' : 'Send your screenshot on Telegram'}
+                    📸 {lang === 'ar' ? 'أرسل صورة إثبات الدفع على Telegram' : lang === 'fr' ? 'Envoyez la capture sur Telegram' : 'Send payment screenshot on Telegram'}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {lang === 'ar'
-                      ? 'للتسريع، أرسل إثبات الدفع مباشرة عبر Telegram @TradeSmartDz'
+                      ? 'تواصل مع @tradesmartdzz وأرسل إثبات الدفع مباشرةً'
                       : lang === 'fr'
-                      ? 'Pour accélérer, envoyez la preuve sur Telegram @TradeSmartDz'
-                      : 'To speed things up, send your proof directly via Telegram @TradeSmartDz'}
+                      ? 'Contactez @tradesmartdzz et envoyez la preuve de paiement'
+                      : 'Contact @tradesmartdzz and send your payment proof directly'}
                   </p>
                 </a>
 
