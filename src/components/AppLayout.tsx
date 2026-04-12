@@ -3,7 +3,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Logo } from '@/components/Logo';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -118,7 +117,6 @@ export default function AppLayout() {
           <Logo size="sm" />
           <div className="flex flex-1 items-center justify-end gap-1">
             <LanguageSwitcher variant="compact" />
-            <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
@@ -139,7 +137,6 @@ export default function AppLayout() {
         <header className="h-14 px-4 hidden lg:flex items-center justify-end border-b border-border bg-background shrink-0">
           <div className="flex items-center gap-2">
             <LanguageSwitcher variant="compact" />
-            <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full">

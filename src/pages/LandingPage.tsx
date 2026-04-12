@@ -1,432 +1,503 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Logo } from '@/components/Logo';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Tag, Languages, Building2, BarChart3, Clock, Check, Star, ArrowRight, Menu, X, TrendingUp, LineChart, BookOpen } from 'lucide-react';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { Language } from '@/lib/i18n';
 
-const useParallax = (speed = 0.3) => {
-  const [offset, setOffset] = useState(0);
-  const rafRef = useRef<number>();
-
-  const handleScroll = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => {
-      setOffset(window.scrollY * speed);
-    });
-  }, [speed]);
-
-  useEffect(() => {
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [handleScroll]);
-
-  return offset;
+// ── FAQ accordion item ─────────────────────────────────────────
+const FaqItem = ({ question, answer }: { question: string; answer: string }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`border rounded-2xl overflow-hidden transition-all ${open ? 'border-teal-500/30' : 'border-gray-200'}`}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition-colors"
+      >
+        <span className="font-bold text-gray-900 text-sm pr-4">{question}</span>
+        <span className={`text-teal-500 transition-transform duration-200 flex-shrink-0 ${open ? 'rotate-180' : ''}`}>▼</span>
+      </button>
+      {open && (
+        <div className="px-5 pb-5">
+          <p className="text-gray-500 text-sm leading-relaxed">{answer}</p>
+        </div>
+      )}
+    </div>
+  );
 };
 
-// Candlestick SVG pattern for hero background
-const CandlestickPattern = () => (
-  <svg
-    className="absolute inset-0 h-full w-full opacity-[0.04]"
-    preserveAspectRatio="xMidYMid slice"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <defs>
-      <pattern id="candles" x="0" y="0" width="48" height="80" patternUnits="userSpaceOnUse">
-        {/* Bullish candle */}
-        <line x1="8" y1="10" x2="8" y2="70" stroke="currentColor" strokeWidth="1" />
-        <rect x="4" y="25" width="8" height="30" fill="currentColor" rx="1" />
-        {/* Bearish candle */}
-        <line x1="24" y1="15" x2="24" y2="65" stroke="currentColor" strokeWidth="1" />
-        <rect x="20" y="30" width="8" height="20" fill="none" stroke="currentColor" strokeWidth="1" rx="1" />
-        {/* Bullish candle */}
-        <line x1="40" y1="20" x2="40" y2="60" stroke="currentColor" strokeWidth="1" />
-        <rect x="36" y="28" width="8" height="22" fill="currentColor" rx="1" />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#candles)" className="text-primary" />
-  </svg>
-);
-
-// Dashboard mockup component
-const DashboardMockup = () => (
-  <div className="relative mx-auto w-full max-w-3xl">
-    {/* Glow behind mockup */}
-    <div className="absolute -inset-4 rounded-2xl bg-primary/10 blur-2xl" />
-    <div className="relative rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
-      {/* Fake browser chrome */}
-      <div className="flex items-center gap-2 border-b border-border bg-background/60 px-4 py-2.5">
-        <div className="h-3 w-3 rounded-full bg-red-500/70" />
-        <div className="h-3 w-3 rounded-full bg-yellow-500/70" />
-        <div className="h-3 w-3 rounded-full bg-green-500/70" />
-        <div className="mx-auto flex h-5 w-48 items-center rounded bg-secondary px-2">
-          <span className="text-[10px] text-muted-foreground">app.tradesmartdz.com/dashboard</span>
-        </div>
-      </div>
-
-      {/* Mockup content */}
-      <div className="p-4">
-        {/* Stat cards row */}
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          {[
-            { label: 'Total P&L', value: '+$2,847', color: 'text-emerald-400' },
-            { label: 'Win Rate', value: '70%', color: 'text-foreground' },
-            { label: 'Profit Factor', value: '1.84', color: 'text-foreground' },
-            { label: 'Drawdown', value: '3.2%', color: 'text-foreground' },
-          ].map((s, i) => (
-            <div key={i} className="rounded-lg border border-border bg-background/50 p-2">
-              <p className="text-[9px] text-muted-foreground mb-0.5">{s.label}</p>
-              <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Equity curve */}
-        <div className="rounded-lg border border-border bg-background/50 p-3 mb-3">
-          <p className="text-[9px] text-muted-foreground mb-2">Equity Curve</p>
-          <svg viewBox="0 0 300 60" className="w-full h-12">
-            <defs>
-              <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(165,100%,42%)" stopOpacity="0.3" />
-                <stop offset="100%" stopColor="hsl(165,100%,42%)" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path d="M0,50 L30,45 L60,40 L90,42 L120,30 L150,28 L180,20 L210,22 L240,12 L270,8 L300,5"
-              fill="none" stroke="hsl(165,100%,42%)" strokeWidth="2" strokeLinecap="round" />
-            <path d="M0,50 L30,45 L60,40 L90,42 L120,30 L150,28 L180,20 L210,22 L240,12 L270,8 L300,5 L300,60 L0,60Z"
-              fill="url(#lineGrad)" />
-          </svg>
-        </div>
-
-        {/* Mini trades table */}
-        <div className="rounded-lg border border-border bg-background/50 overflow-hidden">
-          <div className="grid grid-cols-5 gap-2 px-3 py-1.5 border-b border-border">
-            {['Symbol', 'Dir', 'Entry', 'P&L', 'Setup'].map(h => (
-              <span key={h} className="text-[8px] font-medium text-muted-foreground">{h}</span>
-            ))}
-          </div>
-          {[
-            { sym: 'XAUUSD', dir: 'BUY', entry: '2341.5', pnl: '+$180', setup: 'FVG', win: true },
-            { sym: 'EURUSD', dir: 'SELL', entry: '1.0892', pnl: '-$45', setup: 'OB', win: false },
-            { sym: 'XAUUSD', dir: 'BUY', entry: '2318.0', pnl: '+$220', setup: 'MSS', win: true },
-          ].map((tr, i) => (
-            <div key={i} className="grid grid-cols-5 gap-2 px-3 py-1.5 border-b border-border/50 last:border-0">
-              <span className="text-[9px] font-medium text-foreground">{tr.sym}</span>
-              <span className={`text-[9px] font-medium ${tr.dir === 'BUY' ? 'text-emerald-400' : 'text-red-400'}`}>{tr.dir}</span>
-              <span className="text-[9px] text-muted-foreground">{tr.entry}</span>
-              <span className={`text-[9px] font-medium ${tr.win ? 'text-emerald-400' : 'text-red-400'}`}>{tr.pnl}</span>
-              <span className="text-[9px] rounded bg-secondary px-1 text-muted-foreground w-fit">{tr.setup}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
+// ── Main component ─────────────────────────────────────────────
 const LandingPage = () => {
-  const { t, isRtl, language } = useLanguage();
-  const parallaxOffset = useParallax(0.35);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { t, language, setLanguage } = useLanguage();
+  const lang = language as 'ar' | 'fr' | 'en';
 
-  const features = [
-    { icon: RefreshCw, title: { ar: 'مزامنة MT5 تلقائية', fr: 'Sync MT5 auto', en: 'MT5 Auto-Sync' }, desc: { ar: 'اربط حسابك مرة واحدة وستتم المزامنة تلقائياً', fr: 'Connectez une fois, les trades se synchronisent', en: 'Connect once, trades sync automatically' } },
-    { icon: Tag, title: { ar: 'علامات ICT', fr: 'Tags ICT', en: 'ICT Setup Tags' }, desc: { ar: 'FVG, IFVG, Order Block, Liquidity Sweep', fr: 'FVG, IFVG, Order Block, Liquidity Sweep', en: 'FVG, IFVG, Order Block, Liquidity Sweep' } },
-    { icon: Languages, title: { ar: 'عربي أولاً', fr: 'Arabe en premier', en: 'Arabic First' }, desc: { ar: 'دعم كامل للغة العربية واتجاه RTL', fr: 'Support complet RTL et interface arabe', en: 'Full RTL support, Arabic UI' } },
-    { icon: Building2, title: { ar: 'جاهز لشركات التمويل', fr: 'Prêt pour les prop firms', en: 'Prop Firm Ready' }, desc: { ar: 'FTMO, FundingPips, Alpha Capital, FundedNext', fr: 'FTMO, FundingPips, Alpha Capital, FundedNext', en: 'FTMO, FundingPips, Alpha Capital, FundedNext' } },
-    { icon: BarChart3, title: { ar: 'تحليلات متقدمة', fr: 'Analytiques avancées', en: 'Advanced Analytics' }, desc: { ar: 'نسبة الربح حسب الإعداد والجلسة والرمز', fr: 'Win rate par setup, session, symbole', en: 'Win rate by setup, session, symbol' } },
-    { icon: Clock, title: { ar: 'تحليل Kill Zone', fr: 'Analyse Kill Zone', en: 'Kill Zone Analysis' }, desc: { ar: 'أداء جلسات لندن، نيويورك، آسيا', fr: 'Performance Londres, NY, Asie', en: 'London, NY, Asia session performance' } },
-  ];
+  const cycleLanguage = () => {
+    const order: Language[] = ['ar', 'fr', 'en'];
+    const next = order[(order.indexOf(lang) + 1) % order.length];
+    setLanguage(next);
+  };
 
-  const firms = ['FTMO', 'FundingPips', 'Alpha Capital', 'FundedNext'];
-
-  const plans = [
-    { name: t('free'), price: '0', features: ['20 trades/month', '1 account', 'Basic stats', 'Manual entry'], featured: false },
-    { name: t('pro'), price: '2,500', features: ['Unlimited trades', '5 accounts', 'MT5 auto-sync', 'ICT tags', 'Advanced analytics', 'Kill zone analysis', 'Chart screenshots', 'Priority support'], featured: true },
-    { name: t('journalOnly'), price: '1,200', features: ['Unlimited trades', '3 accounts', 'MT5 auto-sync', 'ICT tags', 'Basic analytics'], featured: false },
-  ];
-
-  const testimonials = [
-    { name: 'أحمد بن سعيد', role: 'FTMO Trader', text: 'أفضل مجلة تداول استخدمتها. الواجهة العربية ممتازة والتحليلات ساعدتني أطور أدائي بشكل كبير.' },
-    { name: 'ياسين مهدي', role: 'FundingPips Trader', text: 'المزامنة التلقائية مع MT5 وفرت عليّ وقت كبير. أنصح بها كل متداول عربي.' },
-    { name: 'كريم عبد الرحمن', role: 'Alpha Capital Trader', text: 'تحليل Kill Zone غيّر طريقة تداولي. الآن أعرف أي جلسة تناسبني أكثر.' },
-  ];
-
-  const steps = [
-    {
-      icon: Building2,
-      num: '01',
-      title: { ar: 'أضف حسابك', fr: 'Ajoutez votre compte', en: 'Add Your Account' },
-      desc: {
-        ar: 'أنشئ ملف حسابك في شركة التمويل مع قواعد التحدي وحدود السحب وأهداف الربح.',
-        fr: 'Créez votre profil de compte prop firm avec vos règles de challenge, limites de drawdown et objectifs de profit.',
-        en: 'Create your prop firm or live trading account profile with your challenge rules, drawdown limits and profit targets.',
-      },
-    },
-    {
-      icon: BookOpen,
-      num: '02',
-      title: { ar: 'سجّل صفقاتك', fr: 'Enregistrez vos trades', en: 'Log Your Trades' },
-      desc: {
-        ar: 'سجّل كل صفقة مع النتيجة والجلسة والإعداد وصورة الرسم البياني. أضف ملاحظاتك لمراجعة قراراتك.',
-        fr: 'Notez chaque trade avec le résultat, la session, le tag de setup et une capture d\'écran. Ajoutez des notes.',
-        en: 'Record every trade with result, session, setup tag and chart screenshot. Add notes to review your decisions.',
-      },
-    },
-    {
-      icon: LineChart,
-      num: '03',
-      title: { ar: 'حلّل وتطوّر', fr: 'Analysez & Progressez', en: 'Analyze & Improve' },
-      desc: {
-        ar: 'احصل على تحليل ذكاء اصطناعي لأنماط تداولك. نسبة الربح حسب الإعداد والجلسة والرمز. ملخصات يومية على تيليغرام.',
-        fr: 'Obtenez des insights IA sur vos habitudes de trading. Win rate par setup, session et symbole. Résumés Telegram quotidiens.',
-        en: 'Get AI-powered insights on your trading patterns. See win rate by setup, session and symbol. Receive daily Telegram summaries.',
-      },
-    },
-  ];
-
-  const floatingStats = [
-    { icon: TrendingUp, label: 'Win Rate', value: '70%', color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
-    { icon: BarChart3, label: 'This Month', value: '+$2,400', color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
-    { icon: RefreshCw, label: 'Trades Analyzed', value: '847', color: 'text-primary', bg: 'bg-primary/10' },
-  ];
+  const isAr = lang === 'ar';
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navbar */}
-      <nav className="sticky top-0 z-50 border-b border-border glass">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-6">
-            <Logo />
-            <div className="hidden gap-6 md:flex">
-              <a href="#how-it-works" className="text-sm text-muted-foreground transition-colors hover:text-foreground">How it works</a>
-              <a href="#features" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t('features')}</a>
-              <a href="#pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t('pricing')}</a>
-              <a href="#testimonials" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t('about')}</a>
-            </div>
-          </div>
+    <div className="min-h-screen bg-white" dir={isAr ? 'rtl' : 'ltr'}>
+
+      {/* ── NAVBAR ── */}
+      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+
+          {/* Logo */}
           <div className="flex items-center gap-2">
-            <LanguageSwitcher />
-            <ThemeToggle />
-            <div className="hidden items-center gap-2 sm:flex">
-              <Link to="/login"><Button variant="outline" size="sm" className="min-h-[44px]">{t('login')}</Button></Link>
-              <Link to="/register"><Button size="sm" className="min-h-[44px] gradient-primary text-primary-foreground">{t('getStarted')}</Button></Link>
-            </div>
+            <Logo size="sm" />
+            <span className="font-black text-lg text-gray-900">
+              TradeSmart<span className="text-teal-500">Dz</span>
+            </span>
+          </div>
+
+          {/* Desktop nav links */}
+          <div className="hidden md:flex items-center gap-8">
+            <a href="#features" className="text-sm text-gray-600 hover:text-teal-600 transition-colors font-medium">
+              {isAr ? 'المميزات' : lang === 'fr' ? 'Fonctionnalités' : 'Features'}
+            </a>
+            <a href="#how" className="text-sm text-gray-600 hover:text-teal-600 transition-colors font-medium">
+              {isAr ? 'كيف يعمل' : lang === 'fr' ? 'Comment ça marche' : 'How it works'}
+            </a>
+            <a href="#pricing" className="text-sm text-gray-600 hover:text-teal-600 transition-colors font-medium">
+              {isAr ? 'الأسعار' : lang === 'fr' ? 'Tarifs' : 'Pricing'}
+            </a>
+          </div>
+
+          {/* Right side */}
+          <div className="flex items-center gap-3">
             <button
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border sm:hidden"
-              onClick={() => setMobileMenuOpen(prev => !prev)}
-              aria-label="Toggle menu"
+              onClick={cycleLanguage}
+              className="text-xs font-bold text-gray-500 hover:text-teal-600 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
             >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {language.toUpperCase()}
             </button>
+            <Link
+              to="/login"
+              className="text-sm font-semibold text-gray-700 hover:text-teal-600 transition-colors px-3 py-2 hidden sm:block"
+            >
+              {t('login')}
+            </Link>
+            <Link
+              to="/register"
+              className="bg-teal-500 hover:bg-teal-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-teal-500/25 whitespace-nowrap"
+            >
+              {isAr ? 'ابدأ مجاناً' : lang === 'fr' ? 'Commencer' : 'Start Free'}
+            </Link>
           </div>
         </div>
-
-        {/* Mobile dropdown menu */}
-        {mobileMenuOpen && (
-          <div className="border-t border-border bg-card px-4 pb-4 sm:hidden">
-            <div className="flex flex-col gap-1 pt-2">
-              <a href="#how-it-works" className="min-h-[44px] flex items-center text-sm text-muted-foreground hover:text-foreground" onClick={() => setMobileMenuOpen(false)}>How it works</a>
-              <a href="#features" className="min-h-[44px] flex items-center text-sm text-muted-foreground hover:text-foreground" onClick={() => setMobileMenuOpen(false)}>{t('features')}</a>
-              <a href="#pricing" className="min-h-[44px] flex items-center text-sm text-muted-foreground hover:text-foreground" onClick={() => setMobileMenuOpen(false)}>{t('pricing')}</a>
-              <a href="#testimonials" className="min-h-[44px] flex items-center text-sm text-muted-foreground hover:text-foreground" onClick={() => setMobileMenuOpen(false)}>{t('about')}</a>
-              <div className="mt-2 flex flex-col gap-2 border-t border-border pt-3">
-                <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="outline" className="w-full min-h-[44px]">{t('login')}</Button>
-                </Link>
-                <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
-                  <Button className="w-full min-h-[44px] gradient-primary text-primary-foreground">{t('getStarted')}</Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
       </nav>
 
-      {/* Hero */}
-      <section className="relative min-h-[90vh] overflow-hidden flex flex-col justify-center">
-        {/* Animated background */}
-        <div
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{ transform: `translateY(${parallaxOffset}px)`, willChange: 'transform' }}
-        >
-          {/* Candlestick pattern */}
-          <CandlestickPattern />
-          {/* Gradient overlays */}
-          <div className="absolute inset-0 bg-gradient-to-b from-primary/8 via-transparent to-background" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
-          {/* Glow blobs */}
-          <div className="absolute top-1/4 left-1/3 h-96 w-96 rounded-full bg-primary/8 blur-3xl" />
-          <div className="absolute top-1/3 right-1/4 h-64 w-64 rounded-full bg-primary/5 blur-3xl" />
-          <div className="absolute bottom-1/4 left-1/4 h-48 w-48 rounded-full bg-primary/6 blur-2xl" />
+      {/* ── HERO ── */}
+      <section className="relative overflow-hidden bg-white pt-20 pb-32">
+        {/* Background blobs */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-teal-50 rounded-full blur-3xl opacity-60 -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-teal-50 rounded-full blur-3xl opacity-40" />
         </div>
 
-        <div
-          className="container mx-auto px-4 py-16 md:py-24"
-          style={{
-            transform: `translateY(${parallaxOffset * 0.15}px)`,
-            opacity: Math.max(0, 1 - parallaxOffset * 0.003),
-            willChange: 'transform, opacity',
-          }}
-        >
-          {/* Text + CTAs */}
-          <div className="text-center mb-12">
-            <Badge variant="secondary" className="mb-4 md:mb-6">{t('tagline')}</Badge>
-            <h1 className="mx-auto max-w-4xl text-2xl font-bold leading-tight text-foreground sm:text-4xl md:text-6xl">
-              {t('heroTitle')}
-            </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-base text-muted-foreground md:mt-6 md:text-lg">{t('heroSub')}</p>
-            <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center md:mt-8 md:gap-4">
-              <Link to="/register" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full min-h-[44px] gradient-primary text-primary-foreground sm:w-auto sm:px-8">
-                  {t('getStarted')} <ArrowRight className="ms-2 h-4 w-4" />
-                </Button>
-              </Link>
-              <Button size="lg" variant="outline" className="w-full min-h-[44px] sm:w-auto">{t('watchDemo')}</Button>
-            </div>
-            {/* Firm badges */}
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2 md:mt-8">
-              {firms.map(f => (
-                <Badge key={f} variant="secondary" className="px-3 py-1.5 text-xs md:px-4 md:py-2 md:text-sm">{f}</Badge>
-              ))}
-            </div>
-          </div>
+        <div className="relative max-w-7xl mx-auto px-4">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
 
-          {/* Floating stat cards */}
-          <div className="flex flex-wrap justify-center gap-3 mb-10 md:gap-4">
-            {floatingStats.map((s, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-xl border border-border bg-card/80 px-4 py-3 shadow-lg backdrop-blur-sm">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${s.bg}`}>
-                  <s.icon className={`h-4 w-4 ${s.color}`} />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
-                  <p className={`text-base font-bold ${s.color}`}>{s.value}</p>
-                </div>
+            {/* Text side */}
+            <div className={isAr ? 'text-right' : 'text-left'}>
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-bold px-3 py-1.5 rounded-full mb-6 border border-teal-100">
+                <span className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-pulse" />
+                {isAr ? 'مفكرة التداول العربية #1' : lang === 'fr' ? 'Journal de trading arabe #1' : 'The #1 Arab Trading Journal'}
               </div>
-            ))}
-          </div>
 
-          {/* Dashboard mockup */}
-          <DashboardMockup />
-        </div>
-      </section>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-gray-900 leading-tight mb-6">
+                {isAr ? (
+                  <>سجّل صفقاتك.<br /><span className="text-teal-500">اكتشف أخطاءك.</span><br />تطوّر كتريدر.</>
+                ) : lang === 'fr' ? (
+                  <>Journalisez vos trades.<br /><span className="text-teal-500">Découvrez vos erreurs.</span><br />Évoluez.</>
+                ) : (
+                  <>Journal your trades.<br /><span className="text-teal-500">Find your mistakes.</span><br />Grow as a trader.</>
+                )}
+              </h1>
 
-      {/* How it works */}
-      <section id="how-it-works" className="container mx-auto px-4 py-12 md:py-20">
-        <h2 className="mb-8 text-center text-2xl font-bold text-foreground md:mb-12 md:text-3xl">
-          {language === 'ar' ? 'كيف يعمل؟' : language === 'fr' ? 'Comment ça marche ?' : 'How It Works'}
-        </h2>
-        <div className="relative mx-auto max-w-4xl">
-          {/* Connector line (desktop only) */}
-          <div className="absolute top-10 left-[calc(16.67%+1rem)] right-[calc(16.67%+1rem)] hidden h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent md:block" />
-          <div className="grid gap-8 md:grid-cols-3 md:gap-6">
-            {steps.map((step, i) => (
-              <div key={i} className="flex flex-col items-center text-center">
-                <div className="relative mb-4 flex h-20 w-20 items-center justify-center rounded-full border-2 border-primary/30 bg-primary/10">
-                  <step.icon className="h-8 w-8 text-primary" />
-                  <span className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                    {step.num}
+              <p className="text-lg text-gray-500 mb-8 leading-relaxed max-w-lg">
+                {t('landing_hero_subtitle')}
+              </p>
+
+              {/* Prop firm badges */}
+              <div className="flex flex-wrap gap-2 mb-8">
+                {['FTMO', 'FundingPips', 'Alpha Capital', 'FundedNext'].map(firm => (
+                  <span key={firm} className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-semibold rounded-full">
+                    {firm}
                   </span>
+                ))}
+              </div>
+
+              {/* CTA buttons */}
+              <div className="flex flex-wrap gap-3 mb-4">
+                <Link
+                  to="/register"
+                  className="bg-teal-500 hover:bg-teal-600 text-white font-black text-base px-8 py-4 rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-teal-500/30 hover:-translate-y-0.5 inline-block"
+                >
+                  {t('landing_hero_cta')}
+                </Link>
+                <a
+                  href="#features"
+                  className="border-2 border-gray-200 hover:border-teal-500 text-gray-700 hover:text-teal-600 font-bold text-base px-8 py-4 rounded-2xl transition-all duration-200 inline-block"
+                >
+                  {t('landing_hero_secondary')}
+                </a>
+              </div>
+
+              <p className="text-xs text-gray-400 font-medium">{t('landing_trial_note')}</p>
+            </div>
+
+            {/* App mockup */}
+            <div className="relative hidden lg:block">
+              <div className="relative bg-white rounded-3xl shadow-2xl shadow-gray-200/80 border border-gray-100 overflow-hidden">
+                {/* Browser bar */}
+                <div className="bg-gray-50 border-b border-gray-100 px-4 py-3 flex items-center gap-2">
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-400" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                    <div className="w-3 h-3 rounded-full bg-green-400" />
+                  </div>
+                  <div className="flex-1 bg-white rounded-lg px-3 py-1 text-xs text-gray-400 text-center border border-gray-200">
+                    app.tradesmartdz.com/dashboard
+                  </div>
                 </div>
-                <h3 className="mb-2 text-lg font-semibold text-foreground">{step.title[language]}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{step.desc[language]}</p>
+                {/* Dashboard preview */}
+                <div className="bg-gray-50 p-4 space-y-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: 'Win Rate', value: '68%', color: 'text-teal-600' },
+                      { label: 'Total P&L', value: '+$2,847', color: 'text-green-600' },
+                      { label: 'Trades', value: '47', color: 'text-gray-700' },
+                    ].map((stat, i) => (
+                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm border border-gray-100">
+                        <p className="text-xs text-gray-400 mb-1">{stat.label}</p>
+                        <p className={`text-sm font-black ${stat.color}`}>{stat.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 h-32 flex items-end gap-1">
+                    {[40, 65, 45, 80, 60, 90, 75, 85, 70, 95].map((h, i) => (
+                      <div key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, background: h > 70 ? '#14b8a6' : '#e2e8f0' }} />
+                    ))}
+                  </div>
+                  {[
+                    { symbol: 'NQ', dir: 'Long', result: 'Win', pnl: '+$125' },
+                    { symbol: 'GOLD', dir: 'Short', result: 'Loss', pnl: '-$45' },
+                    { symbol: 'NQ', dir: 'Long', result: 'Win', pnl: '+$200' },
+                  ].map((trade, i) => (
+                    <div key={i} className="bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-gray-700">{trade.symbol}</span>
+                        <span className="text-xs text-gray-400">{trade.dir}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${trade.result === 'Win' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                          {trade.result}
+                        </span>
+                        <span className={`text-xs font-bold ${trade.pnl.startsWith('+') ? 'text-green-600' : 'text-red-500'}`}>
+                          {trade.pnl}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Floating badges */}
+              <div className="absolute -top-4 -right-4 bg-white rounded-2xl shadow-lg border border-gray-100 px-4 py-3 flex items-center gap-2">
+                <span className="text-green-500 text-lg">✓</span>
+                <div>
+                  <p className="text-xs font-black text-gray-800">Win Rate</p>
+                  <p className="text-xs text-gray-400">+12% this month</p>
+                </div>
+              </div>
+              <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-lg border border-gray-100 px-4 py-3 flex items-center gap-2">
+                <span className="text-2xl">🤖</span>
+                <div>
+                  <p className="text-xs font-black text-gray-800">AI Coach</p>
+                  <p className="text-xs text-gray-400">{isAr ? 'تحليل يومي جاهز' : 'Daily analysis ready'}</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* ── STATS BAR ── */}
+      <section className="bg-gray-50 border-y border-gray-100 py-8">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-3 gap-8 text-center">
+            <div>
+              <p className="text-3xl font-black text-teal-600">500+</p>
+              <p className="text-sm text-gray-500 mt-1">{t('landing_stats_traders')}</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-teal-600">68%</p>
+              <p className="text-sm text-gray-500 mt-1">{t('landing_stats_winrate')}</p>
+            </div>
+            <div>
+              <p className="text-3xl font-black text-teal-600">4</p>
+              <p className="text-sm text-gray-500 mt-1">{t('landing_stats_firms')}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FEATURES ── */}
+      <section id="features" className="py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_features_title')}</h2>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              { icon: '📊', title: t('landing_f1_title'), desc: t('landing_f1_desc') },
+              { icon: '📈', title: t('landing_f2_title'), desc: t('landing_f2_desc') },
+              { icon: '🤖', title: t('landing_f3_title'), desc: t('landing_f3_desc') },
+              { icon: '📱', title: t('landing_f4_title'), desc: t('landing_f4_desc') },
+              { icon: '🎯', title: t('landing_f5_title'), desc: t('landing_f5_desc') },
+              { icon: '📓', title: t('landing_f6_title'), desc: t('landing_f6_desc') },
+            ].map((feature, i) => (
+              <div key={i} className="group p-6 rounded-2xl border border-gray-100 hover:border-teal-500/30 hover:shadow-lg hover:shadow-teal-500/10 transition-all duration-300 hover:-translate-y-1 bg-white">
+                <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:bg-teal-500/10 transition-colors">
+                  {feature.icon}
+                </div>
+                <h3 className="font-black text-gray-900 mb-2 text-lg">{feature.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{feature.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="container mx-auto px-4 py-12 md:py-20">
-        <h2 className="mb-8 text-center text-2xl font-bold text-foreground md:mb-12 md:text-3xl">{t('features')}</h2>
-        <div className="grid gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
-          {features.map((f, i) => (
-            <Card key={i} className="border-border bg-card transition-all hover:border-primary/50" style={{ animationDelay: `${i * 100}ms` }}>
-              <CardHeader>
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <f.icon className="h-5 w-5 text-primary" />
+      {/* ── HOW IT WORKS ── */}
+      <section id="how" className="py-24 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_how_title')}</h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 relative">
+            <div className="hidden md:block absolute top-8 left-1/4 right-1/4 h-0.5 bg-teal-100" />
+            {[
+              { num: '01', title: t('landing_step1_title'), desc: t('landing_step1_desc'), icon: '🏦' },
+              { num: '02', title: t('landing_step2_title'), desc: t('landing_step2_desc'), icon: '📝' },
+              { num: '03', title: t('landing_step3_title'), desc: t('landing_step3_desc'), icon: '🚀' },
+            ].map((step, i) => (
+              <div key={i} className="text-center relative">
+                <div className="w-16 h-16 bg-teal-500 text-white rounded-2xl flex items-center justify-center text-xl font-black mx-auto mb-4 shadow-lg shadow-teal-500/30">
+                  {step.num}
                 </div>
-                <CardTitle className="text-lg">{f.title[isRtl ? 'ar' : 'en']}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{f.desc[isRtl ? 'ar' : 'en']}</p>
-              </CardContent>
-            </Card>
-          ))}
+                <h3 className="font-black text-gray-900 text-xl mb-2">{step.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed max-w-xs mx-auto">{step.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="container mx-auto px-4 py-12 md:py-20">
-        <h2 className="mb-8 text-center text-2xl font-bold text-foreground md:mb-12 md:text-3xl">{t('pricing')}</h2>
-        <div className="mx-auto grid max-w-lg gap-4 md:max-w-none md:grid-cols-3 md:gap-6">
-          {plans.map((plan, i) => (
-            <Card key={i} className={`relative border-border bg-card ${plan.featured ? 'border-primary ring-1 ring-primary animate-pulse-glow' : ''}`}>
-              {plan.featured && <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 gradient-primary text-primary-foreground">{t('popular')}</Badge>}
-              <CardHeader className="text-center">
-                <CardTitle className="text-xl">{plan.name}</CardTitle>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold text-foreground">{plan.price}</span>
-                  <span className="text-muted-foreground"> DA{t('perMonth')}</span>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3">
-                  {plan.features.map((feat, j) => (
-                    <li key={j} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Check className="h-4 w-4 shrink-0 text-primary" /> {feat}
-                    </li>
+      {/* ── PRICING ── */}
+      <section id="pricing" className="py-24 bg-white">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="text-center mb-6">
+            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_pricing_title')}</h2>
+            <div className="inline-flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm font-bold px-4 py-2 rounded-full">
+              ⚡ {t('landing_pricing_trial_note')}
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 mt-12">
+            {/* Free */}
+            <div className="rounded-3xl border-2 border-gray-200 p-8">
+              <h3 className="text-xl font-black text-gray-900 mb-1">{t('landing_free_plan')}</h3>
+              <div className="flex items-baseline gap-1 mb-6">
+                <span className="text-4xl font-black text-gray-900">0</span>
+                <span className="text-gray-500">DA</span>
+              </div>
+              <ul className="space-y-3 mb-8">
+                {[t('landing_free_f1'), t('landing_free_f2'), t('landing_free_f3'), t('landing_free_f4')].map((f, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm">
+                    <span className="text-gray-400">✓</span>
+                    <span className="text-gray-600">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                to="/register"
+                className="block w-full text-center border-2 border-gray-200 hover:border-teal-500 text-gray-700 hover:text-teal-600 font-bold py-3 rounded-2xl transition-all duration-200"
+              >
+                {t('landing_hero_cta')}
+              </Link>
+            </div>
+
+            {/* Pro */}
+            <div className="rounded-3xl border-2 border-teal-500 p-8 relative bg-gradient-to-br from-teal-50/50 to-white shadow-xl shadow-teal-500/10">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-teal-500 text-white text-xs font-black px-4 py-1 rounded-full whitespace-nowrap">
+                {isAr ? 'الأفضل قيمة' : lang === 'fr' ? 'Meilleur rapport' : 'Best Value'}
+              </div>
+              <h3 className="text-xl font-black text-gray-900 mb-1">Pro ⭐</h3>
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="text-4xl font-black text-gray-900">3,700</span>
+                <span className="text-gray-500">DA{t('landing_per_month')}</span>
+              </div>
+              <p className="text-sm text-gray-400 mb-6">{t('landing_or')} 15 USDT{t('landing_per_month')}</p>
+              <ul className="space-y-3 mb-8">
+                {[
+                  t('landing_pro_f1'), t('landing_pro_f2'), t('landing_pro_f3'),
+                  t('landing_pro_f4'), t('landing_pro_f5'), t('landing_pro_f6'), t('landing_pro_f7'),
+                ].map((f, i) => (
+                  <li key={i} className="flex items-center gap-3 text-sm">
+                    <span className="text-teal-500 font-bold">✓</span>
+                    <span className="text-gray-700 font-medium">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                to="/register"
+                className="block w-full text-center bg-teal-500 hover:bg-teal-600 text-white font-black py-3 rounded-2xl transition-all duration-200 hover:shadow-lg hover:shadow-teal-500/30"
+              >
+                {isAr ? 'ابدأ 5 أيام مجاناً ←' : lang === 'fr' ? 'Commencer 5 jours gratuits ←' : 'Start 5 days free ←'}
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ── */}
+      <section className="py-24 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-3xl font-black text-gray-900 text-center mb-12">{t('landing_testimonials_title')}</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                name: 'Ahmed K.',
+                country: '🇩🇿 الجزائر',
+                text: isAr
+                  ? 'ساعدني TradeSmartDz على اكتشاف أن معظم خسائري في جلسة لندن. غيّرت استراتيجيتي وتحسّنت نتائجي بشكل كبير.'
+                  : lang === 'fr'
+                  ? "TradeSmartDz m'a aidé à découvrir que la plupart de mes pertes étaient en session Londres."
+                  : 'TradeSmartDz helped me discover that most of my losses were in the London session.',
+                rating: 5,
+              },
+              {
+                name: 'Youssef M.',
+                country: '🇲🇦 المغرب',
+                text: isAr
+                  ? 'أخيراً مفكرة تداول بالعربية وتفهم نظام ICT. الـ AI Coach أعطاني نصائح دقيقة جداً بعد تحليل صفقاتي.'
+                  : lang === 'fr'
+                  ? "Enfin un journal de trading en arabe qui comprend le système ICT."
+                  : 'Finally a trading journal in Arabic that understands the ICT system.',
+                rating: 5,
+              },
+              {
+                name: 'Omar S.',
+                country: '🇸🇦 السعودية',
+                text: isAr
+                  ? 'إشعارات Telegram اليومية ممتازة. أشعر أن لدي مدرب شخصي يتابعني كل يوم على تداولي في FundingPips.'
+                  : lang === 'fr'
+                  ? "Les notifications Telegram quotidiennes sont excellentes."
+                  : 'Daily Telegram notifications are excellent. Feels like having a personal coach.',
+                rating: 5,
+              },
+            ].map((item, i) => (
+              <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                <div className="flex gap-0.5 mb-4">
+                  {[...Array(item.rating)].map((_, j) => (
+                    <span key={j} className="text-yellow-400 text-sm">★</span>
                   ))}
-                </ul>
-                <Button className={`mt-6 w-full min-h-[44px] ${plan.featured ? 'gradient-primary text-primary-foreground' : ''}`} variant={plan.featured ? 'default' : 'outline'}>
-                  {t('choosePlan')}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+                </div>
+                <p className="text-gray-600 text-sm leading-relaxed mb-4">"{item.text}"</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-teal-100 rounded-full flex items-center justify-center text-sm font-black text-teal-700">
+                    {item.name[0]}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">{item.name}</p>
+                    <p className="text-xs text-gray-400">{item.country}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="container mx-auto px-4 py-12 md:py-20">
-        <h2 className="mb-8 text-center text-2xl font-bold text-foreground md:mb-12 md:text-3xl">{t('testimonials')}</h2>
-        <div className="grid gap-4 md:grid-cols-3 md:gap-6">
-          {testimonials.map((test, i) => (
-            <Card key={i} className="border-border bg-card">
-              <CardContent className="pt-6">
-                <div className="mb-4 flex gap-1">
-                  {[...Array(5)].map((_, j) => <Star key={j} className="h-4 w-4 fill-primary text-primary" />)}
-                </div>
-                <p className="mb-4 text-sm text-muted-foreground leading-relaxed" dir="rtl">{test.text}</p>
-                <div>
-                  <p className="font-semibold text-foreground" dir="rtl">{test.name}</p>
-                  <p className="text-xs text-muted-foreground">{test.role}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+      {/* ── FAQ ── */}
+      <section className="py-24 bg-white">
+        <div className="max-w-3xl mx-auto px-4">
+          <h2 className="text-3xl font-black text-gray-900 text-center mb-12">{t('landing_faq_title')}</h2>
+          <div className="space-y-4">
+            {[
+              {
+                q: isAr ? 'هل التجربة المجانية تتطلب بطاقة بنكية؟' : lang === 'fr' ? "L'essai gratuit nécessite-t-il une carte bancaire?" : 'Does the free trial require a credit card?',
+                a: isAr ? 'لا، التجربة المجانية لمدة 5 أيام لا تتطلب أي معلومات دفع. ابدأ مباشرة بإنشاء حساب.' : lang === 'fr' ? "Non, l'essai de 5 jours ne nécessite aucune information de paiement." : 'No, the 5-day trial requires no payment information. Start directly by creating an account.',
+              },
+              {
+                q: isAr ? 'كيف يمكنني الدفع من دولتي؟' : lang === 'fr' ? 'Comment puis-je payer depuis mon pays?' : 'How can I pay from my country?',
+                a: isAr ? 'نقبل الدفع عبر BaridiMob (للجزائر) أو USDT TRC20 لجميع الدول العربية.' : lang === 'fr' ? 'Nous acceptons BaridiMob (Algérie) ou USDT TRC20 pour tous les pays arabes.' : 'We accept BaridiMob (Algeria) or USDT TRC20 for all Arab countries.',
+              },
+              {
+                q: isAr ? 'هل يعمل مع شركات البروب فيرم؟' : lang === 'fr' ? 'Fonctionne-t-il avec les prop firms?' : 'Does it work with prop firms?',
+                a: isAr ? 'نعم، يدعم FTMO وFundingPips وAlpha Capital وFundedNext. يمكنك تتبع حدود السحب وهدف الربح تلقائياً.' : lang === 'fr' ? 'Oui, supporte FTMO, FundingPips, Alpha Capital et FundedNext.' : 'Yes, supports FTMO, FundingPips, Alpha Capital and FundedNext.',
+              },
+              {
+                q: isAr ? 'ماذا يحدث بعد انتهاء التجربة؟' : lang === 'fr' ? "Que se passe-t-il après la fin de l'essai?" : 'What happens after the trial ends?',
+                a: isAr ? 'تنتقل تلقائياً للخطة المجانية (حساب واحد، 50 صفقة/شهر). بياناتك لا تُحذف أبداً.' : lang === 'fr' ? "Vous passez automatiquement au plan gratuit. Vos données ne sont jamais supprimées." : 'You automatically switch to the free plan. Your data is never deleted.',
+              },
+              {
+                q: isAr ? 'هل يدعم اللغة العربية؟' : lang === 'fr' ? "Supporte-t-il l'arabe?" : 'Does it support Arabic?',
+                a: isAr ? 'نعم، TradeSmartDz مصمم عربياً أولاً مع دعم كامل للغة العربية والفرنسية والإنجليزية.' : lang === 'fr' ? "Oui, TradeSmartDz est conçu en arabe en premier avec support complet AR/FR/EN." : 'Yes, TradeSmartDz is designed Arabic-first with full AR/FR/EN support.',
+              },
+            ].map((faq, i) => (
+              <FaqItem key={i} question={faq.q} answer={faq.a} />
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border py-8">
-        <div className="container mx-auto flex flex-col items-center gap-4 px-4 text-center md:flex-row md:justify-between">
-          <Logo size="sm" />
-          <p className="text-sm text-muted-foreground">© 2025 TradeSmartDz</p>
-          <div className="flex gap-4">
-            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground">{t('features')}</a>
-            <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground">{t('pricing')}</a>
+      {/* ── FINAL CTA ── */}
+      <section className="py-24 bg-gradient-to-br from-teal-600 to-teal-700">
+        <div className="max-w-3xl mx-auto px-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-black text-white mb-4">{t('landing_cta_title')}</h2>
+          <p className="text-teal-100 text-lg mb-8">{t('landing_cta_subtitle')}</p>
+          <Link
+            to="/register"
+            className="inline-block bg-white text-teal-600 font-black text-lg px-12 py-4 rounded-2xl hover:shadow-2xl hover:shadow-teal-900/30 transition-all duration-200 hover:-translate-y-1"
+          >
+            {t('landing_cta_btn')}
+          </Link>
+          <p className="text-teal-200 text-sm mt-4">{t('landing_trial_note')}</p>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer className="bg-gray-900 text-gray-400 py-12">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-2">
+              <Logo size="sm" />
+              <span className="font-black text-white">
+                TradeSmart<span className="text-teal-400">Dz</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-6 text-sm">
+              <a href="mailto:tradesmartdz2@gmail.com" className="hover:text-teal-400 transition-colors">
+                {t('landing_footer_support')}
+              </a>
+              <a href="https://t.me/tradesmartdzz" className="hover:text-teal-400 transition-colors">
+                Telegram
+              </a>
+            </div>
+            <p className="text-sm">
+              © {new Date().getFullYear()} TradeSmartDz — {t('landing_footer_rights')}
+            </p>
           </div>
         </div>
       </footer>
+
     </div>
   );
 };

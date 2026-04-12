@@ -6,45 +6,6 @@
 
 @layer base {
   :root {
-    --background: 220 20% 7%;
-    --foreground: 220 10% 90%;
-    --card: 225 18% 12%;
-    --card-foreground: 220 10% 90%;
-    --popover: 225 18% 12%;
-    --popover-foreground: 220 10% 90%;
-    --primary: 165 100% 42%;
-    --primary-foreground: 220 20% 7%;
-    --secondary: 225 15% 16%;
-    --secondary-foreground: 220 10% 90%;
-    --muted: 225 15% 16%;
-    --muted-foreground: 220 10% 55%;
-    --accent: 165 100% 42%;
-    --accent-foreground: 220 20% 7%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 225 15% 20%;
-    --input: 225 15% 20%;
-    --ring: 165 100% 42%;
-    --radius: 0.75rem;
-
-    --profit: 142 71% 45%;
-    --loss: 0 84% 60%;
-    --chart-line: 165 100% 42%;
-
-    --sidebar-background: 225 18% 10%;
-    --sidebar-foreground: 220 10% 80%;
-    --sidebar-primary: 165 100% 42%;
-    --sidebar-primary-foreground: 220 20% 7%;
-    --sidebar-accent: 225 15% 16%;
-    --sidebar-accent-foreground: 220 10% 90%;
-    --sidebar-border: 225 15% 18%;
-    --sidebar-ring: 165 100% 42%;
-
-    --font-ar: 'Tajawal', sans-serif;
-    --font-en: 'Inter', sans-serif;
-  }
-
-  .light {
     --background: 0 0% 98%;
     --foreground: 225 20% 12%;
     --card: 0 0% 100%;
@@ -64,6 +25,7 @@
     --border: 220 13% 87%;
     --input: 220 13% 87%;
     --ring: 165 100% 35%;
+    --radius: 0.75rem;
 
     --profit: 142 71% 35%;
     --loss: 0 84% 55%;
@@ -77,10 +39,16 @@
     --sidebar-accent-foreground: 225 20% 12%;
     --sidebar-border: 220 13% 87%;
     --sidebar-ring: 165 100% 35%;
+
+    --font-ar: 'Tajawal', sans-serif;
+    --font-en: 'Inter', sans-serif;
   }
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   * {
     @apply border-border;
   }
