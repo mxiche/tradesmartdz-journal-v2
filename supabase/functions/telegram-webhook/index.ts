@@ -57,10 +57,27 @@ Deno.serve(async (req) => {
     // ── CASE 1: /start command ──────────────────────────────────────────────
     if (text.startsWith('/start')) {
       const parts = text.trim().split(' ');
-      const userId = parts[1];
+      const payload = parts[1] || '';
 
+      // Payment proof flow — payload starts with 'payment_'
+      if (payload.startsWith('payment_')) {
+        await sendMessage(
+          chatId,
+          `📸 لإتمام عملية الاشتراك Pro\n\n` +
+          `يرجى إرسال صورة إثبات الدفع هنا مباشرة.\n\n` +
+          `تأكد أن الصورة تظهر:\n` +
+          `✓ المبلغ المحوّل\n` +
+          `✓ التاريخ والوقت\n` +
+          `✓ رقم العملية أو المرجع\n\n` +
+          `سيتم مراجعة طلبك وتفعيل حسابك خلال 24 ساعة. ✅\n\n` +
+          `للاستفسار: tradesmartdz2@gmail.com`
+        );
+        return ok();
+      }
+
+      // Account connection flow — payload is the user UUID
+      const userId = payload;
       if (userId && userId.length > 20) {
-        // Valid UUID — link this Telegram chat to the user account
         const { error } = await supabase
           .from('user_preferences')
           .upsert(
@@ -73,7 +90,8 @@ Deno.serve(async (req) => {
             chatId,
             `✅ تم ربط حسابك بنجاح يا ${firstName}!\n\n` +
             `مرحباً بك في TradeSmartDz 🎉\n\n` +
-            `ستصلك الآن إشعارات يومية بملخص صفقاتك كل يوم في الساعة 22:00.\n\n` +
+            `ستصلك الآن إشعارات يومية بملخص صفقاتك ` +
+            `كل يوم في الساعة 22:00.\n\n` +
             `يمكنك الآن العودة إلى التطبيق ✨`
           );
         } else {
@@ -85,11 +103,12 @@ Deno.serve(async (req) => {
           );
         }
       } else {
-        // /start with no UUID — generic welcome
+        // /start with no payload — generic welcome
         await sendMessage(
           chatId,
           `مرحباً بك في TradeSmartDz 👋\n\n` +
-          `لربط حسابك، يرجى الضغط على زر "ربط Telegram" داخل التطبيق.\n\n` +
+          `لربط حسابك، يرجى الضغط على زر "ربط Telegram" ` +
+          `داخل التطبيق.\n\n` +
           `للمساعدة: tradesmartdz2@gmail.com`
         );
       }
@@ -116,7 +135,7 @@ Deno.serve(async (req) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: OWNER_CHAT_ID,
-          text: `📸 إثبات دفع جديد!\nمن: ${firstName}\nID: ${chatId}`,
+          text: `📸 إثبات دفع جديد!\nمن: ${firstName}\nTelegram ID: ${chatId}`,
         }),
       });
 
@@ -124,7 +143,8 @@ Deno.serve(async (req) => {
       await sendMessage(
         chatId,
         `✅ تم استلام صورة الإثبات!\n\n` +
-        `سيتم مراجعة دفعتك وتفعيل حسابك خلال 24 ساعة.\n\n` +
+        `سيتم مراجعة دفعتك وتفعيل حسابك خلال 24 ساعة. ⏳\n\n` +
+        `سنتواصل معك هنا فور التفعيل.\n\n` +
         `للاستفسار: tradesmartdz2@gmail.com`
       );
 
@@ -135,8 +155,8 @@ Deno.serve(async (req) => {
     await sendMessage(
       chatId,
       `مرحباً بك في TradeSmartDz 👋\n\n` +
-      `لتفعيل اشتراكك Pro، يرجى إرسال صورة إثبات الدفع هنا.\n\n` +
-      `سيتم مراجعة طلبك وتفعيل الاشتراك خلال 24 ساعة كحد أقصى. ✅\n\n` +
+      `إذا كنت تريد إرسال إثبات الدفع، ` +
+      `يرجى إرسال الصورة هنا مباشرة.\n\n` +
       `للاستفسار: tradesmartdz2@gmail.com`
     );
 

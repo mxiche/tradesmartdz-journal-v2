@@ -128,9 +128,9 @@ function buildPaymentConfirmationEmail(userEmail: string, paymentMethod: string,
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:0 0 24px;">
-                    <a href="https://t.me/tradesmartdzz"
+                    <a href="https://t.me/Tradesmartdzbot?start=payment_verify"
                        style="display:inline-block;background:#229ED9;color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:700;font-size:15px;">
-                      📸 أرسل صورة إثبات الدفع على Telegram
+                      📸 أرسل صورة إثبات الدفع عبر البوت
                     </a>
                   </td>
                 </tr>

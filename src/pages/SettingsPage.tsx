@@ -1058,7 +1058,7 @@ const SettingsPage = () => {
 
                 {/* Telegram screenshot CTA */}
                 <a
-                  href="https://t.me/tradesmartdzz"
+                  href={`https://t.me/Tradesmartdzbot?start=payment_${user?.id || 'guest'}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-start gap-3 rounded-xl bg-blue-500/10 border border-blue-500/30 p-4 mb-6 hover:bg-blue-500/15 transition-colors"
@@ -1066,14 +1066,14 @@ const SettingsPage = () => {
                   <span className="text-2xl flex-shrink-0">📸</span>
                   <div>
                     <p className="font-semibold text-sm text-blue-400">
-                      {lang === 'ar' ? 'أرسل صورة إثبات الدفع على Telegram' : lang === 'fr' ? 'Envoyez la capture sur Telegram' : 'Send payment screenshot on Telegram'}
+                      {lang === 'ar' ? 'أرسل صورة إثبات الدفع عبر البوت 📸' : lang === 'fr' ? 'Envoyer la preuve via le bot 📸' : 'Send payment screenshot via bot 📸'}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {lang === 'ar'
-                        ? 'تواصل مع @tradesmartdzz وأرسل صورة إثبات الدفع مباشرةً'
+                        ? 'اضغط على الزر، سيطلب منك البوت صورة الإثبات تلقائياً'
                         : lang === 'fr'
-                        ? 'Contactez @tradesmartdzz et envoyez votre capture de paiement'
-                        : 'Contact @tradesmartdzz and send your payment proof image directly'}
+                        ? 'Appuyez sur le bouton, le bot vous demandera la preuve automatiquement'
+                        : 'Press the button, the bot will automatically ask for your screenshot'}
                     </p>
                   </div>
                 </a>
@@ -1134,20 +1134,20 @@ const SettingsPage = () => {
 
                 {/* Telegram CTA */}
                 <a
-                  href="https://t.me/tradesmartdzz"
+                  href={`https://t.me/Tradesmartdzbot?start=payment_${user?.id || 'guest'}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block rounded-xl bg-blue-500/10 border border-blue-500/30 p-4 mb-4 text-left hover:bg-blue-500/15 transition-colors"
                 >
                   <p className="font-semibold text-sm text-blue-400 mb-1">
-                    📸 {lang === 'ar' ? 'أرسل صورة إثبات الدفع على Telegram' : lang === 'fr' ? 'Envoyez la capture sur Telegram' : 'Send payment screenshot on Telegram'}
+                    {lang === 'ar' ? 'أرسل صورة إثبات الدفع عبر البوت 📸' : lang === 'fr' ? 'Envoyer la preuve via le bot 📸' : 'Send payment screenshot via bot 📸'}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {lang === 'ar'
-                      ? 'تواصل مع @tradesmartdzz وأرسل إثبات الدفع مباشرةً'
+                      ? 'اضغط على الزر، سيطلب منك البوت صورة الإثبات تلقائياً'
                       : lang === 'fr'
-                      ? 'Contactez @tradesmartdzz et envoyez la preuve de paiement'
-                      : 'Contact @tradesmartdzz and send your payment proof directly'}
+                      ? 'Appuyez sur le bouton, le bot vous demandera la preuve automatiquement'
+                      : 'Press the button, the bot will automatically ask for your screenshot'}
                   </p>
                 </a>
 
