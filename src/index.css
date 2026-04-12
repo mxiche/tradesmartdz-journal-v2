@@ -141,6 +141,12 @@
   }
 }
 
+/* Scrollbar hide utility */
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
 /* Professional icon animations */
 @layer components {
   /* Base icon interaction - applies to all clickable icons */

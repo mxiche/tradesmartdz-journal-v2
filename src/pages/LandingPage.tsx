@@ -1,8 +1,25 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Logo } from '@/components/Logo';
 import { Language } from '@/lib/i18n';
+
+// ── Intersection Observer hook ─────────────────────────────────
+const useInView = (threshold = 0.1) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setInView(true); },
+      { threshold }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, inView };
+};
 
 // ── FAQ accordion item ─────────────────────────────────────────
 const FaqItem = ({ question, answer }: { question: string; answer: string }) => {
@@ -38,6 +55,11 @@ const LandingPage = () => {
 
   const isAr = lang === 'ar';
 
+  const featuresAnim = useInView();
+  const howAnim = useInView();
+  const pricingAnim = useInView();
+  const testimonialsAnim = useInView();
+
   return (
     <div className="min-h-screen bg-white" dir={isAr ? 'rtl' : 'ltr'}>
 
@@ -46,12 +68,7 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
 
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <Logo size="sm" />
-            <span className="font-black text-lg text-gray-900">
-              TradeSmart<span className="text-teal-500">Dz</span>
-            </span>
-          </div>
+          <Logo size="sm" />
 
           {/* Desktop nav links */}
           <div className="hidden md:flex items-center gap-8">
@@ -67,7 +84,7 @@ const LandingPage = () => {
           </div>
 
           {/* Right side */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={cycleLanguage}
               className="text-xs font-bold text-gray-500 hover:text-teal-600 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
@@ -76,22 +93,22 @@ const LandingPage = () => {
             </button>
             <Link
               to="/login"
-              className="text-sm font-semibold text-gray-700 hover:text-teal-600 transition-colors px-3 py-2 hidden sm:block"
+              className="hidden md:block text-sm font-semibold text-gray-700 hover:text-teal-600 transition-colors px-3 py-2"
             >
               {t('login')}
             </Link>
             <Link
               to="/register"
-              className="bg-teal-500 hover:bg-teal-600 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-teal-500/25 whitespace-nowrap"
+              className="bg-teal-500 hover:bg-teal-600 text-white font-bold text-sm px-4 py-2 md:px-5 md:py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-teal-500/25 whitespace-nowrap"
             >
-              {isAr ? 'ابدأ مجاناً' : lang === 'fr' ? 'Commencer' : 'Start Free'}
+              {isAr ? 'ابدأ' : lang === 'fr' ? 'Commencer' : 'Start Free'}
             </Link>
           </div>
         </div>
       </nav>
 
       {/* ── HERO ── */}
-      <section className="relative overflow-hidden bg-white pt-20 pb-32">
+      <section className="relative overflow-hidden bg-white pt-20 pb-16 md:pb-24">
         {/* Background blobs */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 right-0 w-96 h-96 bg-teal-50 rounded-full blur-3xl opacity-60 -translate-y-1/2 translate-x-1/2" />
@@ -149,9 +166,68 @@ const LandingPage = () => {
               </div>
 
               <p className="text-xs text-gray-400 font-medium">{t('landing_trial_note')}</p>
+
+              {/* Mobile-only app preview */}
+              <div className="mt-8 lg:hidden">
+                <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/80 border border-gray-100 overflow-hidden mx-auto max-w-sm">
+                  {/* Browser bar */}
+                  <div className="bg-gray-50 border-b border-gray-100 px-3 py-2 flex items-center gap-2">
+                    <div className="flex gap-1">
+                      <div className="w-2 h-2 rounded-full bg-red-400" />
+                      <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                      <div className="w-2 h-2 rounded-full bg-green-400" />
+                    </div>
+                    <div className="flex-1 bg-white rounded px-2 py-0.5 text-[10px] text-gray-400 text-center border border-gray-200">
+                      app.tradesmartdz.com
+                    </div>
+                  </div>
+                  {/* Mini stats */}
+                  <div className="p-3 bg-gray-50 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { label: 'Win Rate', value: '68%', color: 'text-teal-600' },
+                        { label: 'P&L', value: '+$2,847', color: 'text-green-600' },
+                        { label: 'Trades', value: '47', color: 'text-gray-700' },
+                      ].map((stat, i) => (
+                        <div key={i} className="bg-white rounded-xl p-2 shadow-sm border border-gray-100 text-center">
+                          <p className="text-[9px] text-gray-400">{stat.label}</p>
+                          <p className={`text-xs font-black ${stat.color}`}>{stat.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Mini bars chart */}
+                    <div className="bg-white rounded-xl p-2 border border-gray-100 flex items-end gap-0.5 h-16">
+                      {[40, 65, 45, 80, 60, 90, 75, 85, 70, 95, 60, 88].map((h, i) => (
+                        <div key={i} className="flex-1 rounded-t-sm transition-all"
+                          style={{
+                            height: `${h}%`,
+                            background: h > 70 ? '#14b8a6' : '#e2e8f0'
+                          }} />
+                      ))}
+                    </div>
+                    {/* Mini trades */}
+                    {[
+                      { symbol: 'NQ', result: 'Win', pnl: '+$125' },
+                      { symbol: 'GOLD', result: 'Loss', pnl: '-$45' },
+                    ].map((trade, i) => (
+                      <div key={i} className="bg-white rounded-xl px-2 py-1.5 border border-gray-100 flex items-center justify-between">
+                        <span className="font-bold text-[11px] text-gray-700">{trade.symbol}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${trade.result === 'Win' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                            {trade.result}
+                          </span>
+                          <span className={`text-[11px] font-bold ${trade.pnl.startsWith('+') ? 'text-green-600' : 'text-red-500'}`}>
+                            {trade.pnl}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* App mockup */}
+            {/* App mockup — desktop only */}
             <div className="relative hidden lg:block">
               <div className="relative bg-white rounded-3xl shadow-2xl shadow-gray-200/80 border border-gray-100 overflow-hidden">
                 {/* Browser bar */}
@@ -232,15 +308,15 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-3 gap-8 text-center">
             <div>
-              <p className="text-3xl font-black text-teal-600">500+</p>
+              <p className="text-4xl md:text-3xl font-black text-teal-600">500+</p>
               <p className="text-sm text-gray-500 mt-1">{t('landing_stats_traders')}</p>
             </div>
             <div>
-              <p className="text-3xl font-black text-teal-600">68%</p>
+              <p className="text-4xl md:text-3xl font-black text-teal-600">68%</p>
               <p className="text-sm text-gray-500 mt-1">{t('landing_stats_winrate')}</p>
             </div>
             <div>
-              <p className="text-3xl font-black text-teal-600">4</p>
+              <p className="text-4xl md:text-3xl font-black text-teal-600">4</p>
               <p className="text-sm text-gray-500 mt-1">{t('landing_stats_firms')}</p>
             </div>
           </div>
@@ -250,26 +326,33 @@ const LandingPage = () => {
       {/* ── FEATURES ── */}
       <section id="features" className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_features_title')}</h2>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { icon: '📊', title: t('landing_f1_title'), desc: t('landing_f1_desc') },
-              { icon: '📈', title: t('landing_f2_title'), desc: t('landing_f2_desc') },
-              { icon: '🤖', title: t('landing_f3_title'), desc: t('landing_f3_desc') },
-              { icon: '📱', title: t('landing_f4_title'), desc: t('landing_f4_desc') },
-              { icon: '🎯', title: t('landing_f5_title'), desc: t('landing_f5_desc') },
-              { icon: '📓', title: t('landing_f6_title'), desc: t('landing_f6_desc') },
-            ].map((feature, i) => (
-              <div key={i} className="group p-6 rounded-2xl border border-gray-100 hover:border-teal-500/30 hover:shadow-lg hover:shadow-teal-500/10 transition-all duration-300 hover:-translate-y-1 bg-white">
-                <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center text-2xl mb-4 group-hover:bg-teal-500/10 transition-colors">
-                  {feature.icon}
+          <div
+            ref={featuresAnim.ref}
+            className={`transition-all duration-700 ${featuresAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+          >
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_features_title')}</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                { icon: '📊', title: t('landing_f1_title'), desc: t('landing_f1_desc') },
+                { icon: '📈', title: t('landing_f2_title'), desc: t('landing_f2_desc') },
+                { icon: '🤖', title: t('landing_f3_title'), desc: t('landing_f3_desc') },
+                { icon: '📱', title: t('landing_f4_title'), desc: t('landing_f4_desc') },
+                { icon: '🎯', title: t('landing_f5_title'), desc: t('landing_f5_desc') },
+                { icon: '📓', title: t('landing_f6_title'), desc: t('landing_f6_desc') },
+              ].map((feature, i) => (
+                <div key={i} className="group p-5 rounded-2xl border border-gray-100 hover:border-teal-500/30 hover:shadow-lg hover:shadow-teal-500/10 transition-all duration-300 bg-white flex gap-4 md:flex-col md:gap-0">
+                  <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center text-xl flex-shrink-0 md:mb-4 group-hover:bg-teal-500/10 transition-colors">
+                    {feature.icon}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-gray-900 mb-1 text-base">{feature.title}</h3>
+                    <p className="text-gray-500 text-sm leading-relaxed">{feature.desc}</p>
+                  </div>
                 </div>
-                <h3 className="font-black text-gray-900 mb-2 text-lg">{feature.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{feature.desc}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -277,24 +360,31 @@ const LandingPage = () => {
       {/* ── HOW IT WORKS ── */}
       <section id="how" className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_how_title')}</h2>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8 relative">
-            <div className="hidden md:block absolute top-8 left-1/4 right-1/4 h-0.5 bg-teal-100" />
-            {[
-              { num: '01', title: t('landing_step1_title'), desc: t('landing_step1_desc'), icon: '🏦' },
-              { num: '02', title: t('landing_step2_title'), desc: t('landing_step2_desc'), icon: '📝' },
-              { num: '03', title: t('landing_step3_title'), desc: t('landing_step3_desc'), icon: '🚀' },
-            ].map((step, i) => (
-              <div key={i} className="text-center relative">
-                <div className="w-16 h-16 bg-teal-500 text-white rounded-2xl flex items-center justify-center text-xl font-black mx-auto mb-4 shadow-lg shadow-teal-500/30">
-                  {step.num}
+          <div
+            ref={howAnim.ref}
+            className={`transition-all duration-700 ${howAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+          >
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_how_title')}</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+              <div className="hidden md:block absolute top-8 left-1/4 right-1/4 h-0.5 bg-teal-100" />
+              {[
+                { num: '01', title: t('landing_step1_title'), desc: t('landing_step1_desc'), icon: '🏦' },
+                { num: '02', title: t('landing_step2_title'), desc: t('landing_step2_desc'), icon: '📝' },
+                { num: '03', title: t('landing_step3_title'), desc: t('landing_step3_desc'), icon: '🚀' },
+              ].map((step, i) => (
+                <div key={i} className="flex md:flex-col md:text-center items-start md:items-center gap-4">
+                  <div className="w-12 h-12 bg-teal-500 text-white rounded-2xl flex items-center justify-center text-lg font-black flex-shrink-0 shadow-lg shadow-teal-500/30">
+                    {step.num}
+                  </div>
+                  <div className="flex-1 md:mt-4">
+                    <h3 className="font-black text-gray-900 text-lg mb-1">{step.title}</h3>
+                    <p className="text-gray-500 text-sm leading-relaxed">{step.desc}</p>
+                  </div>
                 </div>
-                <h3 className="font-black text-gray-900 text-xl mb-2">{step.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed max-w-xs mx-auto">{step.desc}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -302,65 +392,70 @@ const LandingPage = () => {
       {/* ── PRICING ── */}
       <section id="pricing" className="py-24 bg-white">
         <div className="max-w-5xl mx-auto px-4">
-          <div className="text-center mb-6">
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_pricing_title')}</h2>
-            <div className="inline-flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm font-bold px-4 py-2 rounded-full">
-              ⚡ {t('landing_pricing_trial_note')}
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6 mt-12">
-            {/* Free */}
-            <div className="rounded-3xl border-2 border-gray-200 p-8">
-              <h3 className="text-xl font-black text-gray-900 mb-1">{t('landing_free_plan')}</h3>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-4xl font-black text-gray-900">0</span>
-                <span className="text-gray-500">DA</span>
+          <div
+            ref={pricingAnim.ref}
+            className={`transition-all duration-700 ${pricingAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+          >
+            <div className="text-center mb-6">
+              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">{t('landing_pricing_title')}</h2>
+              <div className="inline-flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm font-bold px-4 py-2 rounded-full">
+                ⚡ {t('landing_pricing_trial_note')}
               </div>
-              <ul className="space-y-3 mb-8">
-                {[t('landing_free_f1'), t('landing_free_f2'), t('landing_free_f3'), t('landing_free_f4')].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm">
-                    <span className="text-gray-400">✓</span>
-                    <span className="text-gray-600">{f}</span>
-                  </li>
-                ))}
-              </ul>
-              <Link
-                to="/register"
-                className="block w-full text-center border-2 border-gray-200 hover:border-teal-500 text-gray-700 hover:text-teal-600 font-bold py-3 rounded-2xl transition-all duration-200"
-              >
-                {t('landing_hero_cta')}
-              </Link>
             </div>
 
-            {/* Pro */}
-            <div className="rounded-3xl border-2 border-teal-500 p-8 relative bg-gradient-to-br from-teal-50/50 to-white shadow-xl shadow-teal-500/10">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-teal-500 text-white text-xs font-black px-4 py-1 rounded-full whitespace-nowrap">
-                {isAr ? 'الأفضل قيمة' : lang === 'fr' ? 'Meilleur rapport' : 'Best Value'}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
+              {/* Pro — first on mobile */}
+              <div className="order-first md:order-last rounded-3xl border-2 border-teal-500 p-8 relative bg-gradient-to-br from-teal-50/50 to-white shadow-xl shadow-teal-500/10">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-teal-500 text-white text-xs font-black px-4 py-1 rounded-full whitespace-nowrap">
+                  {isAr ? 'الأفضل قيمة' : lang === 'fr' ? 'Meilleur rapport' : 'Best Value'}
+                </div>
+                <h3 className="text-xl font-black text-gray-900 mb-1">Pro ⭐</h3>
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="text-4xl font-black text-gray-900">3,700</span>
+                  <span className="text-gray-500">DA{t('landing_per_month')}</span>
+                </div>
+                <p className="text-sm text-gray-400 mb-6">{t('landing_or')} 15 USDT{t('landing_per_month')}</p>
+                <ul className="space-y-3 mb-8">
+                  {[
+                    t('landing_pro_f1'), t('landing_pro_f2'), t('landing_pro_f3'),
+                    t('landing_pro_f4'), t('landing_pro_f5'), t('landing_pro_f6'), t('landing_pro_f7'),
+                  ].map((f, i) => (
+                    <li key={i} className="flex items-center gap-3 text-sm">
+                      <span className="text-teal-500 font-bold">✓</span>
+                      <span className="text-gray-700 font-medium">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to="/register"
+                  className="block w-full text-center bg-teal-500 hover:bg-teal-600 text-white font-black py-3 rounded-2xl transition-all duration-200 hover:shadow-lg hover:shadow-teal-500/30"
+                >
+                  {isAr ? 'ابدأ 5 أيام مجاناً ←' : lang === 'fr' ? 'Commencer 5 jours gratuits ←' : 'Start 5 days free ←'}
+                </Link>
               </div>
-              <h3 className="text-xl font-black text-gray-900 mb-1">Pro ⭐</h3>
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-4xl font-black text-gray-900">3,700</span>
-                <span className="text-gray-500">DA{t('landing_per_month')}</span>
+
+              {/* Free — second on mobile */}
+              <div className="order-last md:order-first rounded-3xl border-2 border-gray-200 p-8">
+                <h3 className="text-xl font-black text-gray-900 mb-1">{t('landing_free_plan')}</h3>
+                <div className="flex items-baseline gap-1 mb-6">
+                  <span className="text-4xl font-black text-gray-900">0</span>
+                  <span className="text-gray-500">DA</span>
+                </div>
+                <ul className="space-y-3 mb-8">
+                  {[t('landing_free_f1'), t('landing_free_f2'), t('landing_free_f3'), t('landing_free_f4')].map((f, i) => (
+                    <li key={i} className="flex items-center gap-3 text-sm">
+                      <span className="text-gray-400">✓</span>
+                      <span className="text-gray-600">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to="/register"
+                  className="block w-full text-center border-2 border-gray-200 hover:border-teal-500 text-gray-700 hover:text-teal-600 font-bold py-3 rounded-2xl transition-all duration-200"
+                >
+                  {t('landing_hero_cta')}
+                </Link>
               </div>
-              <p className="text-sm text-gray-400 mb-6">{t('landing_or')} 15 USDT{t('landing_per_month')}</p>
-              <ul className="space-y-3 mb-8">
-                {[
-                  t('landing_pro_f1'), t('landing_pro_f2'), t('landing_pro_f3'),
-                  t('landing_pro_f4'), t('landing_pro_f5'), t('landing_pro_f6'), t('landing_pro_f7'),
-                ].map((f, i) => (
-                  <li key={i} className="flex items-center gap-3 text-sm">
-                    <span className="text-teal-500 font-bold">✓</span>
-                    <span className="text-gray-700 font-medium">{f}</span>
-                  </li>
-                ))}
-              </ul>
-              <Link
-                to="/register"
-                className="block w-full text-center bg-teal-500 hover:bg-teal-600 text-white font-black py-3 rounded-2xl transition-all duration-200 hover:shadow-lg hover:shadow-teal-500/30"
-              >
-                {isAr ? 'ابدأ 5 أيام مجاناً ←' : lang === 'fr' ? 'Commencer 5 jours gratuits ←' : 'Start 5 days free ←'}
-              </Link>
             </div>
           </div>
         </div>
@@ -369,58 +464,63 @@ const LandingPage = () => {
       {/* ── TESTIMONIALS ── */}
       <section className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-3xl font-black text-gray-900 text-center mb-12">{t('landing_testimonials_title')}</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                name: 'Ahmed K.',
-                country: '🇩🇿 الجزائر',
-                text: isAr
-                  ? 'ساعدني TradeSmartDz على اكتشاف أن معظم خسائري في جلسة لندن. غيّرت استراتيجيتي وتحسّنت نتائجي بشكل كبير.'
-                  : lang === 'fr'
-                  ? "TradeSmartDz m'a aidé à découvrir que la plupart de mes pertes étaient en session Londres."
-                  : 'TradeSmartDz helped me discover that most of my losses were in the London session.',
-                rating: 5,
-              },
-              {
-                name: 'Youssef M.',
-                country: '🇲🇦 المغرب',
-                text: isAr
-                  ? 'أخيراً مفكرة تداول بالعربية وتفهم نظام ICT. الـ AI Coach أعطاني نصائح دقيقة جداً بعد تحليل صفقاتي.'
-                  : lang === 'fr'
-                  ? "Enfin un journal de trading en arabe qui comprend le système ICT."
-                  : 'Finally a trading journal in Arabic that understands the ICT system.',
-                rating: 5,
-              },
-              {
-                name: 'Omar S.',
-                country: '🇸🇦 السعودية',
-                text: isAr
-                  ? 'إشعارات Telegram اليومية ممتازة. أشعر أن لدي مدرب شخصي يتابعني كل يوم على تداولي في FundingPips.'
-                  : lang === 'fr'
-                  ? "Les notifications Telegram quotidiennes sont excellentes."
-                  : 'Daily Telegram notifications are excellent. Feels like having a personal coach.',
-                rating: 5,
-              },
-            ].map((item, i) => (
-              <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                <div className="flex gap-0.5 mb-4">
-                  {[...Array(item.rating)].map((_, j) => (
-                    <span key={j} className="text-yellow-400 text-sm">★</span>
-                  ))}
-                </div>
-                <p className="text-gray-600 text-sm leading-relaxed mb-4">"{item.text}"</p>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-teal-100 rounded-full flex items-center justify-center text-sm font-black text-teal-700">
-                    {item.name[0]}
+          <div
+            ref={testimonialsAnim.ref}
+            className={`transition-all duration-700 ${testimonialsAnim.inView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+          >
+            <h2 className="text-3xl font-black text-gray-900 text-center mb-12">{t('landing_testimonials_title')}</h2>
+            <div className="flex md:grid md:grid-cols-3 gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide">
+              {[
+                {
+                  name: 'Ahmed K.',
+                  country: '🇩🇿 الجزائر',
+                  text: isAr
+                    ? 'ساعدني TradeSmartDz على اكتشاف أن معظم خسائري في جلسة لندن. غيّرت استراتيجيتي وتحسّنت نتائجي بشكل كبير.'
+                    : lang === 'fr'
+                    ? "TradeSmartDz m'a aidé à découvrir que la plupart de mes pertes étaient en session Londres."
+                    : 'TradeSmartDz helped me discover that most of my losses were in the London session.',
+                  rating: 5,
+                },
+                {
+                  name: 'Youssef M.',
+                  country: '🇲🇦 المغرب',
+                  text: isAr
+                    ? 'أخيراً مفكرة تداول بالعربية وتفهم نظام ICT. الـ AI Coach أعطاني نصائح دقيقة جداً بعد تحليل صفقاتي.'
+                    : lang === 'fr'
+                    ? "Enfin un journal de trading en arabe qui comprend le système ICT."
+                    : 'Finally a trading journal in Arabic that understands the ICT system.',
+                  rating: 5,
+                },
+                {
+                  name: 'Omar S.',
+                  country: '🇸🇦 السعودية',
+                  text: isAr
+                    ? 'إشعارات Telegram اليومية ممتازة. أشعر أن لدي مدرب شخصي يتابعني كل يوم على تداولي في FundingPips.'
+                    : lang === 'fr'
+                    ? "Les notifications Telegram quotidiennes sont excellentes."
+                    : 'Daily Telegram notifications are excellent. Feels like having a personal coach.',
+                  rating: 5,
+                },
+              ].map((item, i) => (
+                <div key={i} className="min-w-[280px] md:min-w-0 snap-start bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex-shrink-0 md:flex-shrink">
+                  <div className="flex gap-0.5 mb-4">
+                    {[...Array(item.rating)].map((_, j) => (
+                      <span key={j} className="text-yellow-400 text-sm">★</span>
+                    ))}
                   </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-800">{item.name}</p>
-                    <p className="text-xs text-gray-400">{item.country}</p>
+                  <p className="text-gray-600 text-sm leading-relaxed mb-4">"{item.text}"</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-teal-100 rounded-full flex items-center justify-center text-sm font-black text-teal-700">
+                      {item.name[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">{item.name}</p>
+                      <p className="text-xs text-gray-400">{item.country}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -459,7 +559,7 @@ const LandingPage = () => {
       </section>
 
       {/* ── FINAL CTA ── */}
-      <section className="py-24 bg-gradient-to-br from-teal-600 to-teal-700">
+      <section className="py-16 md:py-24 bg-gradient-to-br from-teal-600 to-teal-700">
         <div className="max-w-3xl mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-black text-white mb-4">{t('landing_cta_title')}</h2>
           <p className="text-teal-100 text-lg mb-8">{t('landing_cta_subtitle')}</p>
@@ -477,12 +577,7 @@ const LandingPage = () => {
       <footer className="bg-gray-900 text-gray-400 py-12">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-2">
-              <Logo size="sm" />
-              <span className="font-black text-white">
-                TradeSmart<span className="text-teal-400">Dz</span>
-              </span>
-            </div>
+            <Logo size="sm" />
             <div className="flex items-center gap-6 text-sm">
               <a href="mailto:tradesmartdz2@gmail.com" className="hover:text-teal-400 transition-colors">
                 {t('landing_footer_support')}
