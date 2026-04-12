@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check, CheckCircle } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check, CheckCircle, Lock } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
@@ -937,7 +937,11 @@ function Mt5ImportModal({
                       {/* Screenshot upload */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          {row.screenshot_preview ? (
+                          {!isPro ? (
+                            <div className="h-9 w-9 flex items-center justify-center rounded border border-dashed border-border text-muted-foreground/40 cursor-not-allowed" title={lang === 'ar' ? 'Pro فقط' : 'Pro only'}>
+                              <Lock className="h-4 w-4" />
+                            </div>
+                          ) : row.screenshot_preview ? (
                             <div className="relative group">
                               <img
                                 src={row.screenshot_preview}
@@ -964,22 +968,24 @@ function Mt5ImportModal({
                               <Camera className="h-4 w-4" />
                             </button>
                           )}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            ref={el => { reviewFileRefs.current[idx] = el; }}
-                            onChange={e => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              const preview = URL.createObjectURL(file);
-                              setReviewRows(prev => prev.map((r, i) => {
-                                if (i !== idx) return r;
-                                if (r.screenshot_preview) URL.revokeObjectURL(r.screenshot_preview);
-                                return { ...r, screenshot_file: file, screenshot_preview: preview };
-                              }));
-                            }}
-                          />
+                          {isPro && (
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              ref={el => { reviewFileRefs.current[idx] = el; }}
+                              onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const preview = URL.createObjectURL(file);
+                                setReviewRows(prev => prev.map((r, i) => {
+                                  if (i !== idx) return r;
+                                  if (r.screenshot_preview) URL.revokeObjectURL(r.screenshot_preview);
+                                  return { ...r, screenshot_file: file, screenshot_preview: preview };
+                                }));
+                              }}
+                            />
+                          )}
                         </div>
                       </td>
                       {/* Notes */}
@@ -2351,36 +2357,50 @@ const TradesPage = () => {
                 {lang === 'ar' ? 'صورة الصفقة' : lang === 'fr' ? 'Capture d\'écran' : 'Screenshot'}
                 <span className="ms-1 text-xs text-muted-foreground">{lang === 'ar' ? '(اختياري)' : lang === 'fr' ? '(optionnel)' : '(optional)'}</span>
               </Label>
-              <input
-                ref={addFileRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) setAddScreenshotFile(file);
-                  e.target.value = '';
-                }}
-              />
-              {addScreenshotFile ? (
-                <div className="flex items-center justify-between rounded-md border border-border bg-secondary px-3 py-2 text-sm">
-                  <div className="flex items-center gap-2 text-foreground">
-                    <Camera className="h-4 w-4 text-primary" />
-                    <span className="truncate max-w-[200px]">{addScreenshotFile.name}</span>
+              {!isPro ? (
+                <div className="flex items-center justify-between rounded-md border border-dashed border-border bg-secondary px-3 py-2 text-sm text-muted-foreground cursor-not-allowed">
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-4 w-4" />
+                    <span>{lang === 'ar' ? 'متاح في Pro فقط' : lang === 'fr' ? 'Disponible en Pro' : 'Pro only'}</span>
                   </div>
-                  <button type="button" onClick={() => setAddScreenshotFile(null)} className="text-muted-foreground hover:text-loss">
-                    <X className="h-4 w-4" />
-                  </button>
+                  <a href="/settings?tab=subscription" className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity" onClick={e => e.stopPropagation()}>
+                    {lang === 'ar' ? 'ترقية' : lang === 'fr' ? 'Upgrade' : 'Upgrade'}
+                  </a>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => addFileRef.current?.click()}
-                  className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border bg-secondary py-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-                >
-                  <Camera className="h-4 w-4" />
-                  {lang === 'ar' ? 'إضافة صورة' : lang === 'fr' ? 'Ajouter une image' : 'Add screenshot'}
-                </button>
+                <>
+                  <input
+                    ref={addFileRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) setAddScreenshotFile(file);
+                      e.target.value = '';
+                    }}
+                  />
+                  {addScreenshotFile ? (
+                    <div className="flex items-center justify-between rounded-md border border-border bg-secondary px-3 py-2 text-sm">
+                      <div className="flex items-center gap-2 text-foreground">
+                        <Camera className="h-4 w-4 text-primary" />
+                        <span className="truncate max-w-[200px]">{addScreenshotFile.name}</span>
+                      </div>
+                      <button type="button" onClick={() => setAddScreenshotFile(null)} className="text-muted-foreground hover:text-loss">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => addFileRef.current?.click()}
+                      className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-border bg-secondary py-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                    >
+                      <Camera className="h-4 w-4" />
+                      {lang === 'ar' ? 'إضافة صورة' : lang === 'fr' ? 'Ajouter une image' : 'Add screenshot'}
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
@@ -2594,7 +2614,17 @@ const TradesPage = () => {
                   {/* ── Section: Screenshot ── */}
                   <div className="space-y-2">
                     <Label>{lang === 'ar' ? 'لقطة الشاشة' : lang === 'fr' ? 'Capture d\'écran' : 'Screenshot'}</Label>
-                    {screenshotUrl ? (
+                    {!isPro ? (
+                      <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-border bg-secondary/30 p-5 text-center">
+                        <Lock className="h-7 w-7 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">
+                          {lang === 'ar' ? 'رفع لقطات الشاشة متاح لمستخدمي Pro فقط' : lang === 'fr' ? 'Upload de captures réservé aux abonnés Pro' : 'Screenshot upload is available for Pro users only'}
+                        </p>
+                        <a href="/settings?tab=subscription" className="rounded-lg bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity">
+                          {lang === 'ar' ? 'ترقية إلى Pro' : lang === 'fr' ? 'Passer à Pro' : 'Upgrade to Pro'}
+                        </a>
+                      </div>
+                    ) : screenshotUrl ? (
                       <div className="relative overflow-hidden rounded-lg border border-border">
                         <img src={screenshotUrl} alt="Trade screenshot" className="w-full object-contain max-h-64" />
                         <button type="button" onClick={handleDeleteScreenshot}

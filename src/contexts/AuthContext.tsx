@@ -2,6 +2,98 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+/*
+ * ─── SUPABASE CONFIRMATION EMAIL TEMPLATE ─────────────────────────────────
+ * Dashboard → Authentication → Email Templates → Confirm signup
+ * Replace the default template with the HTML below.
+ * Tokens used: {{ .ConfirmationURL }}
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Subject: تأكيد حسابك في TradeSmart Dz ✅
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * <!DOCTYPE html>
+ * <html dir="rtl" lang="ar">
+ * <head>
+ *   <meta charset="UTF-8" />
+ *   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+ *   <title>تأكيد الحساب</title>
+ * </head>
+ * <body style="margin:0;padding:0;background:#f0fdf4;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;direction:rtl;">
+ *   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;padding:40px 16px;">
+ *     <tr><td align="center">
+ *       <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+ *
+ *         <!-- Header gradient -->
+ *         <tr>
+ *           <td style="background:linear-gradient(135deg,#00b894 0%,#00cec9 100%);padding:36px 40px;text-align:center;">
+ *             <h1 style="margin:0;color:#ffffff;font-size:26px;font-weight:800;letter-spacing:-0.5px;">
+ *               TradeSmart<span style="color:#d4fcf4;">Dz</span>
+ *             </h1>
+ *             <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">منصة تتبع المتداولين الاحترافيين</p>
+ *           </td>
+ *         </tr>
+ *
+ *         <!-- Trial badge -->
+ *         <tr>
+ *           <td style="padding:28px 40px 0;text-align:center;">
+ *             <span style="display:inline-block;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:999px;padding:6px 18px;font-size:13px;font-weight:700;">
+ *               🎁 تجربة Pro مجانية لمدة 7 أيام مفعّلة
+ *             </span>
+ *           </td>
+ *         </tr>
+ *
+ *         <!-- Body -->
+ *         <tr>
+ *           <td style="padding:28px 40px;">
+ *             <p style="margin:0 0 8px;font-size:20px;font-weight:700;color:#111827;">مرحباً بك! 👋</p>
+ *             <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.7;">
+ *               شكراً لتسجيلك في TradeSmart Dz. اضغط على الزر أدناه لتأكيد بريدك الإلكتروني وبدء رحلتك.
+ *             </p>
+ *
+ *             <!-- CTA button -->
+ *             <div style="text-align:center;margin-bottom:28px;">
+ *               <a href="{{ .ConfirmationURL }}"
+ *                  style="display:inline-block;background:linear-gradient(135deg,#00b894,#00cec9);color:#ffffff;text-decoration:none;font-size:16px;font-weight:700;padding:14px 36px;border-radius:12px;box-shadow:0 4px 14px rgba(0,184,148,0.35);">
+ *                 تأكيد الحساب ✅
+ *               </a>
+ *             </div>
+ *
+ *             <!-- Feature grid -->
+ *             <table width="100%" cellpadding="8" cellspacing="0" style="background:#f8fafc;border-radius:12px;margin-bottom:24px;">
+ *               <tr>
+ *                 <td width="50%" style="font-size:13px;color:#374151;">📊 تتبع الصفقات</td>
+ *                 <td width="50%" style="font-size:13px;color:#374151;">🤖 مدرب AI</td>
+ *               </tr>
+ *               <tr>
+ *                 <td style="font-size:13px;color:#374151;">📈 تحليل الأداء</td>
+ *                 <td style="font-size:13px;color:#374151;">🔔 إشعارات Telegram</td>
+ *               </tr>
+ *             </table>
+ *
+ *             <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+ *               هذا الرابط صالح لمدة 24 ساعة. إذا لم تُنشئ هذا الحساب يمكنك تجاهل هذا البريد.
+ *             </p>
+ *           </td>
+ *         </tr>
+ *
+ *         <!-- Footer -->
+ *         <tr>
+ *           <td style="background:#f9fafb;padding:18px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+ *             <p style="margin:0;font-size:12px;color:#9ca3af;">
+ *               TradeSmart Dz · tradesmartdz2@gmail.com
+ *             </p>
+ *           </td>
+ *         </tr>
+ *
+ *       </table>
+ *     </td></tr>
+ *   </table>
+ * </body>
+ * </html>
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;

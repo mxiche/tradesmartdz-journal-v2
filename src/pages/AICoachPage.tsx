@@ -13,7 +13,8 @@ type Lang = 'ar' | 'fr' | 'en';
 const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = 'google/gemini-2.0-flash-lite-001';
-const DAILY_MESSAGE_LIMIT = 10;
+const CHAT_MODEL = 'google/gemini-2.5-flash-lite-preview-06-17';
+const DAILY_MESSAGE_LIMIT = 4;
 
 /*
  * IMPORTANT: Run these SQL statements in Supabase SQL Editor before deploying:
@@ -42,7 +43,7 @@ const L = {
     thinking: 'يفكر...',
     you: 'أنت',
     coach: 'المدرب',
-    limitReached: 'لقد وصلت إلى حد 10 رسائل يومياً. عد غداً!',
+    limitReached: 'لقد وصلت إلى حد 4 رسائل يومياً. عد غداً!',
     messagesLeft: (n: number) => `${n} رسائل متبقية اليوم`,
   },
   fr: {
@@ -61,7 +62,7 @@ const L = {
     thinking: 'Réflexion...',
     you: 'Vous',
     coach: 'Coach',
-    limitReached: 'Limite de 10 messages par jour atteinte. Revenez demain!',
+    limitReached: 'Limite de 4 messages par jour atteinte. Revenez demain!',
     messagesLeft: (n: number) => `${n} messages restants aujourd'hui`,
   },
   en: {
@@ -80,7 +81,7 @@ const L = {
     thinking: 'Thinking...',
     you: 'You',
     coach: 'Coach',
-    limitReached: 'Daily limit of 10 messages reached. Come back tomorrow!',
+    limitReached: 'Daily limit of 4 messages reached. Come back tomorrow!',
     messagesLeft: (n: number) => `${n} messages remaining today`,
   },
 };
@@ -94,7 +95,7 @@ function formatTimeAgo(isoString: string): string {
 }
 
 // ─── Call OpenRouter ──────────────────────────────────────────
-async function callOpenRouter(messages: { role: string; content: string }[]): Promise<string> {
+async function callOpenRouter(messages: { role: string; content: string }[], model: string = MODEL): Promise<string> {
   const res = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: {
@@ -103,7 +104,7 @@ async function callOpenRouter(messages: { role: string; content: string }[]): Pr
       'HTTP-Referer': 'https://tradesmartdz.com',
       'X-Title': 'TradeSmart DZ',
     },
-    body: JSON.stringify({ model: MODEL, messages, max_tokens: 400 }),
+    body: JSON.stringify({ model, messages, max_tokens: 400 }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
@@ -361,7 +362,7 @@ ${tradesContext}`;
         ...history.map(m => ({ role: m.role, content: m.content })),
       ];
 
-      const reply = await callOpenRouter(messages);
+      const reply = await callOpenRouter(messages, CHAT_MODEL);
       const replyTs = new Date().toLocaleTimeString(lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US', { hour: '2-digit', minute: '2-digit' });
       setChatMsgs(prev => [...prev, { role: 'assistant', content: reply, ts: replyTs }]);
 
@@ -599,7 +600,7 @@ ${tradesContext}`;
               onKeyDown={handleKeyDown}
               placeholder={t.chatPlaceholder}
               rows={1}
-              maxLength={500}
+              maxLength={250}
               disabled={chatLoading || isLimitReached}
               className="min-h-[42px] flex-1 resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
               style={{ maxHeight: 120 }}
@@ -616,7 +617,7 @@ ${tradesContext}`;
 
           {/* Character counter */}
           <p className="text-xs text-muted-foreground text-right -mt-1">
-            {chatInput.length}/500
+            {chatInput.length}/250
           </p>
         </CardContent>
       </Card>

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, Loader2, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, TrendingUp, TrendingDown, Wallet, Lock } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 
@@ -79,7 +79,8 @@ const DEFAULT_FORM = {
 const ConnectPage = () => {
   const { language, t } = useLanguage();
   const lang = language as 'ar' | 'fr' | 'en';
-  const { user, userPlan } = useAuth();
+  const { user, userPlan, userStatus } = useAuth();
+  const isPro = userPlan === 'pro' || userStatus === 'trial';
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +106,7 @@ const ConnectPage = () => {
   }, [user]);
 
   const openAdd = () => {
-    if (userPlan === 'free' && accounts.length >= 1) {
+    if (!isPro && accounts.length >= 1) {
       toast.error(
         lang === 'ar'
           ? 'الخطة المجانية: حساب واحد فقط. ترقّ إلى Pro للحسابات غير المحدودة.'
@@ -223,10 +224,22 @@ const ConnectPage = () => {
         <h1 className="text-2xl font-bold text-foreground">
           {lang === 'ar' ? 'إدارة الحسابات' : lang === 'fr' ? 'Gestionnaire de comptes' : 'Account Manager'}
         </h1>
-        <Button className="gradient-primary text-primary-foreground gap-2" onClick={openAdd}>
-          <Plus className="h-4 w-4" />
-          {labelAdd}
-        </Button>
+        {!isPro && accounts.length >= 1 ? (
+          <div className="relative group">
+            <Button className="gradient-primary text-primary-foreground gap-2 opacity-60 cursor-not-allowed" disabled>
+              <Plus className="h-4 w-4" />
+              {labelAdd}
+            </Button>
+            <div className="absolute bottom-full mb-2 end-0 z-10 hidden group-hover:block w-56 rounded-lg border border-border bg-card p-2 text-xs text-muted-foreground shadow-lg">
+              {lang === 'ar' ? 'الخطة المجانية: حساب واحد فقط. ترقّ إلى Pro.' : lang === 'fr' ? 'Plan gratuit: 1 compte. Passez à Pro.' : 'Free plan: 1 account only. Upgrade to Pro.'}
+            </div>
+          </div>
+        ) : (
+          <Button className="gradient-primary text-primary-foreground gap-2" onClick={openAdd}>
+            <Plus className="h-4 w-4" />
+            {labelAdd}
+          </Button>
+        )}
       </div>
 
       {/* Account list */}
@@ -253,7 +266,27 @@ const ConnectPage = () => {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {accounts.map(acc => <AccountCard key={acc.id} acc={acc} lang={lang} onEdit={openEdit} onDelete={handleDelete} userId={user?.id} />)}
+          {accounts.map((acc, index) => (
+            <div key={acc.id} className="relative">
+              <div className={!isPro && index >= 1 ? 'blur-sm pointer-events-none select-none' : ''}>
+                <AccountCard acc={acc} lang={lang} onEdit={openEdit} onDelete={handleDelete} userId={user?.id} />
+              </div>
+              {!isPro && index >= 1 && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-card/60 backdrop-blur-sm">
+                  <Lock className="h-8 w-8 text-primary" />
+                  <p className="text-sm font-semibold text-foreground">
+                    {lang === 'ar' ? 'متاح في Pro' : lang === 'fr' ? 'Disponible en Pro' : 'Pro only'}
+                  </p>
+                  <a
+                    href="/settings?tab=subscription"
+                    className="rounded-lg bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+                  >
+                    {lang === 'ar' ? 'ترقية' : lang === 'fr' ? 'Mettre à niveau' : 'Upgrade'}
+                  </a>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
