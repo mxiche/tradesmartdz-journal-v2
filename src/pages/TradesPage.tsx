@@ -1188,7 +1188,8 @@ function Mt5ImportModal({
 const TradesPage = () => {
   const { t, language } = useLanguage();
   const lang = language as 'ar' | 'fr' | 'en';
-  const { user } = useAuth();
+  const { user, userPlan, userStatus } = useAuth();
+  const isPro = userPlan === 'pro' || userStatus === 'trial';
   const [trades, setTrades] = useState<Trade[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1734,7 +1735,37 @@ const TradesPage = () => {
     }
   };
 
+  const FREE_MONTHLY_LIMIT = 50;
+
+  const checkMonthlyLimit = (): boolean => {
+    if (isPro) return true;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const thisMonthCount = trades.filter(tr => {
+      const t = tr.close_time ? new Date(tr.close_time) : null;
+      return t && t >= monthStart && t < monthEnd;
+    }).length;
+    if (thisMonthCount >= FREE_MONTHLY_LIMIT) {
+      toast.error(
+        lang === 'ar' ? `لقد وصلت إلى الحد الأقصى ${FREE_MONTHLY_LIMIT} صفقة شهرياً للحساب المجاني` :
+        lang === 'fr' ? `Limite de ${FREE_MONTHLY_LIMIT} trades/mois atteinte. Passez à Pro pour continuer.` :
+        `Free plan limit: ${FREE_MONTHLY_LIMIT} trades/month reached. Upgrade to Pro.`
+      );
+      return false;
+    }
+    return true;
+  };
+
   const exportCsv = () => {
+    if (!isPro) {
+      toast.error(
+        lang === 'ar' ? 'تصدير CSV متاح لمستخدمي Pro فقط' :
+        lang === 'fr' ? 'L\'export CSV est réservé aux abonnés Pro' :
+        'CSV export is available for Pro users only'
+      );
+      return;
+    }
     // Always quote every field so Excel handles commas, special chars, and UTF-8 correctly
     const q = (val: string | number | null | undefined) => {
       const s = val == null ? '' : String(val);
@@ -1800,11 +1831,11 @@ const TradesPage = () => {
               {lang === 'ar' ? `حذف (${selectedIds.size})` : lang === 'fr' ? `Supprimer (${selectedIds.size})` : `Delete (${selectedIds.size})`}
             </Button>
           )}
-          <Button size="sm" className="gradient-primary text-primary-foreground gap-1" onClick={() => setAddOpen(true)}>
+          <Button size="sm" className="gradient-primary text-primary-foreground gap-1" onClick={() => { if (checkMonthlyLimit()) setAddOpen(true); }}>
             <Plus className="h-4 w-4" />
             {lang === 'ar' ? 'إضافة صفقة' : lang === 'fr' ? 'Ajouter' : 'Add Trade'}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => { if (checkMonthlyLimit()) setImportOpen(true); }}>
             <Upload className="me-2 h-4 w-4" /> {t('importMt5')}
           </Button>
           <Button variant="outline" size="sm" onClick={exportCsv}>
@@ -2632,6 +2663,14 @@ const TradesPage = () => {
                         </div>
                       </div>
                       <Button className="w-full gradient-primary text-primary-foreground" onClick={async () => {
+                        if (!isPro) {
+                          toast.error(
+                            lang === 'ar' ? 'مشاركة الصورة متاحة لمستخدمي Pro فقط' :
+                            lang === 'fr' ? 'Le partage en image est réservé aux abonnés Pro' :
+                            'Image sharing is available for Pro users only'
+                          );
+                          return;
+                        }
                         if (!shareCardRef.current) return;
                         const canvas = await html2canvas(shareCardRef.current, { scale: 2, backgroundColor: null, useCORS: true });
                         const a = document.createElement('a');

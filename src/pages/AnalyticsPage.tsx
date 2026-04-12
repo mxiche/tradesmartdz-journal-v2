@@ -1,4 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ProLockOverlay } from '@/components/ProLockOverlay';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -301,7 +303,9 @@ const AnalyticsPage = () => {
   const { t, language } = useLanguage();
   const lang = language as Lang;
   const l = L[lang];
-  const { user } = useAuth();
+  const { user, userPlan, userStatus } = useAuth();
+  const isPro = userPlan === 'pro' || userStatus === 'trial';
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
@@ -604,6 +608,10 @@ const AnalyticsPage = () => {
   }), [stats]);
 
   const downloadCertificate = async () => {
+    if (!isPro) {
+      navigate('/settings?tab=subscription');
+      return;
+    }
     const el = certRef.current;
     if (!el) return;
     setCertLoading(true);
@@ -782,6 +790,8 @@ const AnalyticsPage = () => {
       </div>
 
       {/* ── SECTION 3: HEATMAP ── */}
+      <div className="relative">
+      {!isPro && <ProLockOverlay feature={l.heatmap} />}
       <Section title={l.heatmap}>
         {trades.length === 0 ? <EmptyState msg={noDataMsg} /> : (
           <>
@@ -938,8 +948,11 @@ const AnalyticsPage = () => {
           </>
         )}
       </Section>
+      </div>
 
       {/* ── SECTION 4: SETUP TABLE ── */}
+      <div className="relative">
+      {!isPro && <ProLockOverlay feature={l.setupTable} />}
       <Section title={l.setupTable}>
         {setupTableData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
           <div className="overflow-x-auto">
@@ -971,8 +984,11 @@ const AnalyticsPage = () => {
           </div>
         )}
       </Section>
+      </div>
 
       {/* ── SECTION 5: SYMBOL BARS ── */}
+      <div className="relative">
+      {!isPro && <ProLockOverlay feature={l.symbolChart} />}
       <Section title={l.symbolChart}>
         {symbolData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
           <div className="w-full overflow-x-auto">
@@ -1020,6 +1036,7 @@ const AnalyticsPage = () => {
           </div>
         )}
       </Section>
+      </div>
 
       {/* ── SECTION 6: TIME ANALYSIS ── */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -1041,6 +1058,8 @@ const AnalyticsPage = () => {
         </Section>
 
         {/* By Time Group — single teal P&L bars */}
+        <div className="relative">
+        {!isPro && <ProLockOverlay feature={l.byHourTitle} />}
         <Section title={l.byHourTitle}>
           {byTimeData.every(d => d.pnl === 0) ? <EmptyState msg={noDataMsg} /> : (
             <ResponsiveContainer width="100%" height={220}>
@@ -1058,6 +1077,7 @@ const AnalyticsPage = () => {
             </ResponsiveContainer>
           )}
         </Section>
+        </div>
       </div>
 
       {/* ── SECTION 7: WEEKLY CONSISTENCY ── */}
