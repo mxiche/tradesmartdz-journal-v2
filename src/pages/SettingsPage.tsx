@@ -131,7 +131,7 @@ const SettingsPage = () => {
 
   const connectTelegram = () => {
     if (!user) return;
-    window.open(`https://t.me/tradesmartdzz`, '_blank');
+    window.open(`https://t.me/Tradesmartdzbot?start=${user.id}`, '_blank');
     startPolling();
   };
 
