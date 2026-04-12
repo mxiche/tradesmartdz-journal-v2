@@ -164,8 +164,10 @@ export default function AppLayout() {
               <span>⚡</span>
               <span>
                 {trialDaysRemaining <= 0
-                  ? 'انتهت تجربتك المجانية'
-                  : `التجربة المجانية — ${trialDaysRemaining} ${trialDaysRemaining === 1 ? 'يوم متبقي' : 'أيام متبقية'}`
+                  ? t('trial_banner_expired')
+                  : trialDaysRemaining === 1
+                  ? t('trial_banner_one_day')
+                  : t('trial_banner_days_remaining').replace('{days}', String(trialDaysRemaining))
                 }
               </span>
             </div>
@@ -177,7 +179,7 @@ export default function AppLayout() {
                   : 'bg-teal-500 text-black hover:bg-teal-600'
               }`}
             >
-              ترقية إلى Pro
+              {t('trial_upgrade_btn')}
             </button>
           </div>
         )}
@@ -197,10 +199,10 @@ export default function AppLayout() {
           <div className="bg-gradient-to-br from-teal-500 to-teal-600 p-8 text-center">
             <div className="text-6xl mb-3">🎉</div>
             <h2 className="text-2xl font-black text-white mb-1">
-              مرحباً بك في TradeSmartDz!
+              {t('trial_welcome_title')}
             </h2>
             <p className="text-teal-100 text-sm">
-              لديك تجربة مجانية كاملة لمدة 5 أيام
+              {t('trial_welcome_subtitle')}
             </p>
           </div>
 
@@ -208,20 +210,20 @@ export default function AppLayout() {
           <div className="p-6">
             {/* Trial badge */}
             <div className="bg-teal-500/10 border border-teal-500/30 rounded-2xl p-4 mb-5 text-center">
-              <p className="text-3xl font-black text-teal-500 mb-1">5 أيام</p>
-              <p className="text-sm text-muted-foreground">وصول كامل لجميع مميزات Pro مجاناً</p>
+              <p className="text-3xl font-black text-teal-500 mb-1">{t('trial_badge_days')}</p>
+              <p className="text-sm text-muted-foreground">{t('trial_badge_subtitle')}</p>
             </div>
 
             {/* Features list */}
             <div className="space-y-2.5 mb-6">
-              {[
-                'حسابات غير محدودة',
-                'صفقات غير محدودة',
-                'AI Coach — تحليل يومي',
-                'إشعارات Telegram اليومية',
-                'تحليلات متقدمة كاملة',
-                'تصدير PDF و CSV',
-              ].map((feature, i) => (
+              {([
+                t('trial_feature_1'),
+                t('trial_feature_2'),
+                t('trial_feature_3'),
+                t('trial_feature_4'),
+                t('trial_feature_5'),
+                t('trial_feature_6'),
+              ] as string[]).map((feature, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <div className="w-5 h-5 rounded-full bg-teal-500/20 flex items-center justify-center flex-shrink-0">
                     <span className="text-teal-500 text-xs">✓</span>
@@ -235,11 +237,11 @@ export default function AppLayout() {
               onClick={() => setShowTrialWelcome(false)}
               className="w-full bg-teal-500 hover:bg-teal-600 text-black font-black py-3 text-base"
             >
-              ابدأ التجربة المجانية 🚀
+              {t('trial_cta')}
             </Button>
 
             <p className="text-xs text-muted-foreground text-center mt-3">
-              لا يلزم بطاقة ائتمانية • تجربة مجانية لمدة 5 أيام
+              {t('trial_no_card')}
             </p>
           </div>
         </DialogContent>
