@@ -638,6 +638,25 @@ const AnalyticsPage = () => {
 
   const noDataMsg = l.noData;
 
+  const renderCustomLabel = (props: any) => {
+    const { x, y, width, height, value } = props;
+    const isNegative = value < 0;
+    const label = `${value >= 0 ? '+' : ''}$${Math.abs(value).toFixed(0)}`;
+    return (
+      <text
+        x={isNegative ? x - 5 : x + width + 5}
+        y={y + height / 2}
+        textAnchor={isNegative ? 'end' : 'start'}
+        dominantBaseline="middle"
+        fontSize={12}
+        fontWeight={700}
+        fill={value >= 0 ? '#10b981' : '#ef4444'}
+      >
+        {label}
+      </text>
+    );
+  };
+
   return (
     <div className="animate-fade-in space-y-6">
 
@@ -992,11 +1011,11 @@ const AnalyticsPage = () => {
       <Section title={l.symbolChart}>
         {symbolData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
           <div className="w-full overflow-x-auto">
-            <ResponsiveContainer width="100%" height={Math.max(120, symbolData.length * 56)}>
+            <ResponsiveContainer width="100%" height={Math.max(150, symbolData.length * 64)}>
               <BarChart
                 layout="vertical"
-                data={symbolData.map(d => ({ ...d, name: isMobile ? d.name.slice(0, 7) : d.name }))}
-                margin={{ top: 4, right: 70, left: 10, bottom: 4 }}
+                data={symbolData}
+                margin={{ top: 8, right: 80, left: 60, bottom: 8 }}
                 cursor={false}
               >
                 <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} horizontal={false} />
@@ -1007,12 +1026,11 @@ const AnalyticsPage = () => {
                   tickFormatter={(v) => `$${v}`}
                 />
                 <YAxis
-                  type="category"
                   dataKey="name"
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={11}
-                  width={isMobile ? 52 : 72}
-                  tick={{ fill: 'hsl(var(--foreground))' }}
+                  type="category"
+                  width={55}
+                  tick={{ fontSize: 12, fontWeight: 600 }}
+                  tickFormatter={(value) => value.length > 7 ? value.substring(0, 7) + '…' : value}
                 />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
                 <ReferenceLine x={0} stroke="#6b7280" strokeDasharray="3 3" strokeOpacity={0.4} />
@@ -1024,12 +1042,7 @@ const AnalyticsPage = () => {
                       fillOpacity={0.9}
                     />
                   ))}
-                  <LabelList
-                    dataKey="pnl"
-                    position="right"
-                    formatter={(v: any) => `${Number(v) >= 0 ? '+' : ''}$${Math.abs(Number(v)).toFixed(0)}`}
-                    style={{ fontSize: '11px', fontWeight: '600', fill: 'hsl(var(--foreground))' }}
-                  />
+                  <LabelList content={renderCustomLabel} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
