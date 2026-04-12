@@ -13,7 +13,7 @@ type Lang = 'ar' | 'fr' | 'en';
 const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = 'google/gemini-2.0-flash-lite-001';
-const CHAT_MODEL = 'google/gemini-2.5-flash-lite-preview-06-17';
+const CHAT_MODEL = 'google/gemini-2.0-flash-lite-001';
 const DAILY_MESSAGE_LIMIT = 4;
 
 /*
@@ -101,12 +101,16 @@ async function callOpenRouter(messages: { role: string; content: string }[], mod
     headers: {
       'Authorization': `Bearer ${OPENROUTER_KEY}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://tradesmartdz.com',
-      'X-Title': 'TradeSmart DZ',
+      'HTTP-Referer': 'https://neuroport.xyz',
+      'X-Title': 'TradeSmartDz',
     },
     body: JSON.stringify({ model, messages, max_tokens: 400 }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error('OpenRouter error:', res.status, errorText);
+    throw new Error(`API error: ${res.status}`);
+  }
   const data = await res.json();
   return data.choices?.[0]?.message?.content?.trim() || '';
 }
