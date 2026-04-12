@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch subscription plan whenever user changes
+  // Ensure trial exists and fetch subscription whenever user changes
   useEffect(() => {
     if (!user) {
       setUserPlan('free');
@@ -58,40 +58,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setTrialDaysRemaining(null);
       return;
     }
-    supabase
-      .from('subscriptions')
-      .select('plan, status, expires_at')
-      .eq('user_id', user.id)
-      .in('status', ['active', 'trial'])
-      .gte('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data: sub }) => {
-        const plan = (sub?.plan as 'free' | 'pro') || 'free';
-        const status = (sub?.status as 'active' | 'trial') || 'free';
 
-        setUserPlan(plan);
-        setUserStatus(status as 'free' | 'active' | 'trial' | 'expired');
-        setExpiresAt(sub?.expires_at || null);
+    const init = async () => {
+      // Step 1: create trial subscription if user has none
+      const { data: existing } = await supabase
+        .from('subscriptions')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-        const trialExp = status === 'trial' ? (sub?.expires_at || null) : null;
-        setTrialExpiresAt(trialExp);
+      if (!existing) {
+        await supabase.from('subscriptions').insert({
+          user_id: user.id,
+          plan: 'pro',
+          status: 'trial',
+          amount: '0',
+          activated_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+      }
 
-        const daysRemaining = trialExp
-          ? Math.ceil((new Date(trialExp).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-          : null;
-        setTrialDaysRemaining(daysRemaining);
+      // Step 2: fetch active/trial subscription
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('plan, status, expires_at')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'trial'])
+        .gte('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-        // Show welcome modal once per user on first login during trial
-        if (status === 'trial') {
-          const shownKey = `trial_welcome_shown_${user.id}`;
-          if (!localStorage.getItem(shownKey)) {
-            setShowTrialWelcome(true);
-            localStorage.setItem(shownKey, 'true');
-          }
+      const plan = (sub?.plan as 'free' | 'pro') || 'free';
+      const status = (sub?.status as 'active' | 'trial') || 'free';
+
+      setUserPlan(plan);
+      setUserStatus(status as 'free' | 'active' | 'trial' | 'expired');
+      setExpiresAt(sub?.expires_at || null);
+
+      const trialExp = status === 'trial' ? (sub?.expires_at || null) : null;
+      setTrialExpiresAt(trialExp);
+
+      const daysRemaining = trialExp
+        ? Math.ceil((new Date(trialExp).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+      setTrialDaysRemaining(daysRemaining);
+
+      // Show welcome modal once per user on first login during trial
+      if (status === 'trial') {
+        const shownKey = `trial_welcome_shown_${user.id}`;
+        if (!localStorage.getItem(shownKey)) {
+          setShowTrialWelcome(true);
+          localStorage.setItem(shownKey, 'true');
         }
-      });
+      }
+    };
+
+    init();
   }, [user]);
 
   const signIn = async (email: string, password: string) => {

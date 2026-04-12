@@ -96,6 +96,7 @@ export function OnboardingModal({ userId, lang, onClose }: Props) {
   const navigate = useNavigate();
 
   const completeOnboarding = async () => {
+    localStorage.setItem(`onboarding_completed_${userId}`, 'true');
     await supabase
       .from('user_preferences')
       .upsert({ user_id: userId, onboarding_completed: true }, { onConflict: 'user_id' });

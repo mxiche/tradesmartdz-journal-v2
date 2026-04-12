@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 
 const RegisterPage = () => {
   const { signUp } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,9 +22,11 @@ const RegisterPage = () => {
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [registerError, setRegisterError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setRegisterError('');
     if (password !== confirmPassword) {
       toast.error(t('passwordsMismatch'));
       return;
@@ -33,7 +35,20 @@ const RegisterPage = () => {
     const { error } = await signUp(email, password, fullName);
     setLoading(false);
     if (error) {
-      toast.error(t('errorRegister'), { description: error.message });
+      const msg = error.message.toLowerCase();
+      if (
+        msg.includes('already registered') ||
+        msg.includes('already been registered') ||
+        msg.includes('user already exists')
+      ) {
+        setRegisterError(
+          language === 'ar' ? 'هذا البريد الإلكتروني مسجل مسبقاً' :
+          language === 'fr' ? 'Cet email est déjà utilisé' :
+          'This email is already registered'
+        );
+      } else {
+        setRegisterError(error.message);
+      }
     } else {
       setSuccess(true);
     }
@@ -74,11 +89,11 @@ const RegisterPage = () => {
             <div className="space-y-2">
               <Label htmlFor="password">{t('password')}</Label>
               <div className="relative">
-                <Input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="pr-10" />
+                <Input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="ltr:pr-10 rtl:pl-10" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute ltr:right-3 rtl:left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -87,16 +102,21 @@ const RegisterPage = () => {
             <div className="space-y-2">
               <Label htmlFor="confirm">{t('confirmPassword')}</Label>
               <div className="relative">
-                <Input id="confirm" type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required className="pr-10" />
+                <Input id="confirm" type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required className="ltr:pr-10 rtl:pl-10" />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute ltr:right-3 rtl:left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
                 >
                   {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
+            {registerError && (
+              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {registerError}
+              </p>
+            )}
             <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
               {loading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               {t('register')}

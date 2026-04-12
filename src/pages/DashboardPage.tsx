@@ -1420,8 +1420,12 @@ const DashboardPage = () => {
   useEffect(() => {
     if (!user) return;
     const checkOnboarding = async () => {
+      if (localStorage.getItem(`onboarding_completed_${user.id}`)) return;
       const { data: prefs } = await supabase.from('user_preferences').select('onboarding_completed').eq('user_id', user.id).maybeSingle();
-      if (prefs?.onboarding_completed) return;
+      if (prefs?.onboarding_completed) {
+        localStorage.setItem(`onboarding_completed_${user.id}`, 'true');
+        return;
+      }
       const [{ count: tc }, { count: ac }] = await Promise.all([
         supabase.from('trades').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('mt5_accounts').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
