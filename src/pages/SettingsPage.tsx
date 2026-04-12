@@ -53,7 +53,6 @@ const SettingsPage = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeStep, setUpgradeStep] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<'baridimob' | 'usdt' | null>(null);
-  const [proofFile, setProofFile] = useState<File | null>(null);
   const [reference, setReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingSubmission, setPendingSubmission] = useState<{ submitted_at: string } | null>(null);
@@ -200,22 +199,9 @@ const SettingsPage = () => {
   };
 
   const handleSubmitPayment = async () => {
-    if (!proofFile || !user) return;
+    if (!user) return;
     setIsSubmitting(true);
     try {
-      // Upload screenshot to Supabase Storage
-      const fileExt = proofFile.name.split('.').pop();
-      const fileName = `payment-proof/${user.id}-${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('screenshots')
-        .upload(fileName, proofFile, { contentType: proofFile.type, upsert: true });
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('screenshots')
-        .getPublicUrl(fileName);
-
       // Insert subscription request
       const { error: subError } = await supabase
         .from('subscriptions')
@@ -225,7 +211,6 @@ const SettingsPage = () => {
           status: 'pending',
           payment_method: paymentMethod,
           payment_reference: reference || null,
-          payment_proof_url: urlData.publicUrl,
           amount: paymentMethod === 'baridimob' ? '3700 DA' : '15 USDT',
         });
       if (subError) throw subError;
@@ -246,7 +231,6 @@ const SettingsPage = () => {
             paymentMethod,
             amount: paymentMethod === 'baridimob' ? '3,700 DA' : '15 USDT',
             reference: reference || 'Not provided',
-            proofUrl: urlData.publicUrl,
           }),
         }
       );
@@ -282,7 +266,6 @@ const SettingsPage = () => {
     setShowUpgradeModal(false);
     setUpgradeStep(1);
     setPaymentMethod(null);
-    setProofFile(null);
     setReference('');
   };
 
@@ -848,14 +831,16 @@ const SettingsPage = () => {
                   {lang === 'ar' ? 'تأكيد الدفع' : lang === 'fr' ? 'Confirmer le paiement' : 'Confirm Payment'}
                 </h2>
                 <p className="text-muted-foreground text-sm mb-5">
-                  {lang === 'ar' ? 'ارفع لقطة شاشة الدفع للتحقق' : lang === 'fr' ? 'Uploadez votre capture de paiement' : 'Upload your payment screenshot so we can verify'}
+                  {lang === 'ar' ? 'أدخل مرجع المعاملة ثم أرسل لقطة الشاشة عبر Telegram' : lang === 'fr' ? 'Entrez votre référence puis envoyez la capture via Telegram' : 'Enter your transaction reference then send your screenshot via Telegram'}
                 </p>
 
+                {/* Account info — read only */}
                 <div className="bg-muted/50 rounded-xl p-4 mb-4">
                   <p className="text-xs text-muted-foreground mb-1">{lang === 'ar' ? 'حسابك' : lang === 'fr' ? 'Votre compte' : 'Your account'}</p>
                   <p className="font-semibold text-sm">{user?.email}</p>
                 </div>
 
+                {/* Transaction reference — optional */}
                 <div className="mb-4">
                   <label className="text-sm font-semibold mb-2 block">
                     {lang === 'ar' ? 'مرجع المعاملة' : lang === 'fr' ? 'Référence de transaction' : 'Transaction Reference'}
@@ -874,37 +859,31 @@ const SettingsPage = () => {
                   />
                 </div>
 
-                <div className="mb-6">
-                  <label className="text-sm font-semibold mb-2 block">
-                    {lang === 'ar' ? 'لقطة شاشة الدفع' : lang === 'fr' ? 'Capture du paiement' : 'Payment Screenshot'} <span className="text-red-500">*</span>
-                  </label>
-                  <label className={`block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${
-                    proofFile ? 'border-teal-500 bg-teal-500/5' : 'border-border hover:border-teal-500/50 hover:bg-muted/50'
-                  }`}>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => setProofFile(e.target.files?.[0] || null)}
-                    />
-                    {proofFile ? (
-                      <div>
-                        <p className="text-teal-500 font-semibold text-sm">✓ {proofFile.name}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{lang === 'ar' ? 'اضغط للتغيير' : lang === 'fr' ? 'Appuyer pour changer' : 'Tap to change'}</p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-2xl mb-2">📎</p>
-                        <p className="text-sm font-semibold">{lang === 'ar' ? 'رفع لقطة شاشة' : lang === 'fr' ? 'Uploader une capture' : 'Upload screenshot'}</p>
-                        <p className="text-xs text-muted-foreground mt-1">JPG, PNG — max 5MB</p>
-                      </div>
-                    )}
-                  </label>
-                </div>
+                {/* Telegram screenshot CTA */}
+                <a
+                  href="https://t.me/Tradesmartdzbot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-3 rounded-xl bg-blue-500/10 border border-blue-500/30 p-4 mb-6 hover:bg-blue-500/15 transition-colors"
+                >
+                  <span className="text-2xl flex-shrink-0">📸</span>
+                  <div>
+                    <p className="font-semibold text-sm text-blue-400">
+                      {lang === 'ar' ? 'أرسل لقطة الشاشة عبر Telegram' : lang === 'fr' ? 'Envoyez la capture sur Telegram' : 'Send your screenshot via Telegram'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {lang === 'ar'
+                        ? 'افتح البوت @Tradesmartdzbot وأرسل صورة إثبات الدفع مباشرةً'
+                        : lang === 'fr'
+                        ? 'Ouvrez le bot @Tradesmartdzbot et envoyez votre capture de paiement'
+                        : 'Open @Tradesmartdzbot and send your payment proof image directly'}
+                    </p>
+                  </div>
+                </a>
 
                 <Button
                   onClick={handleSubmitPayment}
-                  disabled={!proofFile || isSubmitting}
+                  disabled={isSubmitting}
                   className="w-full bg-teal-500 hover:bg-teal-600 text-black font-bold py-3 disabled:opacity-50"
                 >
                   {isSubmitting
