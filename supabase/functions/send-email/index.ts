@@ -137,7 +137,7 @@ function buildPaymentConfirmationEmail(userEmail: string, paymentMethod: string,
               </table>
 
               <p style="color:#6b7280;font-size:12px;text-align:center;margin:0;">
-                للمساعدة: <a href="mailto:support@tradesmartdz.com" style="color:#14b8a6;">support@tradesmartdz.com</a>
+                للمساعدة: <a href="mailto:tradesmartdz2@gmail.com" style="color:#14b8a6;">tradesmartdz2@gmail.com</a>
               </p>
             </td>
           </tr>
@@ -226,7 +226,7 @@ function buildProActivatedEmail(userEmail: string, paymentMethod: string, amount
               </table>
 
               <p style="color:#6b7280;font-size:12px;text-align:center;margin:0;">
-                للمساعدة: <a href="mailto:support@tradesmartdz.com" style="color:#14b8a6;">support@tradesmartdz.com</a>
+                للمساعدة: <a href="mailto:tradesmartdz2@gmail.com" style="color:#14b8a6;">tradesmartdz2@gmail.com</a>
               </p>
             </td>
           </tr>

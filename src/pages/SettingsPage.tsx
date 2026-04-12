@@ -143,12 +143,27 @@ const SettingsPage = () => {
         toast.success(lang === 'ar' ? '✅ تم ربط Telegram بنجاح!' : lang === 'fr' ? '✅ Telegram connecté avec succès !' : '✅ Telegram connected successfully!');
       }
     }, 5000);
+
+    // Auto-stop after 3 minutes
+    setTimeout(() => {
+      if (pollIntervalRef.current) {
+        stopPolling();
+        toast.error(
+          lang === 'ar'
+            ? 'انتهت مهلة الاتصال. حاول مرة أخرى.'
+            : lang === 'fr'
+            ? 'Délai expiré. Réessayez.'
+            : 'Connection timed out. Try again.'
+        );
+      }
+    }, 180000);
   };
 
   const connectTelegram = () => {
     if (!user) return;
     window.open(`https://t.me/Tradesmartdzbot?start=${user.id}`, '_blank');
-    startPolling();
+    // Short delay to let user open Telegram before polling starts
+    setTimeout(() => startPolling(), 2000);
   };
 
   const handleSaveProfile = async () => {
@@ -509,15 +524,13 @@ const SettingsPage = () => {
                   </Button>
 
                   {polling && (
-                    <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                      <span>
-                        {lang === 'ar'
-                          ? 'انقر على Start في Telegram لإتمام الربط...'
-                          : lang === 'fr'
-                          ? 'Cliquez sur Start dans Telegram pour finaliser la connexion...'
-                          : 'Click Start in Telegram to complete the connection...'}
-                      </span>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="w-4 h-4 border-2 border-teal-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                      {lang === 'ar'
+                        ? 'في انتظار التأكيد من Telegram...'
+                        : lang === 'fr'
+                        ? 'En attente de confirmation Telegram...'
+                        : 'Waiting for Telegram confirmation...'}
                     </div>
                   )}
                 </div>
@@ -779,8 +792,8 @@ const SettingsPage = () => {
             {/* Support footer */}
             <p className="text-xs text-center text-muted-foreground pt-2">
               {lang === 'ar' ? 'هل تحتاج مساعدة؟' : lang === 'fr' ? 'Besoin d\'aide ?' : 'Need help?'}{' '}
-              <a href="mailto:support@tradesmartdz.com" className="text-teal-500 hover:underline">
-                support@tradesmartdz.com
+              <a href="mailto:tradesmartdz2@gmail.com" className="text-teal-500 hover:underline">
+                tradesmartdz2@gmail.com
               </a>
             </p>
 
@@ -1141,8 +1154,8 @@ const SettingsPage = () => {
                 {/* Support email */}
                 <p className="text-xs text-muted-foreground mb-6">
                   {lang === 'ar' ? 'للمساعدة:' : lang === 'fr' ? 'Support :' : 'Need help?'}{' '}
-                  <a href="mailto:support@tradesmartdz.com" className="text-teal-500 hover:underline">
-                    support@tradesmartdz.com
+                  <a href="mailto:tradesmartdz2@gmail.com" className="text-teal-500 hover:underline">
+                    tradesmartdz2@gmail.com
                   </a>
                 </p>
 
