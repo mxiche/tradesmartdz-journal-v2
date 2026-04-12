@@ -60,11 +60,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const init = async () => {
-      // Step 1: create trial subscription if user has none
+      // Step 1: create trial subscription if user has NO subscription at all
       const { data: existing } = await supabase
         .from('subscriptions')
-        .select('id')
+        .select('id, status')
         .eq('user_id', user.id)
+        .limit(1)
         .maybeSingle();
 
       if (!existing) {
@@ -86,14 +87,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Step 2: fetch active/trial subscription
+      // Step 2: fetch active/trial subscription — prefer 'active' over 'trial'
+      // 'active' < 'trial' alphabetically so ascending order puts active first
       const { data: sub } = await supabase
         .from('subscriptions')
         .select('plan, status, expires_at')
         .eq('user_id', user.id)
         .in('status', ['active', 'trial'])
         .gte('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
+        .order('status', { ascending: true })
+        .order('expires_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
