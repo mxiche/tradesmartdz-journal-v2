@@ -6,8 +6,8 @@
  *   https://api.telegram.org/bot<BOT_TOKEN>/setWebhook?url=<SUPABASE_URL>/functions/v1/telegram-webhook
  *
  * Behaviour:
- *  - Any message containing a photo → forward photo to OWNER_CHAT_ID with caption
- *  - Every message → send Arabic auto-reply to the sender
+ *  - Photo message → forward to owner (1873113234) + notify owner with sender info; NO auto-reply
+ *  - Text / /start / any other message → send Arabic auto-reply to sender
  */
 
 const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!;
@@ -35,15 +35,6 @@ async function forwardMessage(fromChatId: string | number, messageId: number): P
   });
 }
 
-async function sendCaption(fromChatId: string | number, fromUsername: string | undefined): Promise<void> {
-  const label = fromUsername ? `@${fromUsername}` : String(fromChatId);
-  const caption =
-    `📸 صورة جديدة من المستخدم\n` +
-    `👤 ${label}\n` +
-    `🆔 Chat ID: ${fromChatId}`;
-  await sendMessage(OWNER_CHAT_ID, caption);
-}
-
 Deno.serve(async (req) => {
   try {
     const update = await req.json();
@@ -55,31 +46,26 @@ Deno.serve(async (req) => {
 
     const chatId: string | number = message.chat?.id;
     const messageId: number = message.message_id;
-    const username: string | undefined = message.from?.username;
+    const firstName: string = message.from?.first_name ?? 'مجهول';
 
-    // 1. If the message contains a photo, forward it to the owner
+    // Photo → forward to owner + notify; skip auto-reply
     if (message.photo && message.photo.length > 0) {
       await forwardMessage(chatId, messageId);
-      await sendCaption(chatId, username);
+      await sendMessage(
+        OWNER_CHAT_ID,
+        `📸 إثبات دفع جديد!\nمن: ${firstName}\nID: ${chatId}`,
+      );
+      return new Response('ok', { status: 200 });
     }
 
-    // 2. Send Arabic auto-reply to every message sender
+    // All other messages (text, /start, stickers, etc.) → Arabic auto-reply
     const autoReply =
-      `مرحباً! 👋\n\n` +
-      `شكراً على تواصلك مع <b>TradeSmartDz</b>.\n` +
-      `لقد استلمنا رسالتك وسنرد عليك في أقرب وقت ممكن إن شاء الله.\n\n` +
-      `إذا كنت ترسل إثبات الدفع، سيتم مراجعته وتفعيل حسابك خلال 24 ساعة. ⏳\n\n` +
-      `TradeSmartDz 🎯`;
+      `مرحباً بك في TradeSmartDz 👋\n\n` +
+      `لتفعيل اشتراكك Pro، يرجى إرسال صورة إثبات الدفع هنا.\n\n` +
+      `سيتم مراجعة طلبك وتفعيل الاشتراك خلال 24 ساعة كحد أقصى. ✅\n\n` +
+      `للاستفسار: tradesmartdz2@gmail.com`;
 
-    await fetch(`${TG_API}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: autoReply,
-        parse_mode: 'HTML',
-      }),
-    });
+    await sendMessage(chatId, autoReply);
 
     return new Response('ok', { status: 200 });
   } catch (err) {
