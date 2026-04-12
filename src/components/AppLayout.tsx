@@ -40,7 +40,8 @@ export default function AppLayout() {
       {/* Overlay — full screen, both click and touch */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          style={{ touchAction: 'manipulation' }}
           onClick={() => setSidebarOpen(false)}
           onTouchEnd={(e) => {
             e.preventDefault();
@@ -57,15 +58,19 @@ export default function AppLayout() {
           <button
             type="button"
             onClick={() => setSidebarOpen(false)}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+            }}
             onTouchEnd={(e) => {
               e.preventDefault();
               e.stopPropagation();
               setSidebarOpen(false);
             }}
-            className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
+            style={{ touchAction: 'manipulation' }}
+            className="lg:hidden p-3 rounded-xl hover:bg-muted transition-colors min-w-[48px] min-h-[48px] flex items-center justify-center cursor-pointer select-none"
             aria-label="Close menu"
           >
-            <X className="h-5 w-5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
