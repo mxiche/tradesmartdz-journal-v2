@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Trash2, Loader2, Send, CheckCircle2, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Language } from '@/lib/i18n';
@@ -131,7 +131,7 @@ const SettingsPage = () => {
 
   const connectTelegram = () => {
     if (!user) return;
-    window.open(`https://t.me/Tradesmartdzbot?start=${user.id}`, '_blank');
+    window.open(`https://t.me/tradesmartdzz`, '_blank');
     startPolling();
   };
 
@@ -643,6 +643,10 @@ const SettingsPage = () => {
       {/* ── Upgrade Modal ── */}
       <Dialog open={showUpgradeModal} onOpenChange={(open) => { if (!open) resetModal(); else setShowUpgradeModal(true); }}>
         <DialogContent className="max-w-lg w-full md:rounded-2xl max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:rounded-t-2xl max-sm:rounded-b-none max-h-[90vh] flex flex-col overflow-hidden p-0">
+          <DialogTitle className="sr-only">Upgrade to Pro</DialogTitle>
+          <DialogDescription className="sr-only">
+            Choose a payment method to upgrade to Pro plan
+          </DialogDescription>
 
           {/* Progress bar */}
           <div className="flex gap-1 p-4 pb-0 flex-shrink-0">

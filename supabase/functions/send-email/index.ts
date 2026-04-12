@@ -57,6 +57,8 @@ import { Resend } from 'npm:resend';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
 const FROM_EMAIL = 'TradeSmartDz <noreply@tradesmartdz.com>';
+const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('TG_SERVICE_KEY')!;
 
 const resend = new Resend(RESEND_API_KEY);
 
@@ -258,6 +260,16 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  const authHeader = req.headers.get('Authorization') || '';
+  const token = authHeader.replace('Bearer ', '');
+
+  if (token !== ANON_KEY && token !== SERVICE_ROLE_KEY) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   try {
