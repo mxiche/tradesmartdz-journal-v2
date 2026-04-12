@@ -56,7 +56,7 @@
 import { Resend } from 'npm:resend';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
-const FROM_EMAIL = 'TradeSmartDz <noreply@tradesmartdz.com>';
+const FROM_EMAIL = 'TradeSmartDz <noreply@neuroport.xyz>';
 const resend = new Resend(RESEND_API_KEY);
 
 // ── HTML email builders ────────────────────────────────────────────────────
@@ -217,7 +217,7 @@ function buildProActivatedEmail(userEmail: string, paymentMethod: string, amount
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:0 0 24px;">
-                    <a href="https://tradesmartdz.com"
+                    <a href="https://neuroport.xyz"
                        style="display:inline-block;background:#14b8a6;color:#000;text-decoration:none;padding:14px 40px;border-radius:12px;font-weight:800;font-size:16px;">
                       🚀 افتح التطبيق
                     </a>
@@ -261,7 +261,8 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { type, userEmail, paymentMethod, amount } = body;
+    const userEmail = body.userEmail || body.to;
+    const { type, paymentMethod, amount } = body;
 
     if (!userEmail || !type) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
