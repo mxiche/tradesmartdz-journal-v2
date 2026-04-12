@@ -109,12 +109,12 @@ export function OnboardingModal({ userId, lang, onClose }: Props) {
     if (step < 3) {
       if (step === 1) {
         await completeOnboarding();
-        navigate('/connect');
+        setTimeout(() => navigate('/connect'), 300);
         return;
       }
       if (step === 2) {
         await completeOnboarding();
-        navigate('/trades');
+        setTimeout(() => navigate('/trades'), 300);
         return;
       }
       setStep(s => s + 1);

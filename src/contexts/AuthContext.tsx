@@ -68,7 +68,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (!existing) {
-        await supabase.from('subscriptions').insert({
+        // If trial insert fails, run this SQL in Supabase SQL Editor:
+        // DROP POLICY IF EXISTS "Users can insert own subscription" ON subscriptions;
+        // CREATE POLICY "Users can insert own subscription"
+        // ON subscriptions FOR INSERT
+        // WITH CHECK (auth.uid() = user_id);
+        const { error: insertError } = await supabase.from('subscriptions').insert({
           user_id: user.id,
           plan: 'pro',
           status: 'trial',
@@ -76,6 +81,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           activated_at: new Date().toISOString(),
           expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
         });
+        if (insertError) {
+          console.error('Trial insert error:', insertError);
+        }
       }
 
       // Step 2: fetch active/trial subscription
@@ -108,8 +116,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (status === 'trial') {
         const shownKey = `trial_welcome_shown_${user.id}`;
         if (!localStorage.getItem(shownKey)) {
-          setShowTrialWelcome(true);
           localStorage.setItem(shownKey, 'true');
+          setShowTrialWelcome(true);
         }
       }
     };
@@ -123,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -131,7 +139,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         emailRedirectTo: window.location.origin,
       },
     });
-    return { error: error ? new Error(error.message) : null };
+
+    if (error) {
+      return { error: new Error(error.message) };
+    }
+
+    // Supabase returns a fake success for existing emails when email
+    // confirmation is enabled — detect it via empty identities array
+    if (data?.user && !data?.session) {
+      if (data.user.identities && data.user.identities.length === 0) {
+        return { error: new Error('already registered') };
+      }
+    }
+
+    return { error: null };
   };
 
   const signOut = async () => {

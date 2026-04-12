@@ -49,9 +49,9 @@ const RegisterPage = () => {
       } else {
         setRegisterError(error.message);
       }
-    } else {
-      setSuccess(true);
+      return;
     }
+    setSuccess(true);
   };
 
   if (success) {
