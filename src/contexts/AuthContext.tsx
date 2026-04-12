@@ -7,7 +7,12 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   userPlan: 'free' | 'pro';
+  userStatus: 'free' | 'active' | 'trial' | 'expired';
   expiresAt: string | null;
+  trialExpiresAt: string | null;
+  trialDaysRemaining: number | null;
+  showTrialWelcome: boolean;
+  setShowTrialWelcome: (v: boolean) => void;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -20,7 +25,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userPlan, setUserPlan] = useState<'free' | 'pro'>('free');
+  const [userStatus, setUserStatus] = useState<'free' | 'active' | 'trial' | 'expired'>('free');
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [trialExpiresAt, setTrialExpiresAt] = useState<string | null>(null);
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
+  const [showTrialWelcome, setShowTrialWelcome] = useState(false);
 
   useEffect(() => {
     // Restore session from storage first — sets loading=false exactly once
@@ -43,19 +52,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) {
       setUserPlan('free');
+      setUserStatus('free');
       setExpiresAt(null);
+      setTrialExpiresAt(null);
+      setTrialDaysRemaining(null);
       return;
     }
     supabase
       .from('subscriptions')
       .select('plan, status, expires_at')
       .eq('user_id', user.id)
-      .eq('status', 'active')
+      .in('status', ['active', 'trial'])
       .gte('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
-      .then(({ data }) => {
-        setUserPlan((data?.plan as 'free' | 'pro') || 'free');
-        setExpiresAt(data?.expires_at || null);
+      .then(({ data: sub }) => {
+        const plan = (sub?.plan as 'free' | 'pro') || 'free';
+        const status = (sub?.status as 'active' | 'trial') || 'free';
+
+        setUserPlan(plan);
+        setUserStatus(status as 'free' | 'active' | 'trial' | 'expired');
+        setExpiresAt(sub?.expires_at || null);
+
+        const trialExp = status === 'trial' ? (sub?.expires_at || null) : null;
+        setTrialExpiresAt(trialExp);
+
+        const daysRemaining = trialExp
+          ? Math.ceil((new Date(trialExp).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        setTrialDaysRemaining(daysRemaining);
+
+        // Show welcome modal once per user on first login during trial
+        if (status === 'trial') {
+          const shownKey = `trial_welcome_shown_${user.id}`;
+          if (!localStorage.getItem(shownKey)) {
+            setShowTrialWelcome(true);
+            localStorage.setItem(shownKey, 'true');
+          }
+        }
       });
   }, [user]);
 
@@ -81,7 +116,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, userPlan, expiresAt, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{
+      session, user, loading,
+      userPlan, userStatus, expiresAt,
+      trialExpiresAt, trialDaysRemaining,
+      showTrialWelcome, setShowTrialWelcome,
+      signIn, signUp, signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );

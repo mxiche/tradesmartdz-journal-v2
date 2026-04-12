@@ -351,6 +351,95 @@ function buildRenewalReminderEmail(userEmail: string, expiresAt: string): string
 </html>`;
 }
 
+function buildTrialReminderEmail(userEmail: string, daysLeft: number): string {
+  const urgentColor = daysLeft <= 1 ? '#ef4444' : daysLeft <= 2 ? '#f59e0b' : '#14b8a6';
+  const daysText = daysLeft <= 0 ? 'انتهت تجربتك' : daysLeft === 1 ? 'يوم واحد متبقي' : `${daysLeft} أيام متبقية`;
+  return `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تجربتك المجانية على وشك الانتهاء</title>
+</head>
+<body style="margin:0;padding:0;background:#0f0f0f;font-family:Arial,sans-serif;direction:rtl;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f0f;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0"
+          style="background:#1a1a1a;border-radius:16px;overflow:hidden;max-width:560px;width:100%;">
+          <tr>
+            <td style="background:linear-gradient(135deg,${urgentColor},${daysLeft <= 1 ? '#dc2626' : daysLeft <= 2 ? '#d97706' : '#0d9488'});
+              padding:32px;text-align:center;">
+              <p style="margin:0;font-size:48px;">${daysLeft <= 0 ? '😢' : '⚡'}</p>
+              <h1 style="margin:12px 0 0;color:#fff;font-size:22px;font-weight:800;">
+                ${daysLeft <= 0 ? 'انتهت تجربتك المجانية' : 'تجربتك المجانية على وشك الانتهاء'}
+              </h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <p style="color:#e5e7eb;font-size:15px;line-height:1.7;margin:0 0 24px;">
+                مرحباً! ${daysLeft <= 0
+                  ? 'انتهت تجربتك المجانية في <strong style="color:#14b8a6;">TradeSmartDz Pro</strong>. قم بالترقية الآن للحفاظ على وصولك لجميع الميزات.'
+                  : `لديك <strong style="color:${urgentColor};">${daysText}</strong> في تجربتك المجانية لـ<strong style="color:#14b8a6;">TradeSmartDz Pro</strong>. لا تفوّت الفرصة!`
+                }
+              </p>
+
+              <table width="100%" cellpadding="0" cellspacing="0"
+                style="background:#0f0f0f;border-radius:12px;margin-bottom:24px;">
+                <tr><td style="padding:20px;text-align:center;">
+                  <p style="margin:0 0 4px;color:#9ca3af;font-size:13px;">الوقت المتبقي</p>
+                  <p style="margin:0;color:${urgentColor};font-size:32px;font-weight:900;">${daysText}</p>
+                </td></tr>
+              </table>
+
+              <div style="background:#14b8a6/10;border:1px solid #14b8a6;border-radius:12px;padding:16px;margin-bottom:24px;">
+                <p style="margin:0 0 10px;color:#14b8a6;font-size:13px;font-weight:700;">ما ستفقده بعد انتهاء التجربة:</p>
+                <ul style="margin:0;padding-right:20px;color:#e5e7eb;font-size:14px;line-height:2;">
+                  <li>حسابات غير محدودة</li>
+                  <li>صفقات غير محدودة</li>
+                  <li>AI Coach — تحليل يومي</li>
+                  <li>إشعارات Telegram اليومية</li>
+                  <li>تحليلات متقدمة كاملة</li>
+                </ul>
+              </div>
+
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:0 0 16px;">
+                    <a href="https://neuroport.xyz/settings?tab=subscription"
+                      style="display:inline-block;background:#14b8a6;color:#000;
+                      text-decoration:none;padding:14px 40px;border-radius:12px;
+                      font-weight:800;font-size:16px;">
+                      ⭐ ترقية إلى Pro الآن
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="color:#6b7280;font-size:12px;text-align:center;margin:0;">
+                للمساعدة:
+                <a href="mailto:tradesmartdz2@gmail.com"
+                  style="color:#14b8a6;">tradesmartdz2@gmail.com</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#111;padding:20px 32px;text-align:center;">
+              <p style="margin:0;color:#4b5563;font-size:12px;">
+                TradeSmartDz © ${new Date().getFullYear()}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 // ── CORS ───────────────────────────────────────────────────────────────────
 
 const corsHeaders = {
@@ -390,6 +479,9 @@ Deno.serve(async (req) => {
     } else if (type === 'renewal_reminder') {
       subject = '⏰ TradeSmartDz — اشتراكك على وشك الانتهاء';
       html = buildRenewalReminderEmail(userEmail, body.expiresAt || '');
+    } else if (type === 'trial_reminder') {
+      subject = '⚡ TradeSmartDz — تجربتك المجانية على وشك الانتهاء';
+      html = buildTrialReminderEmail(userEmail, body.daysLeft ?? 1);
     } else {
       return new Response(JSON.stringify({ error: 'Unknown type' }), {
         status: 400,

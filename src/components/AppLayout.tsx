@@ -5,12 +5,13 @@ import { Logo } from '@/components/Logo';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { LayoutDashboard, BarChart3, Link2, Settings, LogOut, Menu, X, TrendingUp, User, Calendar, BookOpen, Bot } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
 export default function AppLayout() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, userStatus, trialDaysRemaining, showTrialWelcome, setShowTrialWelcome } = useAuth();
   const { t, language } = useLanguage();
 
   const navItems = useMemo(() => [
@@ -150,10 +151,99 @@ export default function AppLayout() {
           </div>
         </header>
 
+        {/* Trial countdown banner */}
+        {userStatus === 'trial' && trialDaysRemaining !== null && (
+          <div className={`flex items-center justify-between px-4 py-2.5 text-sm font-medium ${
+            trialDaysRemaining <= 1
+              ? 'bg-red-500/10 border-b border-red-500/20 text-red-500'
+              : trialDaysRemaining <= 2
+              ? 'bg-yellow-500/10 border-b border-yellow-500/20 text-yellow-600'
+              : 'bg-teal-500/10 border-b border-teal-500/20 text-teal-600'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span>⚡</span>
+              <span>
+                {trialDaysRemaining <= 0
+                  ? 'انتهت تجربتك المجانية'
+                  : `التجربة المجانية — ${trialDaysRemaining} ${trialDaysRemaining === 1 ? 'يوم متبقي' : 'أيام متبقية'}`
+                }
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/settings?tab=subscription')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+                trialDaysRemaining <= 1
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'bg-teal-500 text-black hover:bg-teal-600'
+              }`}
+            >
+              ترقية إلى Pro
+            </button>
+          </div>
+        )}
+
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <Outlet />
         </main>
       </div>
+
+      {/* Welcome trial modal */}
+      <Dialog open={showTrialWelcome} onOpenChange={setShowTrialWelcome}>
+        <DialogContent className="max-w-md w-full p-0 overflow-hidden max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:rounded-t-2xl max-sm:rounded-b-none md:rounded-2xl">
+          <DialogTitle className="sr-only">مرحباً بك</DialogTitle>
+          <DialogDescription className="sr-only">تجربة مجانية</DialogDescription>
+
+          {/* Gradient header */}
+          <div className="bg-gradient-to-br from-teal-500 to-teal-600 p-8 text-center">
+            <div className="text-6xl mb-3">🎉</div>
+            <h2 className="text-2xl font-black text-white mb-1">
+              مرحباً بك في TradeSmartDz!
+            </h2>
+            <p className="text-teal-100 text-sm">
+              لديك تجربة مجانية كاملة لمدة 5 أيام
+            </p>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
+            {/* Trial badge */}
+            <div className="bg-teal-500/10 border border-teal-500/30 rounded-2xl p-4 mb-5 text-center">
+              <p className="text-3xl font-black text-teal-500 mb-1">5 أيام</p>
+              <p className="text-sm text-muted-foreground">وصول كامل لجميع مميزات Pro مجاناً</p>
+            </div>
+
+            {/* Features list */}
+            <div className="space-y-2.5 mb-6">
+              {[
+                'حسابات غير محدودة',
+                'صفقات غير محدودة',
+                'AI Coach — تحليل يومي',
+                'إشعارات Telegram اليومية',
+                'تحليلات متقدمة كاملة',
+                'تصدير PDF و CSV',
+              ].map((feature, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-teal-500 text-xs">✓</span>
+                  </div>
+                  <span className="text-sm text-foreground">{feature}</span>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              onClick={() => setShowTrialWelcome(false)}
+              className="w-full bg-teal-500 hover:bg-teal-600 text-black font-black py-3 text-base"
+            >
+              ابدأ التجربة المجانية 🚀
+            </Button>
+
+            <p className="text-xs text-muted-foreground text-center mt-3">
+              لا يلزم بطاقة ائتمانية • تجربة مجانية لمدة 5 أيام
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
