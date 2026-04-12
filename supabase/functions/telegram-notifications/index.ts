@@ -41,15 +41,22 @@ function buildSummary(
 }
 
 async function runNotifications(): Promise<{ sent: number; total_users: number; message?: string }> {
-  // 1. Fetch all users with a telegram_chat_id
+  // 1. Fetch users with telegram_chat_id who have an active or trial subscription
   const { data: prefs, error: prefsError } = await supabase
     .from('user_preferences')
-    .select('user_id, telegram_chat_id, language')
-    .not('telegram_chat_id', 'is', null);
+    .select(`
+      user_id,
+      telegram_chat_id,
+      language,
+      subscriptions!inner(plan, status, expires_at)
+    `)
+    .not('telegram_chat_id', 'is', null)
+    .in('subscriptions.status', ['active', 'trial'])
+    .gte('subscriptions.expires_at', new Date().toISOString());
 
   if (prefsError) throw prefsError;
   if (!prefs || prefs.length === 0) {
-    return { sent: 0, total_users: 0, message: 'No users with Telegram connected' };
+    return { sent: 0, total_users: 0, message: 'No active users with Telegram connected' };
   }
 
   // 2. Build today's date range (UTC midnight to midnight)

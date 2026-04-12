@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,7 +30,9 @@ const SettingsPage = () => {
   const { t, language, setLanguage } = useLanguage();
   const lang = language as 'ar' | 'fr' | 'en';
   const { theme, toggleTheme } = useTheme();
-  const { user, userPlan, expiresAt } = useAuth();
+  const { user, userPlan, userStatus, expiresAt } = useAuth();
+  const navigate = useNavigate();
+  const canUseTelegram = userPlan === 'pro' || userStatus === 'trial';
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
 
@@ -410,7 +413,34 @@ const SettingsPage = () => {
             </CardHeader>
             <CardContent className="space-y-5">
 
-              {telegramChatId ? (
+              {!canUseTelegram ? (
+                <div className="rounded-xl border border-border p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                        <span className="text-xl">🔒</span>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">Telegram Notifications</p>
+                        <p className="text-xs text-muted-foreground">
+                          {lang === 'ar'
+                            ? 'متاح لمشتركي Pro فقط'
+                            : lang === 'fr'
+                            ? 'Disponible pour les abonnés Pro'
+                            : 'Available for Pro subscribers only'}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => navigate('/settings?tab=subscription')}
+                      className="bg-teal-500 hover:bg-teal-600 text-black font-bold"
+                    >
+                      {lang === 'ar' ? 'ترقية' : lang === 'fr' ? 'Upgrade' : 'Upgrade'}
+                    </Button>
+                  </div>
+                </div>
+              ) : telegramChatId ? (
                 <div className="flex items-center justify-between rounded-lg border border-profit/30 bg-profit/10 px-4 py-3">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-5 w-5 text-profit" />
