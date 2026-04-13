@@ -470,101 +470,122 @@ function DayDetailModal({
 }) {
   const totalPnl = dayTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
   const wins = dayTrades.filter(tr => (tr.profit ?? 0) > 0).length;
-  const winRate = dayTrades.length > 0 ? ((wins / dayTrades.length) * 100).toFixed(1) : '0';
-  const sorted = [...dayTrades].sort((a, b) => (b.profit ?? 0) - (a.profit ?? 0));
-  const best = sorted[0];
-  const worst = sorted[sorted.length - 1];
+  const losses = dayTrades.filter(tr => (tr.profit ?? 0) < 0).length;
+  const winRate = dayTrades.length > 0 ? Math.round((wins / dayTrades.length) * 100) : 0;
+  const bestVal = dayTrades.length > 0 ? Math.max(...dayTrades.map(t => t.profit ?? 0)) : 0;
+  const worstVal = dayTrades.length > 0 ? Math.min(...dayTrades.map(t => t.profit ?? 0)) : 0;
 
   const dateStr = new Date(year, month, day).toLocaleDateString(
     lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
-    { weekday: 'long', month: 'long', day: 'numeric' }
+    { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
   );
-  const L = {
-    trades:    lang === 'ar' ? 'الصفقات'    : lang === 'fr' ? 'Trades'     : 'Trades',
-    winRate:   lang === 'ar' ? 'نسبة الفوز' : lang === 'fr' ? 'Réussite'   : 'Win Rate',
-    winners:   lang === 'ar' ? 'رابحة'       : lang === 'fr' ? 'Gagnants'   : 'Winners',
-    best:      lang === 'ar' ? 'أفضل صفقة'  : lang === 'fr' ? 'Meilleur'   : 'Best Trade',
-    worst:     lang === 'ar' ? 'أسوأ صفقة'  : lang === 'fr' ? 'Pire trade' : 'Worst Trade',
-    tradeList: lang === 'ar' ? 'قائمة الصفقات' : lang === 'fr' ? 'Liste des trades' : 'Trades',
-  };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
+
+      {/* Modal */}
       <div
-        className="w-full sm:max-w-md overflow-hidden rounded-t-2xl sm:rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto"
-        style={{
-          backgroundColor: '#1a1d27',
-          border: '1px solid rgba(0,212,170,0.3)',
-          animation: 'calPopIn 0.18s cubic-bezier(0.175,0.885,0.32,1.275)',
-        }}
+        className="relative bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-md overflow-hidden"
+        style={{ animation: 'calPopIn 0.18s cubic-bezier(0.175,0.885,0.32,1.275)', boxShadow: '0 20px 60px -12px rgba(0,0,0,0.12)' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between p-4" style={{ borderBottom: '1px solid #2a2d3a' }}>
-          <div>
-            <p style={{ fontSize: 12, color: '#94A3B8', marginBottom: 4 }}>{dateStr}</p>
-            <p style={{ fontSize: 26, fontWeight: 700, color: totalPnl >= 0 ? '#22c55e' : '#ef4444', lineHeight: 1 }}>
-              {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+        <div className={`p-6 ${
+          totalPnl >= 0
+            ? 'bg-gradient-to-br from-teal-50 to-green-50'
+            : 'bg-gradient-to-br from-red-50 to-orange-50'
+        }`}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-500">{dateStr}</p>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-white/80 flex items-center justify-center hover:bg-white transition-colors shadow-sm"
+            >
+              <X className="h-4 w-4 text-gray-400" />
+            </button>
+          </div>
+          <p className={`text-3xl font-black ${totalPnl >= 0 ? 'text-teal-600' : 'text-red-500'}`}>
+            {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            {dayTrades.length} {lang === 'ar' ? 'صفقة' : lang === 'fr' ? 'trades' : 'trades'}
+          </p>
+        </div>
+
+        <div className="p-6">
+          {/* Stats row */}
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            {[
+              {
+                label: lang === 'ar' ? 'نسبة الفوز' : lang === 'fr' ? 'Win Rate' : 'Win Rate',
+                value: `${winRate}%`,
+                color: 'text-teal-600',
+              },
+              {
+                label: lang === 'ar' ? 'الفائزة' : lang === 'fr' ? 'Gains' : 'Winners',
+                value: wins,
+                color: 'text-green-600',
+              },
+              {
+                label: lang === 'ar' ? 'الخاسرة' : lang === 'fr' ? 'Pertes' : 'Losers',
+                value: losses,
+                color: 'text-red-500',
+              },
+            ].map((stat, i) => (
+              <div key={i} className="bg-gray-50 rounded-2xl p-3 text-center">
+                <p className="text-xs text-gray-400 mb-1">{stat.label}</p>
+                <p className={`text-lg font-black ${stat.color}`}>{stat.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Best / Worst */}
+          {dayTrades.length > 1 && (
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="bg-green-50 border border-green-100 rounded-2xl p-3">
+                <p className="text-xs text-green-600 font-semibold mb-1">
+                  {lang === 'ar' ? '🏆 أفضل صفقة' : lang === 'fr' ? '🏆 Meilleur trade' : '🏆 Best Trade'}
+                </p>
+                <p className="text-sm font-black text-green-700">
+                  {bestVal >= 0 ? '+' : ''}${bestVal.toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-red-50 border border-red-100 rounded-2xl p-3">
+                <p className="text-xs text-red-500 font-semibold mb-1">
+                  {lang === 'ar' ? '📉 أسوأ صفقة' : lang === 'fr' ? '📉 Pire trade' : '📉 Worst Trade'}
+                </p>
+                <p className="text-sm font-black text-red-600">${worstVal.toFixed(2)}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Trades list */}
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+              {lang === 'ar' ? 'الصفقات' : lang === 'fr' ? 'Trades' : 'Trades'}
             </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[#2a2d3a]"
-            style={{ color: '#64748B', flexShrink: 0 }}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Stats row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid #2a2d3a' }}>
-          {[
-            { label: L.trades,  val: String(dayTrades.length), color: '#e2e8f0' },
-            { label: L.winRate, val: `${winRate}%`,            color: parseFloat(winRate) >= 50 ? '#22c55e' : '#ef4444' },
-            { label: L.winners, val: String(wins),             color: '#22c55e' },
-          ].map((s, i) => (
-            <div key={i} style={{ padding: '12px 16px', textAlign: 'center', borderRight: i < 2 ? '1px solid #2a2d3a' : undefined }}>
-              <p style={{ fontSize: 11, color: '#64748B', marginBottom: 4 }}>{s.label}</p>
-              <p style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.val}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Best / Worst */}
-        {dayTrades.length > 1 && best && worst && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '12px 16px', borderBottom: '1px solid #2a2d3a' }}>
-            <div style={{ padding: '8px 12px', borderRadius: 8, backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.15)' }}>
-              <p style={{ fontSize: 10, color: '#94A3B8', marginBottom: 2 }}>{L.best}</p>
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#22c55e' }}>+${Math.abs(best.profit ?? 0).toFixed(2)}</p>
-              <p style={{ fontSize: 11, color: '#64748B' }}>{best.symbol}</p>
-            </div>
-            <div style={{ padding: '8px 12px', borderRadius: 8, backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)' }}>
-              <p style={{ fontSize: 10, color: '#94A3B8', marginBottom: 2 }}>{L.worst}</p>
-              <p style={{ fontSize: 14, fontWeight: 700, color: '#ef4444' }}>${(worst.profit ?? 0).toFixed(2)}</p>
-              <p style={{ fontSize: 11, color: '#64748B' }}>{worst.symbol}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Trade list */}
-        <div style={{ maxHeight: 220, overflowY: 'auto', padding: '12px 16px' }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{L.tradeList}</p>
-          <div className="space-y-1.5">
-            {dayTrades.map(tr => {
+            {dayTrades.map((tr, i) => {
               const pnl = tr.profit ?? 0;
               return (
-                <div key={tr.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, backgroundColor: '#242836' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontWeight: 700, color: '#e2e8f0', fontSize: 14 }}>{tr.symbol}</span>
-                    <span style={{ padding: '2px 7px', borderRadius: 12, fontSize: 10, fontWeight: 600, backgroundColor: tr.direction === 'BUY' ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)', color: tr.direction === 'BUY' ? '#22c55e' : '#ef4444' }}>
-                      {tr.direction}
+                <div key={tr.id ?? i} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-gray-800">{tr.symbol}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                      tr.direction === 'BUY'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-600'
+                    }`}>
+                      {tr.direction === 'BUY'
+                        ? (lang === 'ar' ? 'شراء' : 'BUY')
+                        : (lang === 'ar' ? 'بيع' : 'SELL')}
                     </span>
                   </div>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: pnl >= 0 ? '#22c55e' : '#ef4444', fontVariantNumeric: 'tabular-nums' }}>
+                  <span className={`text-sm font-black ${pnl >= 0 ? 'text-teal-600' : 'text-red-500'}`}>
                     {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
                   </span>
                 </div>
@@ -691,28 +712,28 @@ function TradingCalendar({
 
     // ── Build hardcoded-style HTML for reliable html2canvas capture ──
     const cellStyle = (d: DashDayData): string => {
-      if (!d.isCurrentMonth) return 'background-color:#0d1021;border:1px solid #1e293b;border-radius:6px;padding:8px;min-height:80px;opacity:0.25;';
-      if (d.tradeCount > 0 && d.pnl >= 0) return 'background-color:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.25);border-radius:6px;padding:8px;min-height:80px;text-align:center;';
-      if (d.tradeCount > 0 && d.pnl < 0)  return 'background-color:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.25);border-radius:6px;padding:8px;min-height:80px;text-align:center;';
-      if (d.isWeekend) return 'background-color:#111420;border:1px solid #1e293b;border-radius:6px;padding:8px;min-height:80px;';
-      return 'background-color:#161929;border:1px solid #1e293b;border-radius:6px;padding:8px;min-height:80px;';
+      if (!d.isCurrentMonth) return 'background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;min-height:80px;opacity:0.4;';
+      if (d.tradeCount > 0 && d.pnl >= 0) return 'background-color:#f0fdf9;border:1px solid #99f6e4;border-radius:6px;padding:8px;min-height:80px;text-align:center;';
+      if (d.tradeCount > 0 && d.pnl < 0)  return 'background-color:#fff1f2;border:1px solid #fecaca;border-radius:6px;padding:8px;min-height:80px;text-align:center;';
+      if (d.isWeekend) return 'background-color:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:8px;min-height:80px;';
+      return 'background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;min-height:80px;';
     };
 
     const cellInner = (d: DashDayData): string => {
-      if (!d.isCurrentMonth) return `<span style="color:#475569;font-size:11px;">${d.date.getDate()}</span>`;
-      const pnlColor = d.pnl >= 0 ? '#22c55e' : '#ef4444';
-      const dayNum = `<div style="color:#64748b;font-size:11px;margin-bottom:4px;">${d.date.getDate()}</div>`;
+      if (!d.isCurrentMonth) return `<span style="color:#cbd5e1;font-size:11px;">${d.date.getDate()}</span>`;
+      const pnlColor = d.pnl >= 0 ? '#0d9488' : '#dc2626';
+      const dayNum = `<div style="color:#94a3b8;font-size:11px;margin-bottom:4px;">${d.date.getDate()}</div>`;
       if (d.tradeCount === 0) return dayNum;
       const pnlStr = (d.pnl >= 0 ? '+' : '') + '$' + Math.abs(d.pnl).toFixed(2);
       const wr = Math.round((d.wins / d.tradeCount) * 100);
       return `${dayNum}
         <div style="color:${pnlColor};font-size:13px;font-weight:bold;line-height:1.2;">${pnlStr}</div>
-        <div style="color:#94a3b8;font-size:10px;margin-top:3px;">${d.tradeCount} ${lang === 'ar' ? 'صفقة' : lang === 'fr' ? 'trades' : 'trades'}</div>
-        <div style="color:${wr >= 50 ? '#22c55e' : '#ef4444'};font-size:10px;">${wr}%</div>`;
+        <div style="color:#64748b;font-size:10px;margin-top:3px;">${d.tradeCount} ${lang === 'ar' ? 'صفقة' : lang === 'fr' ? 'trades' : 'trades'}</div>
+        <div style="color:${wr >= 50 ? '#0d9488' : '#dc2626'};font-size:10px;">${wr}%</div>`;
     };
 
     const headerRow = dayNames
-      .map(n => `<div style="color:#64748b;font-size:12px;text-align:center;padding:6px 4px;font-weight:600;">${n}</div>`)
+      .map(n => `<div style="color:#94a3b8;font-size:12px;text-align:center;padding:6px 4px;font-weight:600;">${n}</div>`)
       .join('');
 
     const rows = Array.from({ length: visibleWeeks }, (_, w) =>
@@ -724,16 +745,18 @@ function TradingCalendar({
     ).join('');
 
     const html = `
-      <div style="background-color:#0f1117;padding:24px;font-family:Arial,sans-serif;width:800px;">
-        <div style="color:#ffffff;font-size:20px;font-weight:bold;text-align:center;margin-bottom:16px;">
-          ${monthName} ${year}
+      <div style="background-color:#ffffff;padding:24px;font-family:Arial,sans-serif;width:800px;border-radius:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+          <span style="font-size:18px;font-weight:900;color:#0f172a;">TradeSmart<span style="color:#14b8a6;">Dz</span></span>
+          <span style="font-size:18px;font-weight:700;color:#0f172a;">${monthName} ${year}</span>
+          <span style="font-size:12px;color:#94a3b8;">neuroport.xyz</span>
         </div>
         <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">${headerRow}</div>
         ${rows}
-        <div style="background-color:#0a0f1c;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:16px;border-radius:8px;border:1px solid #1e293b;">
-          <span style="color:#00d4aa;font-size:15px;font-weight:bold;">TradeSmartDz</span>
-          <span style="color:#ffffff;font-size:13px;">${monthName} ${year}</span>
-          <span style="color:#475569;font-size:12px;">neuroport.xyz</span>
+        <div style="background-color:#f8fafc;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:16px;border-radius:8px;border:1px solid #e2e8f0;">
+          <span style="color:#14b8a6;font-size:14px;font-weight:700;">TradeSmartDz</span>
+          <span style="color:#64748b;font-size:12px;">${monthName} ${year}</span>
+          <span style="color:#94a3b8;font-size:11px;">neuroport.xyz</span>
         </div>
       </div>`;
 
@@ -747,7 +770,7 @@ function TradingCalendar({
     document.body.appendChild(el);
 
     try {
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#0f1117', useCORS: true, logging: false });
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
       const a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
       a.download = `tradesmartdz-calendar-${monthName.toLowerCase().replace(/\s+/g, '-')}-${year}.png`;
@@ -760,7 +783,7 @@ function TradingCalendar({
   const pad2 = (n: number) => String(n).padStart(2, '0');
 
   const selectedDayData = selectedDay !== null
-    ? grid.find(d => d.isCurrentMonth && d.isToday === (selectedDay === now.getDate() && isCurrentMonth) || (d.isCurrentMonth && d.date.getDate() === selectedDay))
+    ? grid.find(d => d.isCurrentMonth && d.date.getDate() === selectedDay)
     : null;
 
   // ── Mobile weekly view state ──────────────────────────────────

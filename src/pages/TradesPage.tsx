@@ -2664,32 +2664,66 @@ const TradesPage = () => {
                   {shareOpen && (
                     <div className="rounded-xl border border-primary/20 bg-secondary/30 p-4 space-y-3">
                       {/* Preview card */}
-                      <div ref={shareCardRef} style={{ width: 480, background: 'linear-gradient(135deg,#0f1117 0%,#1a1d27 100%)', borderRadius: 16, padding: 28, fontFamily: 'system-ui,sans-serif', color: '#e2e8f0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: '#00d4aa', letterSpacing: '0.08em' }}>TRADESMARTDZ</span>
-                          <span style={{ fontSize: 12, color: '#64748b' }}>{safeTrade.close_time ? new Date(safeTrade.close_time).toLocaleDateString() : ''}</span>
+                      <div ref={shareCardRef} style={{ width: 480, background: 'linear-gradient(135deg,#f0fdf9 0%,#ffffff 50%,#f0f9ff 100%)', borderRadius: 20, padding: 32, fontFamily: 'Arial,sans-serif', border: '2px solid #99f6e4', position: 'relative', overflow: 'hidden' }}>
+                        {/* Background decoration */}
+                        <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, background: 'rgba(20,184,166,0.06)', borderRadius: '50%' }} />
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                          <div>
+                            <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>TRADESMARTDZ</p>
+                            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#14b8a6', fontWeight: 600 }}>neuroport.xyz</p>
+                          </div>
+                          <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>
+                            {safeTrade.close_time ? new Date(safeTrade.close_time).toLocaleDateString() : ''}
+                          </p>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-                          <span style={{ fontSize: 32, fontWeight: 800, color: '#f1f5f9' }}>{editSymbol || safeTrade.symbol}</span>
-                          <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 700, background: editDirection === 'BUY' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', color: editDirection === 'BUY' ? '#22c55e' : '#ef4444' }}>{editDirection}</span>
-                          {editResult && <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'rgba(100,116,139,0.2)', color: '#94a3b8' }}>{editResult}</span>}
+                        {/* Symbol + Direction + Result */}
+                        <div style={{ marginBottom: 20 }}>
+                          <p style={{ margin: '0 0 8px', fontSize: 40, fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{editSymbol || safeTrade.symbol}</p>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <span style={{ background: editDirection === 'BUY' ? '#dcfce7' : '#fee2e2', color: editDirection === 'BUY' ? '#16a34a' : '#dc2626', padding: '4px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
+                              {editDirection}
+                            </span>
+                            {editResult && (
+                              <span style={{ background: '#f8fafc', color: '#64748b', padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, border: '1px solid #e2e8f0' }}>
+                                {editResult}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 18 }}>
+                        {/* Stats cards */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
                           {[
-                            { label: 'P&L', val: `${pnlNum >= 0 ? '+' : ''}$${pnlNum.toFixed(2)}`, color: pnlNum >= 0 ? '#22c55e' : '#ef4444' },
-                            { label: 'R:R', val: rrCalc, color: '#e2e8f0' },
-                            { label: lang === 'ar' ? 'المدة' : 'Duration', val: durCalc, color: '#e2e8f0' },
+                            { label: 'P&L', val: `${pnlNum >= 0 ? '+' : ''}$${pnlNum.toFixed(2)}`, color: pnlNum >= 0 ? '#0d9488' : '#dc2626' },
+                            { label: 'R:R', val: rrCalc || '—', color: '#0f172a' },
+                            { label: lang === 'ar' ? 'المدة' : 'Duration', val: durCalc || '—', color: '#0f172a' },
                           ].map((s, i) => (
-                            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 14px' }}>
-                              <p style={{ fontSize: 10, color: '#64748b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
-                              <p style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.val}</p>
+                            <div key={i} style={{ background: '#f8fafc', borderRadius: 14, padding: '12px', border: '1px solid #e2e8f0' }}>
+                              <p style={{ margin: '0 0 4px', fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>{s.label}</p>
+                              <p style={{ margin: 0, fontSize: 20, fontWeight: 900, color: s.color }}>{s.val}</p>
                             </div>
                           ))}
                         </div>
-                        {editSetupTag && <div style={{ marginBottom: 16 }}><span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, background: 'rgba(0,212,170,0.12)', color: '#00d4aa' }}>{editSetupTag}</span></div>}
-                        {editRating > 0 && <div style={{ marginBottom: 16 }}>{'⭐'.repeat(editRating)}</div>}
-                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12, fontSize: 11, color: '#475569', textAlign: 'center' }}>
-                          Analyzed with TradeSmartDz — neuroport.xyz
+                        {/* Setup tag */}
+                        {editSetupTag && (
+                          <div style={{ marginBottom: 16 }}>
+                            <span style={{ background: '#f0fdf9', border: '1px solid #99f6e4', color: '#0d9488', padding: '5px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
+                              {editSetupTag}
+                            </span>
+                          </div>
+                        )}
+                        {/* Star rating */}
+                        {editRating > 0 && (
+                          <div style={{ marginBottom: 16 }}>
+                            {[...Array(5)].map((_, i) => (
+                              <span key={i} style={{ fontSize: 18, color: i < editRating ? '#f59e0b' : '#e2e8f0' }}>★</span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Footer */}
+                        <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>Analyzed with TradeSmartDz</p>
+                          <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 700 }}>neuroport.xyz</p>
                         </div>
                       </div>
                       <Button className="w-full gradient-primary text-primary-foreground" onClick={async () => {

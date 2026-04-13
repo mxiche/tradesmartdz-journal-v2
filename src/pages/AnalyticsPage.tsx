@@ -226,71 +226,81 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
       : isFr ? { congrats: 'Ce certificat est fièrement décerné à', tagline: 'Pour une performance exceptionnelle et de la discipline en trading', totalTrades: 'Total trades', winRate: 'Taux de réussite', totalPnl: 'PnL total', bestTrade: 'Meilleur trade', profitFactor: 'Facteur de profit', quote: 'La discipline et la constance sont les bases du succès en trading.', issuedOn: 'Émis le :' }
       : { congrats: 'This certificate is proudly awarded to', tagline: 'For outstanding performance and discipline in trading', totalTrades: 'Total Trades', winRate: 'Win Rate', totalPnl: 'Total PnL', bestTrade: 'Best Trade', profitFactor: 'Profit Factor', quote: 'Discipline and consistency are the foundation of trading success.', issuedOn: 'Issued on:' };
     const dateStr = new Date().toLocaleDateString(isAr ? 'ar-DZ' : isFr ? 'fr-FR' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const GOLD = '#d4af37', TEAL = '#00e0b8', SLATE = '#94a3b8', GRAY = '#64748b', DARK = '#0a0f1c', DARK2 = '#0d1b2a';
+    const TEAL_MAIN = '#14b8a6', TEAL_LIGHT = '#0d9488', BORDER = '#e2e8f0', STAT_BG = '#f8fafc', TEXT = '#0f172a', SUBTEXT = '#64748b';
     const W = 1200, H = 850, CX = 600;
     const BW = 340, BH = 110, BG = 20;
     const row1Left = (W - 3 * BW - 2 * BG) / 2;
     const row2Left = (W - 2 * BW - 1 * BG) / 2;
     const mono = 'Helvetica, Arial, sans-serif';
     const fontFamily = isAr ? "'Tajawal', Arial, sans-serif" : mono;
-    const pnlColor = totalPnl >= 0 ? '#22c55e' : '#ef4444';
+    const pnlColor = totalPnl >= 0 ? '#0d9488' : '#ef4444';
     const stats = [
-      { label: CL.totalTrades, value: String(totalTrades), color: '#60a5fa' },
-      { label: CL.winRate, value: `${winRate}%`, color: '#00e0b8' },
+      { label: CL.totalTrades, value: String(totalTrades), color: TEAL_MAIN },
+      { label: CL.winRate, value: `${winRate}%`, color: TEAL_MAIN },
       { label: CL.totalPnl, value: `$${totalPnl.toFixed(2)}`, color: pnlColor },
-      { label: CL.bestTrade, value: bestTrade >= 0 ? `+$${bestTrade.toFixed(2)}` : `$${bestTrade.toFixed(2)}`, color: '#d4af37' },
-      { label: CL.profitFactor, value: profitFactor, color: '#a78bfa' },
+      { label: CL.bestTrade, value: bestTrade >= 0 ? `+$${bestTrade.toFixed(2)}` : `$${bestTrade.toFixed(2)}`, color: TEAL_MAIN },
+      { label: CL.profitFactor, value: profitFactor, color: TEAL_MAIN },
     ];
     const Divider = ({ top, lx, rx }: { top: number; lx: number; rx: number }) => (
-      <><div style={{ position: 'absolute', top, left: lx, width: CX - lx - 11, height: 1, background: '#253545' }} /><div style={{ position: 'absolute', top: top - 7, left: CX - 7, width: 14, height: 14, background: TEAL, transform: 'rotate(45deg)' }} /><div style={{ position: 'absolute', top, left: CX + 11, width: rx - CX - 11, height: 1, background: '#253545' }} /></>
+      <><div style={{ position: 'absolute', top, left: lx, width: CX - lx - 11, height: 1, background: BORDER }} /><div style={{ position: 'absolute', top: top - 7, left: CX - 7, width: 14, height: 14, background: TEAL_MAIN, transform: 'rotate(45deg)' }} /><div style={{ position: 'absolute', top, left: CX + 11, width: rx - CX - 11, height: 1, background: BORDER }} /></>
     );
     const Y_TITLE = 48, Y_SUBTITLE = 100, Y_DIV1 = 122, Y_CONGRATS = 140, Y_NAME = 160, Y_TAGLINE = 235, Y_DIV2 = 260;
     const Y_ROW1 = 278, Y_ROW2 = Y_ROW1 + BH + BG, Y_DIV3 = Y_ROW2 + BH + 18, Y_QUOTE = Y_DIV3 + 16;
     const SEAL_R = 65, SEAL_CY = 822 - 60 - SEAL_R, SEAL_CX = CX, Y_SIG = 762 - 68;
     return (
       <div ref={ref} dir={isAr ? 'rtl' : 'ltr'} style={{ position: 'fixed', left: -9999, top: 0, width: W, height: H, overflow: 'hidden', fontFamily, minWidth: W, maxWidth: W, minHeight: H, maxHeight: H }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, background: DARK }} />
-        <div style={{ position: 'absolute', top: 0, left: 540, width: 660, height: H, background: DARK2 }} />
-        <div style={{ position: 'absolute', top: 15, left: 15, width: W - 30, height: H - 30, border: `3px solid ${GOLD}`, boxSizing: 'border-box' }} />
-        <div style={{ position: 'absolute', top: 28, left: 28, width: W - 56, height: H - 56, border: `1px solid ${TEAL}`, boxSizing: 'border-box' }} />
+        {/* Light gradient background */}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, background: 'linear-gradient(135deg, #f0fdfa 0%, #ffffff 50%, #f0f9ff 100%)' }} />
+        {/* Outer teal border */}
+        <div style={{ position: 'absolute', top: 15, left: 15, width: W - 30, height: H - 30, border: `3px solid ${TEAL_MAIN}`, boxSizing: 'border-box' }} />
+        <div style={{ position: 'absolute', top: 28, left: 28, width: W - 56, height: H - 56, border: `1px solid #99f6e4`, boxSizing: 'border-box' }} />
+        {/* Corner accents */}
         {([[15,15],[15,W-65],[H-65,15],[H-65,W-65]] as [number,number][]).map(([t,l],i) => (
-          <div key={i} style={{ position:'absolute', top:t, left:l, width:50, height:50, ...(i===0?{borderTop:`2.5px solid ${GOLD}`,borderLeft:`2.5px solid ${GOLD}`}:i===1?{borderTop:`2.5px solid ${GOLD}`,borderRight:`2.5px solid ${GOLD}`}:i===2?{borderBottom:`2.5px solid ${GOLD}`,borderLeft:`2.5px solid ${GOLD}`}:{borderBottom:`2.5px solid ${GOLD}`,borderRight:`2.5px solid ${GOLD}`}) }} />
+          <div key={i} style={{ position:'absolute', top:t, left:l, width:50, height:50, ...(i===0?{borderTop:`2.5px solid ${TEAL_MAIN}`,borderLeft:`2.5px solid ${TEAL_MAIN}`}:i===1?{borderTop:`2.5px solid ${TEAL_MAIN}`,borderRight:`2.5px solid ${TEAL_MAIN}`}:i===2?{borderBottom:`2.5px solid ${TEAL_MAIN}`,borderLeft:`2.5px solid ${TEAL_MAIN}`}:{borderBottom:`2.5px solid ${TEAL_MAIN}`,borderRight:`2.5px solid ${TEAL_MAIN}`}) }} />
         ))}
-        <div style={{ position:'absolute', top: Y_TITLE, left:0, width:W, textAlign:'center', fontSize:36, fontWeight:'bold', color:GOLD, letterSpacing:4, whiteSpace:'nowrap', fontFamily:mono }}>CERTIFICATE OF PERFORMANCE</div>
-        <div style={{ position:'absolute', top: Y_SUBTITLE, left:0, width:W, textAlign:'center', fontSize:12, color:'#7a8a9a', fontFamily:mono }}>Presented by TradeSmartDz</div>
+        {/* Title */}
+        <div style={{ position:'absolute', top: Y_TITLE, left:0, width:W, textAlign:'center', fontSize:36, fontWeight:'bold', color:TEXT, letterSpacing:4, whiteSpace:'nowrap', fontFamily:mono }}>CERTIFICATE OF PERFORMANCE</div>
+        {/* Teal accent bar under title */}
+        <div style={{ position:'absolute', top: Y_TITLE + 46, left: CX - 60, width: 120, height: 3, background: TEAL_MAIN, borderRadius: 2 }} />
+        <div style={{ position:'absolute', top: Y_SUBTITLE, left:0, width:W, textAlign:'center', fontSize:12, color:SUBTEXT, fontFamily:mono }}>Presented by TradeSmartDz</div>
         <Divider top={Y_DIV1} lx={180} rx={1020} />
-        <div style={{ position:'absolute', top: Y_CONGRATS, left:0, width:W, textAlign:'center', fontSize:13, color:SLATE }}>{CL.congrats}</div>
-        <div style={{ position:'absolute', top: Y_NAME, left:60, width:W-120, textAlign:'center', fontSize:52, fontWeight:'bold', color:'#ffffff', lineHeight:'1.1', textShadow:'2px 2px 0 #6b4f00, -1px -1px 0 #6b4f00' }}>{userName}</div>
-        <div style={{ position:'absolute', top: Y_TAGLINE, left:60, width:W-120, textAlign:'center', fontSize:13, fontStyle:'italic', color:'#a0b0c0' }}>{CL.tagline}</div>
+        <div style={{ position:'absolute', top: Y_CONGRATS, left:0, width:W, textAlign:'center', fontSize:13, color:SUBTEXT }}>{CL.congrats}</div>
+        {/* Name */}
+        <div style={{ position:'absolute', top: Y_NAME, left:60, width:W-120, textAlign:'center', fontSize:52, fontWeight:'bold', color:TEXT, lineHeight:'1.1' }}>{userName}</div>
+        <div style={{ position:'absolute', top: Y_TAGLINE, left:60, width:W-120, textAlign:'center', fontSize:13, fontStyle:'italic', color:SUBTEXT }}>{CL.tagline}</div>
         <Divider top={Y_DIV2} lx={80} rx={1120} />
+        {/* Stat boxes row 1 */}
         {stats.slice(0,3).map((s,i) => (
-          <div key={i} style={{ position:'absolute', top:Y_ROW1, left:row1Left+i*(BW+BG), width:BW, height:BH, boxSizing:'border-box', border:`1.5px solid ${s.color}`, borderRadius:10, background:DARK2, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:16, gap:8 }}>
-            <div style={{ fontSize:14, color:'#fff', fontWeight:600, textAlign:'center', fontFamily:mono }}>{s.label}</div>
+          <div key={i} style={{ position:'absolute', top:Y_ROW1, left:row1Left+i*(BW+BG), width:BW, height:BH, boxSizing:'border-box', border:`1.5px solid ${BORDER}`, borderRadius:10, background:STAT_BG, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:16, gap:8 }}>
+            <div style={{ fontSize:14, color:SUBTEXT, fontWeight:600, textAlign:'center', fontFamily:mono }}>{s.label}</div>
             <div style={{ fontSize:28, fontWeight:'bold', color:s.color, textAlign:'center', fontFamily:mono }}>{s.value}</div>
           </div>
         ))}
+        {/* Stat boxes row 2 */}
         {stats.slice(3).map((s,i) => (
-          <div key={i} style={{ position:'absolute', top:Y_ROW2, left:row2Left+i*(BW+BG), width:BW, height:BH, boxSizing:'border-box', border:`1.5px solid ${s.color}`, borderRadius:10, background:DARK2, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:16, gap:8 }}>
-            <div style={{ fontSize:14, color:'#fff', fontWeight:600, textAlign:'center', fontFamily:mono }}>{s.label}</div>
+          <div key={i} style={{ position:'absolute', top:Y_ROW2, left:row2Left+i*(BW+BG), width:BW, height:BH, boxSizing:'border-box', border:`1.5px solid ${BORDER}`, borderRadius:10, background:STAT_BG, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:16, gap:8 }}>
+            <div style={{ fontSize:14, color:SUBTEXT, fontWeight:600, textAlign:'center', fontFamily:mono }}>{s.label}</div>
             <div style={{ fontSize:28, fontWeight:'bold', color:s.color, textAlign:'center', fontFamily:mono }}>{s.value}</div>
           </div>
         ))}
         <Divider top={Y_DIV3} lx={80} rx={1120} />
-        <div style={{ position:'absolute', top:Y_QUOTE, left:100, width:W-200, textAlign:'center', fontSize:12, fontStyle:'italic', color:'#4a5a6a' }}>"{CL.quote}"</div>
-        <div style={{ position:'absolute', left:SEAL_CX-SEAL_R, top:SEAL_CY-SEAL_R, width:SEAL_R*2, height:SEAL_R*2, borderRadius:'50%', border:`2px solid ${GOLD}`, boxSizing:'border-box' }} />
-        <div style={{ position:'absolute', left:SEAL_CX-53, top:SEAL_CY-53, width:106, height:106, borderRadius:'50%', border:`1px solid ${TEAL}`, boxSizing:'border-box' }} />
-        <div style={{ position:'absolute', left:SEAL_CX-52, top:SEAL_CY-52, width:104, height:104, borderRadius:'50%', background:DARK, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, paddingTop:6 }}>
-          <svg width="28" height="22" viewBox="0 0 28 22" fill="none"><polyline points="2,12 10,20 26,2" stroke={TEAL} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          <div style={{ fontSize:10, color:'#fff', letterSpacing:1, fontFamily:mono }}>VERIFIED</div>
-          <div style={{ fontSize:14, fontWeight:'bold', color:GOLD, letterSpacing:1, fontFamily:mono }}>TRADER</div>
-          <div style={{ fontSize:9, color:TEAL, fontFamily:mono }}>TradeSmartDz</div>
-          <div style={{ fontSize:9, color:'#506070', fontFamily:mono }}>2026</div>
+        <div style={{ position:'absolute', top:Y_QUOTE, left:100, width:W-200, textAlign:'center', fontSize:12, fontStyle:'italic', color:SUBTEXT }}>"{CL.quote}"</div>
+        {/* Verified seal */}
+        <div style={{ position:'absolute', left:SEAL_CX-SEAL_R, top:SEAL_CY-SEAL_R, width:SEAL_R*2, height:SEAL_R*2, borderRadius:'50%', border:`2px solid ${TEAL_MAIN}`, boxSizing:'border-box' }} />
+        <div style={{ position:'absolute', left:SEAL_CX-53, top:SEAL_CY-53, width:106, height:106, borderRadius:'50%', border:`1px solid #99f6e4`, boxSizing:'border-box' }} />
+        <div style={{ position:'absolute', left:SEAL_CX-52, top:SEAL_CY-52, width:104, height:104, borderRadius:'50%', background:'#f0fdf9', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, paddingTop:6 }}>
+          <svg width="28" height="22" viewBox="0 0 28 22" fill="none"><polyline points="2,12 10,20 26,2" stroke={TEAL_MAIN} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <div style={{ fontSize:10, color:TEXT, letterSpacing:1, fontFamily:mono }}>VERIFIED</div>
+          <div style={{ fontSize:14, fontWeight:'bold', color:TEAL_MAIN, letterSpacing:1, fontFamily:mono }}>TRADER</div>
+          <div style={{ fontSize:9, color:TEAL_LIGHT, fontFamily:mono }}>TradeSmartDz</div>
+          <div style={{ fontSize:9, color:SUBTEXT, fontFamily:mono }}>2026</div>
         </div>
+        {/* Signature */}
         <div style={{ position:'absolute', top:Y_SIG, left:912, width:200, textAlign:'center' }}>
-          <div style={{ fontSize:18, fontStyle:'italic', color:TEAL, fontFamily:mono }}>TradeSmartDz</div>
-          <div style={{ height:1, background:GRAY, margin:'7px auto', width:100 }} />
-          <div style={{ fontSize:12, color:SLATE, fontFamily:mono }}>Founder &amp; CEO</div>
-          <div style={{ fontSize:11, color:GRAY, marginTop:4, fontFamily }}>{CL.issuedOn} {dateStr}</div>
+          <div style={{ fontSize:18, fontStyle:'italic', color:TEAL_MAIN, fontFamily:mono }}>TradeSmartDz</div>
+          <div style={{ height:1, background:TEAL_MAIN, margin:'7px auto', width:100 }} />
+          <div style={{ fontSize:12, color:SUBTEXT, fontFamily:mono }}>Founder &amp; CEO</div>
+          <div style={{ fontSize:11, color:SUBTEXT, marginTop:4, fontFamily }}>{CL.issuedOn} {dateStr}</div>
         </div>
       </div>
     );
