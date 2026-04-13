@@ -17,6 +17,7 @@ import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
+import { t } from '@/lib/i18n';
 
 const RESULT_OPTIONS = [
   { value: 'Win', label: { ar: 'ربح', fr: 'Gain', en: 'Win' } },
@@ -2665,18 +2666,18 @@ const TradesPage = () => {
                   {shareOpen && (
                     <div className="rounded-xl border border-primary/20 bg-secondary/30 p-4 space-y-3">
                       {/* Preview card */}
-                      <div ref={shareCardRef} style={{ width: 480, background: 'linear-gradient(135deg,#f0fdf9 0%,#ffffff 50%,#f0f9ff 100%)', borderRadius: 20, padding: 32, fontFamily: 'Arial,sans-serif', border: '2px solid #99f6e4', position: 'relative', overflow: 'hidden' }}>
+                      <div ref={shareCardRef} style={{ width: 480, background: 'linear-gradient(135deg,#f0fdf9 0%,#ffffff 50%,#f0f9ff 100%)', borderRadius: 20, padding: 32, fontFamily: 'Arial,sans-serif', border: '2px solid #99f6e4', position: 'relative', overflow: 'hidden', ...(lang === 'ar' && { direction: 'rtl' }) }}>
                         {/* Background decoration */}
                         <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, background: 'rgba(20,184,166,0.06)', borderRadius: '50%' }} />
                         {/* Header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                        <div style={{ display: 'flex', flexDirection: lang === 'ar' ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                           <div>
                             <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>TRADESMARTDZ</p>
                             <p style={{ margin: '2px 0 0', fontSize: 11, color: '#94a3b8' }}>
                               {safeTrade.close_time ? new Date(safeTrade.close_time).toLocaleDateString() : ''}
                             </p>
                           </div>
-                          <div style={{ textAlign: 'right' }}>
+                          <div style={{ textAlign: lang === 'ar' ? 'left' : 'right' }}>
                             <p style={{ margin: '0 0 2px', fontSize: 13, color: '#0f172a', fontWeight: 700 }}>
                               {shareUserName}
                             </p>
@@ -2690,11 +2691,11 @@ const TradesPage = () => {
                           <p style={{ margin: '0 0 8px', fontSize: 40, fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{editSymbol || safeTrade.symbol}</p>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             <span style={{ background: editDirection === 'BUY' ? '#dcfce7' : '#fee2e2', color: editDirection === 'BUY' ? '#16a34a' : '#dc2626', padding: '4px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
-                              {editDirection}
+                              {editDirection === 'BUY' ? t('share_buy', lang) : t('share_sell', lang)}
                             </span>
                             {editResult && (
                               <span style={{ background: '#f8fafc', color: '#64748b', padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, border: '1px solid #e2e8f0' }}>
-                                {editResult}
+                                {editResult === 'Win' ? t('share_win', lang) : editResult === 'Loss' ? t('share_loss', lang) : editResult === 'Breakeven' ? t('share_be', lang) : editResult}
                               </span>
                             )}
                           </div>
@@ -2702,9 +2703,9 @@ const TradesPage = () => {
                         {/* Stats cards */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
                           {[
-                            { label: 'P&L', val: `${pnlNum >= 0 ? '+' : ''}$${pnlNum.toFixed(2)}`, color: pnlNum >= 0 ? '#0d9488' : '#dc2626' },
-                            { label: 'R:R', val: rrCalc || '—', color: '#0f172a' },
-                            { label: lang === 'ar' ? 'المدة' : 'Duration', val: durCalc || '—', color: '#0f172a' },
+                            { label: t('share_pnl', lang), val: `${pnlNum >= 0 ? '+' : ''}$${pnlNum.toFixed(2)}`, color: pnlNum >= 0 ? '#0d9488' : '#dc2626' },
+                            { label: t('share_rr', lang), val: rrCalc || '—', color: '#0f172a' },
+                            { label: t('share_duration', lang), val: durCalc || '—', color: '#0f172a' },
                           ].map((s, i) => (
                             <div key={i} style={{ background: '#f8fafc', borderRadius: 14, padding: '12px', border: '1px solid #e2e8f0' }}>
                               <p style={{ margin: '0 0 4px', fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>{s.label}</p>
@@ -2730,7 +2731,7 @@ const TradesPage = () => {
                         )}
                         {/* Footer */}
                         <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>Analyzed with TradeSmartDz</p>
+                          <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{t('share_analyzed_with', lang)}</p>
                           <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 700 }}>neuroport.xyz</p>
                         </div>
                       </div>

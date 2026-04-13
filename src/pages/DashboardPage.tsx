@@ -15,6 +15,7 @@ import {
   TrendingUp, TrendingDown, Loader2, Plus, ChevronLeft, ChevronRight, Camera, X, Download,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import { t } from '@/lib/i18n';
 import { AccountCard } from '@/pages/ConnectPage';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { toast } from 'sonner';
@@ -707,6 +708,8 @@ function TradingCalendar({
     const monthName = CAL_MONTH_NAMES[lang][month];
     const dayNames = CAL_DAY_NAMES[lang];
     const userName = ((user?.user_metadata?.full_name as string | undefined)?.trim()) || user?.email?.split('@')[0] || 'Trader';
+    const dir = lang === 'ar' ? 'rtl' : 'ltr';
+    const calExportTitle = t('cal_export_title', lang);
 
     // Build the visible grid (only current month + its surrounding week slots)
     const visibleCells = grid.slice(0, visibleWeeks * 7);
@@ -729,7 +732,7 @@ function TradingCalendar({
       const wr = Math.round((d.wins / d.tradeCount) * 100);
       return `${dayNum}
         <div style="color:${pnlColor};font-size:13px;font-weight:bold;line-height:1.2;">${pnlStr}</div>
-        <div style="color:#64748b;font-size:10px;margin-top:3px;">${d.tradeCount} ${lang === 'ar' ? 'صفقة' : lang === 'fr' ? 'trades' : 'trades'}</div>
+        <div style="color:#64748b;font-size:10px;margin-top:3px;">${d.tradeCount} ${t('cal_trades', lang)}</div>
         <div style="color:${wr >= 50 ? '#0d9488' : '#dc2626'};font-size:10px;">${wr}%</div>`;
     };
 
@@ -746,10 +749,10 @@ function TradingCalendar({
     ).join('');
 
     const html = `
-      <div style="background-color:#ffffff;padding:24px;font-family:Arial,sans-serif;width:800px;border-radius:12px;">
+      <div style="direction:${dir};background-color:#ffffff;padding:24px;font-family:Arial,sans-serif;width:800px;border-radius:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
           <span style="font-size:18px;font-weight:900;color:#0f172a;">TradeSmart<span style="color:#14b8a6;">Dz</span></span>
-          <span style="font-size:18px;font-weight:700;color:#0f172a;">${monthName} ${year}</span>
+          <span style="font-size:16px;font-weight:700;color:#0f172a;">${calExportTitle} — ${monthName} ${year}</span>
           <span style="font-size:12px;color:#94a3b8;">neuroport.xyz</span>
         </div>
         <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">${headerRow}</div>
@@ -761,8 +764,8 @@ function TradingCalendar({
           <div style="text-align:center;">
             <span style="font-size:14px;font-weight:700;color:#0f172a;">${monthName} ${year}</span>
           </div>
-          <div style="text-align:right;">
-            <p style="margin:0 0 2px;font-size:12px;font-weight:700;color:#0f172a;">${userName}</p>
+          <div style="text-align:${dir === 'rtl' ? 'left' : 'right'};">
+            <p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#0f172a;">${userName}</p>
             <p style="margin:0;font-size:11px;color:#64748b;">neuroport.xyz</p>
           </div>
         </div>

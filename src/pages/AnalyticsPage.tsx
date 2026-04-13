@@ -15,6 +15,7 @@ import { Tables } from '@/integrations/supabase/types';
 import { Loader2, FileDown, Calendar, Zap, Target, X as XIcon } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { t } from '@/lib/i18n';
 
 type Trade = Tables<'trades'>;
 type Account = Tables<'mt5_accounts'>;
@@ -222,6 +223,8 @@ interface CertProps {
 const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
   function CertificateTemplate({ userName, lang, totalTrades, winRate, totalPnl, bestTrade, profitFactor }, ref) {
     const pnlColor = totalPnl >= 0 ? '#0d9488' : '#dc2626';
+    const isRtl = lang === 'ar';
+    const locale = isRtl ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US';
     return (
       <div ref={ref} style={{ position: 'fixed', left: -9999, top: 0, width: 900, minHeight: 620, fontFamily: 'Arial, sans-serif' }}>
         <div style={{
@@ -235,6 +238,7 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          direction: isRtl ? 'rtl' : 'ltr',
         }}>
           {/* TOP HEADER BAR */}
           <div style={{
@@ -247,34 +251,36 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
                 width: 32, height: 32,
-                background: 'rgba(255,255,255,0.2)',
+                background: 'rgba(255,255,255,0.25)',
                 borderRadius: 8,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 14, fontWeight: 900,
+                color: '#ffffff',
               }}>
-                <span style={{ fontSize: 18 }}>📈</span>
+                Ts
               </div>
               <span style={{ color: '#ffffff', fontSize: 18, fontWeight: 900, letterSpacing: 1 }}>
                 TradeSmartDz
               </span>
             </div>
             <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 600 }}>
-              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              {new Date().toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
             </span>
           </div>
 
           {/* MAIN CONTENT */}
-          <div style={{ flex: 1, padding: '48px 60px 40px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, padding: '48px 60px 40px', display: 'flex', flexDirection: 'column', ...(isRtl && { direction: 'rtl' as const, textAlign: 'right' as const }) }}>
 
             {/* Title */}
             <div style={{ textAlign: 'center', marginBottom: 32 }}>
               <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: '#14b8a6', letterSpacing: 4, textTransform: 'uppercase' }}>
-                Official Document
+                {t('cert_official_doc', lang)}
               </p>
               <h1 style={{ margin: '0 0 4px', fontSize: 32, fontWeight: 900, color: '#0f172a', letterSpacing: 3, textTransform: 'uppercase' }}>
-                Performance Report
+                {t('cert_performance_report', lang)}
               </h1>
               <p style={{ margin: 0, fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>
-                Proudly presented to
+                {t('cert_proudly_presented', lang)}
               </p>
             </div>
 
@@ -283,35 +289,38 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
               background: 'linear-gradient(135deg, #f0fdf9, #e6fffa)',
               border: '2px solid #99f6e4',
               borderRadius: 16,
-              padding: '20px 40px',
+              padding: '16px 40px 20px',
               textAlign: 'center',
               marginBottom: 40,
-              position: 'relative',
             }}>
-              <p style={{ margin: 0, fontSize: 42, fontWeight: 900, color: '#0f172a', letterSpacing: -1, textTransform: 'uppercase' }}>
-                {userName}
-              </p>
               <div style={{
-                position: 'absolute',
-                top: -1, left: '50%',
-                transform: 'translateX(-50%)',
+                display: 'inline-block',
                 background: '#14b8a6',
                 color: '#ffffff',
                 fontSize: 10, fontWeight: 700,
-                padding: '2px 12px',
-                borderRadius: '0 0 8px 8px',
+                padding: '3px 14px',
+                borderRadius: 999,
                 letterSpacing: 2,
+                marginBottom: 12,
               }}>
-                TRADER
+                {t('cert_trader_badge', lang)}
               </div>
+              <p style={{
+                margin: 0,
+                fontSize: 40, fontWeight: 900,
+                color: '#0f172a', letterSpacing: -1,
+                textTransform: isRtl ? 'none' : 'uppercase',
+              }}>
+                {userName}
+              </p>
             </div>
 
             {/* Stats grid — top row 3 cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
               {[
-                { label: 'TOTAL TRADES', value: String(totalTrades), color: '#0f172a' },
-                { label: 'WIN RATE', value: `${winRate}%`, color: '#0d9488' },
-                { label: 'TOTAL P&L', value: `${totalPnl >= 0 ? '+' : ''}$${Number(totalPnl).toFixed(2)}`, color: pnlColor },
+                { label: t('cert_total_trades', lang), value: String(totalTrades), color: '#0f172a' },
+                { label: t('cert_win_rate', lang), value: `${winRate}%`, color: '#0d9488' },
+                { label: t('cert_total_pnl', lang), value: `${totalPnl >= 0 ? '+' : ''}$${Number(totalPnl).toFixed(2)}`, color: pnlColor },
               ].map((stat, i) => (
                 <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
                   <p style={{ margin: '0 0 10px', fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 2, textTransform: 'uppercase' }}>
@@ -327,8 +336,8 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
             {/* Stats grid — bottom row 2 cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
               {[
-                { label: 'BEST TRADE', value: `+$${Number(bestTrade).toFixed(2)}`, color: '#0d9488' },
-                { label: 'PROFIT FACTOR', value: String(profitFactor), color: '#0f172a' },
+                { label: t('cert_best_trade', lang), value: `+$${Number(bestTrade).toFixed(2)}`, color: '#0d9488' },
+                { label: t('cert_profit_factor', lang), value: String(profitFactor), color: '#0f172a' },
               ].map((stat, i) => (
                 <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
                   <p style={{ margin: '0 0 10px', fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 2, textTransform: 'uppercase' }}>
@@ -344,28 +353,39 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
             {/* Quote */}
             <div style={{ textAlign: 'center', marginBottom: 32 }}>
               <p style={{ margin: 0, fontSize: 13, fontStyle: 'italic', color: '#94a3b8' }}>
-                "Discipline and consistency are the foundation of trading success."
+                &ldquo;{t('cert_quote', lang)}&rdquo;
               </p>
             </div>
 
             {/* Footer row */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: 24 }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderTop: '1px solid #e2e8f0',
+              paddingTop: 24,
+              flexDirection: isRtl ? 'row-reverse' : 'row',
+            }}>
 
               {/* Verified badge */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
-                  width: 56, height: 56,
+                  width: 60, height: 60,
                   borderRadius: '50%',
-                  border: '2px solid #14b8a6',
+                  border: '2.5px solid #14b8a6',
                   background: '#f0fdf9',
-                  display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
                 }}>
-                  <span style={{ fontSize: 18, lineHeight: 1, color: '#14b8a6', fontWeight: 900 }}>✓</span>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
                 </div>
                 <div>
                   <p style={{ margin: '0 0 2px', fontSize: 11, fontWeight: 700, color: '#14b8a6', letterSpacing: 2, textTransform: 'uppercase' }}>
-                    Verified Trader
+                    {t('cert_verified_trader', lang)}
                   </p>
                   <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
                     TradeSmartDz • neuroport.xyz
@@ -374,15 +394,15 @@ const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
               </div>
 
               {/* Signature */}
-              <div style={{ textAlign: 'right' }}>
+              <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
                 <p style={{ margin: '0 0 2px', fontSize: 20, fontWeight: 900, color: '#14b8a6', fontStyle: 'italic' }}>
                   TradeSmartDz
                 </p>
                 <p style={{ margin: '0 0 2px', fontSize: 12, color: '#64748b' }}>
-                  Founder &amp; CEO
+                  {t('cert_founder', lang)}
                 </p>
                 <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
-                  Issued: {new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {t('cert_issued', lang)}: {new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })}
                 </p>
               </div>
 
