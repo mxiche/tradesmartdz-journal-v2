@@ -1196,6 +1196,7 @@ const TradesPage = () => {
   const lang = language as 'ar' | 'fr' | 'en';
   const { user, userPlan, userStatus } = useAuth();
   const isPro = userPlan === 'pro' || userStatus === 'trial';
+  const shareUserName = (user?.user_metadata?.full_name as string | undefined)?.trim() || user?.email?.split('@')[0] || 'Trader';
   const [trades, setTrades] = useState<Trade[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2671,11 +2672,18 @@ const TradesPage = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                           <div>
                             <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>TRADESMARTDZ</p>
-                            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#14b8a6', fontWeight: 600 }}>neuroport.xyz</p>
+                            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#94a3b8' }}>
+                              {safeTrade.close_time ? new Date(safeTrade.close_time).toLocaleDateString() : ''}
+                            </p>
                           </div>
-                          <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>
-                            {safeTrade.close_time ? new Date(safeTrade.close_time).toLocaleDateString() : ''}
-                          </p>
+                          <div style={{ textAlign: 'right' }}>
+                            <p style={{ margin: '0 0 2px', fontSize: 13, color: '#0f172a', fontWeight: 700 }}>
+                              {shareUserName}
+                            </p>
+                            <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 600 }}>
+                              TradeSmartDz • neuroport.xyz
+                            </p>
+                          </div>
                         </div>
                         {/* Symbol + Direction + Result */}
                         <div style={{ marginBottom: 20 }}>

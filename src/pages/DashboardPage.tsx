@@ -706,6 +706,7 @@ function TradingCalendar({
   const handleExportCalendar = async () => {
     const monthName = CAL_MONTH_NAMES[lang][month];
     const dayNames = CAL_DAY_NAMES[lang];
+    const userName = ((user?.user_metadata?.full_name as string | undefined)?.trim()) || user?.email?.split('@')[0] || 'Trader';
 
     // Build the visible grid (only current month + its surrounding week slots)
     const visibleCells = grid.slice(0, visibleWeeks * 7);
@@ -753,10 +754,17 @@ function TradingCalendar({
         </div>
         <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">${headerRow}</div>
         ${rows}
-        <div style="background-color:#f8fafc;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:16px;border-radius:8px;border:1px solid #e2e8f0;">
-          <span style="color:#14b8a6;font-size:14px;font-weight:700;">TradeSmartDz</span>
-          <span style="color:#64748b;font-size:12px;">${monthName} ${year}</span>
-          <span style="color:#94a3b8;font-size:11px;">neuroport.xyz</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;margin-top:16px;border-radius:0 0 8px 8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:16px;font-weight:900;color:#14b8a6;">TradeSmartDz</span>
+          </div>
+          <div style="text-align:center;">
+            <span style="font-size:14px;font-weight:700;color:#0f172a;">${monthName} ${year}</span>
+          </div>
+          <div style="text-align:right;">
+            <p style="margin:0 0 2px;font-size:12px;font-weight:700;color:#0f172a;">${userName}</p>
+            <p style="margin:0;font-size:11px;color:#64748b;">neuroport.xyz</p>
+          </div>
         </div>
       </div>`;
 

@@ -221,86 +221,176 @@ interface CertProps {
 }
 const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
   function CertificateTemplate({ userName, lang, totalTrades, winRate, totalPnl, bestTrade, profitFactor }, ref) {
-    const isAr = lang === 'ar'; const isFr = lang === 'fr';
-    const CL = isAr ? { congrats: 'يُقدَّم هذا الشهادة بفخر إلى', tagline: 'للأداء المتميز والانضباط في التداول', totalTrades: 'إجمالي الصفقات', winRate: 'نسبة الفوز', totalPnl: 'إجمالي الربح', bestTrade: 'أفضل صفقة', profitFactor: 'معامل الربح', quote: 'الانضباط والاتساق هما أساس النجاح في التداول.', issuedOn: 'صدر بتاريخ:' }
-      : isFr ? { congrats: 'Ce certificat est fièrement décerné à', tagline: 'Pour une performance exceptionnelle et de la discipline en trading', totalTrades: 'Total trades', winRate: 'Taux de réussite', totalPnl: 'PnL total', bestTrade: 'Meilleur trade', profitFactor: 'Facteur de profit', quote: 'La discipline et la constance sont les bases du succès en trading.', issuedOn: 'Émis le :' }
-      : { congrats: 'This certificate is proudly awarded to', tagline: 'For outstanding performance and discipline in trading', totalTrades: 'Total Trades', winRate: 'Win Rate', totalPnl: 'Total PnL', bestTrade: 'Best Trade', profitFactor: 'Profit Factor', quote: 'Discipline and consistency are the foundation of trading success.', issuedOn: 'Issued on:' };
-    const dateStr = new Date().toLocaleDateString(isAr ? 'ar-DZ' : isFr ? 'fr-FR' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const TEAL_MAIN = '#14b8a6', TEAL_LIGHT = '#0d9488', BORDER = '#e2e8f0', STAT_BG = '#f8fafc', TEXT = '#0f172a', SUBTEXT = '#64748b';
-    const W = 1200, H = 850, CX = 600;
-    const BW = 340, BH = 110, BG = 20;
-    const row1Left = (W - 3 * BW - 2 * BG) / 2;
-    const row2Left = (W - 2 * BW - 1 * BG) / 2;
-    const mono = 'Helvetica, Arial, sans-serif';
-    const fontFamily = isAr ? "'Tajawal', Arial, sans-serif" : mono;
-    const pnlColor = totalPnl >= 0 ? '#0d9488' : '#ef4444';
-    const stats = [
-      { label: CL.totalTrades, value: String(totalTrades), color: TEAL_MAIN },
-      { label: CL.winRate, value: `${winRate}%`, color: TEAL_MAIN },
-      { label: CL.totalPnl, value: `$${totalPnl.toFixed(2)}`, color: pnlColor },
-      { label: CL.bestTrade, value: bestTrade >= 0 ? `+$${bestTrade.toFixed(2)}` : `$${bestTrade.toFixed(2)}`, color: TEAL_MAIN },
-      { label: CL.profitFactor, value: profitFactor, color: TEAL_MAIN },
-    ];
-    const Divider = ({ top, lx, rx }: { top: number; lx: number; rx: number }) => (
-      <><div style={{ position: 'absolute', top, left: lx, width: CX - lx - 11, height: 1, background: BORDER }} /><div style={{ position: 'absolute', top: top - 7, left: CX - 7, width: 14, height: 14, background: TEAL_MAIN, transform: 'rotate(45deg)' }} /><div style={{ position: 'absolute', top, left: CX + 11, width: rx - CX - 11, height: 1, background: BORDER }} /></>
-    );
-    const Y_TITLE = 48, Y_SUBTITLE = 100, Y_DIV1 = 122, Y_CONGRATS = 140, Y_NAME = 160, Y_TAGLINE = 235, Y_DIV2 = 260;
-    const Y_ROW1 = 278, Y_ROW2 = Y_ROW1 + BH + BG, Y_DIV3 = Y_ROW2 + BH + 18, Y_QUOTE = Y_DIV3 + 16;
-    const SEAL_R = 65, SEAL_CY = 822 - 60 - SEAL_R, SEAL_CX = CX, Y_SIG = 762 - 68;
+    const pnlColor = totalPnl >= 0 ? '#0d9488' : '#dc2626';
     return (
-      <div ref={ref} dir={isAr ? 'rtl' : 'ltr'} style={{ position: 'fixed', left: -9999, top: 0, width: W, height: H, overflow: 'hidden', fontFamily, minWidth: W, maxWidth: W, minHeight: H, maxHeight: H }}>
-        {/* Light gradient background */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, background: 'linear-gradient(135deg, #f0fdfa 0%, #ffffff 50%, #f0f9ff 100%)' }} />
-        {/* Outer teal border */}
-        <div style={{ position: 'absolute', top: 15, left: 15, width: W - 30, height: H - 30, border: `3px solid ${TEAL_MAIN}`, boxSizing: 'border-box' }} />
-        <div style={{ position: 'absolute', top: 28, left: 28, width: W - 56, height: H - 56, border: `1px solid #99f6e4`, boxSizing: 'border-box' }} />
-        {/* Corner accents */}
-        {([[15,15],[15,W-65],[H-65,15],[H-65,W-65]] as [number,number][]).map(([t,l],i) => (
-          <div key={i} style={{ position:'absolute', top:t, left:l, width:50, height:50, ...(i===0?{borderTop:`2.5px solid ${TEAL_MAIN}`,borderLeft:`2.5px solid ${TEAL_MAIN}`}:i===1?{borderTop:`2.5px solid ${TEAL_MAIN}`,borderRight:`2.5px solid ${TEAL_MAIN}`}:i===2?{borderBottom:`2.5px solid ${TEAL_MAIN}`,borderLeft:`2.5px solid ${TEAL_MAIN}`}:{borderBottom:`2.5px solid ${TEAL_MAIN}`,borderRight:`2.5px solid ${TEAL_MAIN}`}) }} />
-        ))}
-        {/* Title */}
-        <div style={{ position:'absolute', top: Y_TITLE, left:0, width:W, textAlign:'center', fontSize:36, fontWeight:'bold', color:TEXT, letterSpacing:4, whiteSpace:'nowrap', fontFamily:mono }}>CERTIFICATE OF PERFORMANCE</div>
-        {/* Teal accent bar under title */}
-        <div style={{ position:'absolute', top: Y_TITLE + 46, left: CX - 60, width: 120, height: 3, background: TEAL_MAIN, borderRadius: 2 }} />
-        <div style={{ position:'absolute', top: Y_SUBTITLE, left:0, width:W, textAlign:'center', fontSize:12, color:SUBTEXT, fontFamily:mono }}>Presented by TradeSmartDz</div>
-        <Divider top={Y_DIV1} lx={180} rx={1020} />
-        <div style={{ position:'absolute', top: Y_CONGRATS, left:0, width:W, textAlign:'center', fontSize:13, color:SUBTEXT }}>{CL.congrats}</div>
-        {/* Name */}
-        <div style={{ position:'absolute', top: Y_NAME, left:60, width:W-120, textAlign:'center', fontSize:52, fontWeight:'bold', color:TEXT, lineHeight:'1.1' }}>{userName}</div>
-        <div style={{ position:'absolute', top: Y_TAGLINE, left:60, width:W-120, textAlign:'center', fontSize:13, fontStyle:'italic', color:SUBTEXT }}>{CL.tagline}</div>
-        <Divider top={Y_DIV2} lx={80} rx={1120} />
-        {/* Stat boxes row 1 */}
-        {stats.slice(0,3).map((s,i) => (
-          <div key={i} style={{ position:'absolute', top:Y_ROW1, left:row1Left+i*(BW+BG), width:BW, height:BH, boxSizing:'border-box', border:`1.5px solid ${BORDER}`, borderRadius:10, background:STAT_BG, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:16, gap:8 }}>
-            <div style={{ fontSize:14, color:SUBTEXT, fontWeight:600, textAlign:'center', fontFamily:mono }}>{s.label}</div>
-            <div style={{ fontSize:28, fontWeight:'bold', color:s.color, textAlign:'center', fontFamily:mono }}>{s.value}</div>
+      <div ref={ref} style={{ position: 'fixed', left: -9999, top: 0, width: 900, minHeight: 620, fontFamily: 'Arial, sans-serif' }}>
+        <div style={{
+          width: 900,
+          minHeight: 620,
+          background: '#ffffff',
+          fontFamily: 'Arial, sans-serif',
+          position: 'relative',
+          border: '2px solid #14b8a6',
+          borderRadius: 4,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          {/* TOP HEADER BAR */}
+          <div style={{
+            background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+            padding: '20px 40px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: 32, height: 32,
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <span style={{ fontSize: 18 }}>📈</span>
+              </div>
+              <span style={{ color: '#ffffff', fontSize: 18, fontWeight: 900, letterSpacing: 1 }}>
+                TradeSmartDz
+              </span>
+            </div>
+            <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 600 }}>
+              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </span>
           </div>
-        ))}
-        {/* Stat boxes row 2 */}
-        {stats.slice(3).map((s,i) => (
-          <div key={i} style={{ position:'absolute', top:Y_ROW2, left:row2Left+i*(BW+BG), width:BW, height:BH, boxSizing:'border-box', border:`1.5px solid ${BORDER}`, borderRadius:10, background:STAT_BG, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:16, gap:8 }}>
-            <div style={{ fontSize:14, color:SUBTEXT, fontWeight:600, textAlign:'center', fontFamily:mono }}>{s.label}</div>
-            <div style={{ fontSize:28, fontWeight:'bold', color:s.color, textAlign:'center', fontFamily:mono }}>{s.value}</div>
+
+          {/* MAIN CONTENT */}
+          <div style={{ flex: 1, padding: '48px 60px 40px', display: 'flex', flexDirection: 'column' }}>
+
+            {/* Title */}
+            <div style={{ textAlign: 'center', marginBottom: 32 }}>
+              <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: '#14b8a6', letterSpacing: 4, textTransform: 'uppercase' }}>
+                Official Document
+              </p>
+              <h1 style={{ margin: '0 0 4px', fontSize: 32, fontWeight: 900, color: '#0f172a', letterSpacing: 3, textTransform: 'uppercase' }}>
+                Performance Report
+              </h1>
+              <p style={{ margin: 0, fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>
+                Proudly presented to
+              </p>
+            </div>
+
+            {/* Name box */}
+            <div style={{
+              background: 'linear-gradient(135deg, #f0fdf9, #e6fffa)',
+              border: '2px solid #99f6e4',
+              borderRadius: 16,
+              padding: '20px 40px',
+              textAlign: 'center',
+              marginBottom: 40,
+              position: 'relative',
+            }}>
+              <p style={{ margin: 0, fontSize: 42, fontWeight: 900, color: '#0f172a', letterSpacing: -1, textTransform: 'uppercase' }}>
+                {userName}
+              </p>
+              <div style={{
+                position: 'absolute',
+                top: -1, left: '50%',
+                transform: 'translateX(-50%)',
+                background: '#14b8a6',
+                color: '#ffffff',
+                fontSize: 10, fontWeight: 700,
+                padding: '2px 12px',
+                borderRadius: '0 0 8px 8px',
+                letterSpacing: 2,
+              }}>
+                TRADER
+              </div>
+            </div>
+
+            {/* Stats grid — top row 3 cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+              {[
+                { label: 'TOTAL TRADES', value: String(totalTrades), color: '#0f172a' },
+                { label: 'WIN RATE', value: `${winRate}%`, color: '#0d9488' },
+                { label: 'TOTAL P&L', value: `${totalPnl >= 0 ? '+' : ''}$${Number(totalPnl).toFixed(2)}`, color: pnlColor },
+              ].map((stat, i) => (
+                <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
+                  <p style={{ margin: '0 0 10px', fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 2, textTransform: 'uppercase' }}>
+                    {stat.label}
+                  </p>
+                  <p style={{ margin: 0, fontSize: 28, fontWeight: 900, color: stat.color }}>
+                    {stat.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Stats grid — bottom row 2 cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
+              {[
+                { label: 'BEST TRADE', value: `+$${Number(bestTrade).toFixed(2)}`, color: '#0d9488' },
+                { label: 'PROFIT FACTOR', value: String(profitFactor), color: '#0f172a' },
+              ].map((stat, i) => (
+                <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
+                  <p style={{ margin: '0 0 10px', fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 2, textTransform: 'uppercase' }}>
+                    {stat.label}
+                  </p>
+                  <p style={{ margin: 0, fontSize: 28, fontWeight: 900, color: stat.color }}>
+                    {stat.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Quote */}
+            <div style={{ textAlign: 'center', marginBottom: 32 }}>
+              <p style={{ margin: 0, fontSize: 13, fontStyle: 'italic', color: '#94a3b8' }}>
+                "Discipline and consistency are the foundation of trading success."
+              </p>
+            </div>
+
+            {/* Footer row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: 24 }}>
+
+              {/* Verified badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 56, height: 56,
+                  borderRadius: '50%',
+                  border: '2px solid #14b8a6',
+                  background: '#f0fdf9',
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <span style={{ fontSize: 18, lineHeight: 1, color: '#14b8a6', fontWeight: 900 }}>✓</span>
+                </div>
+                <div>
+                  <p style={{ margin: '0 0 2px', fontSize: 11, fontWeight: 700, color: '#14b8a6', letterSpacing: 2, textTransform: 'uppercase' }}>
+                    Verified Trader
+                  </p>
+                  <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
+                    TradeSmartDz • neuroport.xyz
+                  </p>
+                </div>
+              </div>
+
+              {/* Signature */}
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ margin: '0 0 2px', fontSize: 20, fontWeight: 900, color: '#14b8a6', fontStyle: 'italic' }}>
+                  TradeSmartDz
+                </p>
+                <p style={{ margin: '0 0 2px', fontSize: 12, color: '#64748b' }}>
+                  Founder &amp; CEO
+                </p>
+                <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
+                  Issued: {new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+
+            </div>
           </div>
-        ))}
-        <Divider top={Y_DIV3} lx={80} rx={1120} />
-        <div style={{ position:'absolute', top:Y_QUOTE, left:100, width:W-200, textAlign:'center', fontSize:12, fontStyle:'italic', color:SUBTEXT }}>"{CL.quote}"</div>
-        {/* Verified seal */}
-        <div style={{ position:'absolute', left:SEAL_CX-SEAL_R, top:SEAL_CY-SEAL_R, width:SEAL_R*2, height:SEAL_R*2, borderRadius:'50%', border:`2px solid ${TEAL_MAIN}`, boxSizing:'border-box' }} />
-        <div style={{ position:'absolute', left:SEAL_CX-53, top:SEAL_CY-53, width:106, height:106, borderRadius:'50%', border:`1px solid #99f6e4`, boxSizing:'border-box' }} />
-        <div style={{ position:'absolute', left:SEAL_CX-52, top:SEAL_CY-52, width:104, height:104, borderRadius:'50%', background:'#f0fdf9', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, paddingTop:6 }}>
-          <svg width="28" height="22" viewBox="0 0 28 22" fill="none"><polyline points="2,12 10,20 26,2" stroke={TEAL_MAIN} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          <div style={{ fontSize:10, color:TEXT, letterSpacing:1, fontFamily:mono }}>VERIFIED</div>
-          <div style={{ fontSize:14, fontWeight:'bold', color:TEAL_MAIN, letterSpacing:1, fontFamily:mono }}>TRADER</div>
-          <div style={{ fontSize:9, color:TEAL_LIGHT, fontFamily:mono }}>TradeSmartDz</div>
-          <div style={{ fontSize:9, color:SUBTEXT, fontFamily:mono }}>2026</div>
-        </div>
-        {/* Signature */}
-        <div style={{ position:'absolute', top:Y_SIG, left:912, width:200, textAlign:'center' }}>
-          <div style={{ fontSize:18, fontStyle:'italic', color:TEAL_MAIN, fontFamily:mono }}>TradeSmartDz</div>
-          <div style={{ height:1, background:TEAL_MAIN, margin:'7px auto', width:100 }} />
-          <div style={{ fontSize:12, color:SUBTEXT, fontFamily:mono }}>Founder &amp; CEO</div>
-          <div style={{ fontSize:11, color:SUBTEXT, marginTop:4, fontFamily }}>{CL.issuedOn} {dateStr}</div>
+
+          {/* BOTTOM TEAL ACCENT BAR */}
+          <div style={{ height: 6, background: 'linear-gradient(90deg, #14b8a6, #0d9488, #14b8a6)' }} />
         </div>
       </div>
     );
@@ -630,10 +720,12 @@ const AnalyticsPage = () => {
     el.style.zIndex = '9999';
     try {
       await document.fonts.ready;
-      const canvas = await html2canvas(el, { scale: 3, useCORS: true, backgroundColor: null, width: 1200, height: 850 });
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1200, 850] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, 1200, 850);
+      const pdfW = canvas.width / 2;
+      const pdfH = canvas.height / 2;
+      const pdf = new jsPDF({ orientation: pdfW > pdfH ? 'landscape' : 'portrait', unit: 'px', format: [pdfW, pdfH] });
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
       pdf.save(`tradesmartdz-certificate-${new Date().toISOString().slice(0,10)}.pdf`);
     } finally {
       el.style.left = prevLeft;
