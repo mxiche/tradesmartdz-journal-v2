@@ -300,12 +300,14 @@ function Mt5ImportModal({
   userId,
   accounts: initialAccounts,
   onImported,
+  isPro,
 }: {
   open: boolean;
   onClose: () => void;
   userId: string;
   accounts: Account[];
   onImported: () => void;
+  isPro: boolean;
 }) {
   const { t, language: lang } = useLanguage();
 
@@ -2426,6 +2428,7 @@ const TradesPage = () => {
         onClose={() => setImportOpen(false)}
         userId={user!.id}
         accounts={accounts}
+        isPro={isPro}
         onImported={async () => {
           const { data } = await supabase.from('trades').select('*').eq('user_id', user!.id).order('close_time', { ascending: false });
           setTrades(data ?? []);
