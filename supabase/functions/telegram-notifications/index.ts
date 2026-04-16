@@ -79,23 +79,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fetch users with telegram_chat_id who have an active or trial subscription
+    // Step 1: Get all users with telegram_chat_id
     const { data: prefs, error: prefsError } = await supabase
       .from('user_preferences')
-      .select(`
-        user_id,
-        telegram_chat_id,
-        language,
-        subscriptions!inner(plan, status, expires_at)
-      `)
-      .not('telegram_chat_id', 'is', null)
-      .in('subscriptions.status', ['active', 'trial'])
-      .gte('subscriptions.expires_at', new Date().toISOString());
+      .select('user_id, telegram_chat_id, language')
+      .not('telegram_chat_id', 'is', null);
 
     if (prefsError) throw prefsError;
     if (!prefs || prefs.length === 0) {
       return new Response(
-        JSON.stringify({ sent: 0, total_users: 0, message: 'No active users with Telegram connected' }),
+        JSON.stringify({ sent: 0, total_users: 0, message: 'No users with Telegram connected' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -106,9 +99,22 @@ Deno.serve(async (req) => {
     const todayEnd = new Date(todayStart.getTime() + 86_400_000);
 
     let sent = 0;
+    let total_users = 0;
 
-    // For each user, compute today's stats and send summary
     for (const pref of prefs) {
+      // Step 2: Check if user has an active or trial subscription
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('plan, status, expires_at')
+        .eq('user_id', pref.user_id)
+        .in('status', ['active', 'trial'])
+        .gte('expires_at', new Date().toISOString())
+        .maybeSingle();
+
+      if (!sub) continue;
+      total_users++;
+
+      // Step 3: Fetch today's trades and send summary
       const { data: trades } = await supabase
         .from('trades')
         .select('profit')
@@ -131,7 +137,7 @@ Deno.serve(async (req) => {
       sent++;
     }
 
-    return new Response(JSON.stringify({ sent, total_users: prefs.length }), {
+    return new Response(JSON.stringify({ sent, total_users }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
