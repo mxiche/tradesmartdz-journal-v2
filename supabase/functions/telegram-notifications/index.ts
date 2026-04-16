@@ -1,20 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SERVICE_KEY = Deno.env.get('TG_SERVICE_KEY')!;
-const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!;
-const OWNER_CHAT_ID = Deno.env.get('OWNER_TELEGRAM_CHAT_ID')!;
-
-const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
-async function sendMessage(chatId: string, text: string): Promise<void> {
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+async function sendMessage(botToken: string, chatId: string, text: string): Promise<void> {
+  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text }),
@@ -40,67 +33,27 @@ function buildSummary(
   return `📊 Daily Summary\n\nTrades: ${total} | Wins: ${wins} | Losses: ${losses}\nWin Rate: ${winRate}%\nPnL: ${pnlStr}$\n\nTradeSmartDz 🎯`;
 }
 
-async function runNotifications(): Promise<{ sent: number; total_users: number; message?: string }> {
-  // 1. Fetch users with telegram_chat_id who have an active or trial subscription
-  const { data: prefs, error: prefsError } = await supabase
-    .from('user_preferences')
-    .select(`
-      user_id,
-      telegram_chat_id,
-      language,
-      subscriptions!inner(plan, status, expires_at)
-    `)
-    .not('telegram_chat_id', 'is', null)
-    .in('subscriptions.status', ['active', 'trial'])
-    .gte('subscriptions.expires_at', new Date().toISOString());
-
-  if (prefsError) throw prefsError;
-  if (!prefs || prefs.length === 0) {
-    return { sent: 0, total_users: 0, message: 'No active users with Telegram connected' };
-  }
-
-  // 2. Build today's date range (UTC midnight to midnight)
-  const now = new Date();
-  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const todayEnd = new Date(todayStart.getTime() + 86_400_000);
-
-  let sent = 0;
-
-  // 3. For each user, compute today's stats and send summary
-  for (const pref of prefs) {
-    const { data: trades } = await supabase
-      .from('trades')
-      .select('profit')
-      .eq('user_id', pref.user_id)
-      .gte('close_time', todayStart.toISOString())
-      .lt('close_time', todayEnd.toISOString());
-
-    // Skip users with no trades today
-    if (!trades || trades.length === 0) continue;
-
-    const total = trades.length;
-    const wins = trades.filter(t => (t.profit ?? 0) > 0).length;
-    const losses = trades.filter(t => (t.profit ?? 0) < 0).length;
-    const pnl = trades.reduce((s, t) => s + (t.profit ?? 0), 0);
-    const winRate = Math.round((wins / total) * 100);
-
-    const lang = pref.language ?? 'en';
-    const text = buildSummary(lang, total, wins, losses, winRate, pnl);
-
-    await sendMessage(pref.telegram_chat_id, text);
-    sent++;
-  }
-
-  return { sent, total_users: prefs.length };
-}
-
 // Handle both GET (cron trigger) and POST (payment_request or manual)
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
   try {
+    if (req.method === 'OPTIONS') {
+      return new Response('ok', { headers: corsHeaders });
+    }
+
+    // Log env var availability (not values) for debugging
+    const hasSupabaseUrl = !!Deno.env.get('SUPABASE_URL');
+    const hasServiceKey = !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || !!Deno.env.get('TG_SERVICE_KEY');
+    const hasBotToken = !!Deno.env.get('TELEGRAM_BOT_TOKEN');
+    console.log('ENV CHECK:', { hasSupabaseUrl, hasServiceKey, hasBotToken });
+
+    // Resolve env vars inside handler so missing vars don't crash at module load
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('TG_SERVICE_KEY') || '';
+    const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
+    const OWNER_CHAT_ID = Deno.env.get('OWNER_TELEGRAM_CHAT_ID') ?? '';
+
+    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+
     // Check for payment_request notification from frontend
     if (req.method === 'POST') {
       const body = await req.json().catch(() => null);
@@ -118,7 +71,7 @@ Deno.serve(async (req) => {
             `📋 Reference: ${body.reference}` +
             trialNote +
             `\n\n➡️ Activate in Supabase → subscriptions table`;
-          await sendMessage(OWNER_CHAT_ID, message);
+          await sendMessage(BOT_TOKEN, OWNER_CHAT_ID, message);
         }
         return new Response(JSON.stringify({ ok: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -126,14 +79,70 @@ Deno.serve(async (req) => {
       }
     }
 
-    const result = await runNotifications();
-    return new Response(JSON.stringify(result), {
+    // Fetch users with telegram_chat_id who have an active or trial subscription
+    const { data: prefs, error: prefsError } = await supabase
+      .from('user_preferences')
+      .select(`
+        user_id,
+        telegram_chat_id,
+        language,
+        subscriptions!inner(plan, status, expires_at)
+      `)
+      .not('telegram_chat_id', 'is', null)
+      .in('subscriptions.status', ['active', 'trial'])
+      .gte('subscriptions.expires_at', new Date().toISOString());
+
+    if (prefsError) throw prefsError;
+    if (!prefs || prefs.length === 0) {
+      return new Response(
+        JSON.stringify({ sent: 0, total_users: 0, message: 'No active users with Telegram connected' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Build today's date range (UTC midnight to midnight)
+    const now = new Date();
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const todayEnd = new Date(todayStart.getTime() + 86_400_000);
+
+    let sent = 0;
+
+    // For each user, compute today's stats and send summary
+    for (const pref of prefs) {
+      const { data: trades } = await supabase
+        .from('trades')
+        .select('profit')
+        .eq('user_id', pref.user_id)
+        .gte('close_time', todayStart.toISOString())
+        .lt('close_time', todayEnd.toISOString());
+
+      if (!trades || trades.length === 0) continue;
+
+      const total = trades.length;
+      const wins = trades.filter(t => (t.profit ?? 0) > 0).length;
+      const losses = trades.filter(t => (t.profit ?? 0) < 0).length;
+      const pnl = trades.reduce((s, t) => s + (t.profit ?? 0), 0);
+      const winRate = Math.round((wins / total) * 100);
+
+      const lang = pref.language ?? 'en';
+      const text = buildSummary(lang, total, wins, losses, winRate, pnl);
+
+      await sendMessage(BOT_TOKEN, pref.telegram_chat_id, text);
+      sent++;
+    }
+
+    return new Response(JSON.stringify({ sent, total_users: prefs.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('FATAL ERROR:', err);
+    return new Response(
+      JSON.stringify({ error: String(err) }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
+    );
   }
 });
