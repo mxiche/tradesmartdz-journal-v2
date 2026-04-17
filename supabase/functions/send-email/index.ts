@@ -440,6 +440,141 @@ function buildTrialReminderEmail(userEmail: string, daysLeft: number): string {
 </html>`;
 }
 
+function buildTrialExpiredEmail(to: string): string {
+  return `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="UTF-8"/>
+      <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+    </head>
+    <body style="margin:0;padding:0;background:#f8fafc;
+      font-family:Arial,sans-serif;direction:rtl;">
+      <table width="100%" cellpadding="0" cellspacing="0"
+        style="background:#f8fafc;padding:40px 16px;">
+        <tr>
+          <td align="center">
+            <table width="100%" cellpadding="0" cellspacing="0"
+              style="background:#ffffff;border-radius:24px;
+              overflow:hidden;max-width:520px;width:100%;
+              box-shadow:0 4px 24px rgba(0,0,0,0.06);
+              border:1px solid #e2e8f0;">
+
+              <!-- Header -->
+              <tr>
+                <td style="background:linear-gradient(135deg,#64748b,#475569);
+                  padding:40px 32px;text-align:center;">
+                  <p style="margin:0 0 8px;font-size:40px;">⏰</p>
+                  <h1 style="margin:0;color:#ffffff;font-size:22px;
+                    font-weight:900;">
+                    TradeSmartDz
+                  </h1>
+                  <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);
+                    font-size:14px;">
+                    انتهت فترة التجربة المجانية
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Body -->
+              <tr>
+                <td style="padding:40px 32px;">
+
+                  <h2 style="margin:0 0 12px;color:#0f172a;
+                    font-size:20px;font-weight:800;text-align:center;">
+                    انتهت الـ 5 أيام المجانية 😔
+                  </h2>
+
+                  <p style="margin:0 0 24px;color:#64748b;
+                    font-size:15px;line-height:1.7;text-align:center;">
+                    لقد انتهت فترة تجربتك المجانية في TradeSmartDz.
+                    نأمل أنك استمتعت بتجربة المنصة!
+                  </p>
+
+                  <!-- What you lose box -->
+                  <div style="background:#fef2f2;border:1px solid #fecaca;
+                    border-radius:16px;padding:20px;margin-bottom:24px;">
+                    <p style="margin:0 0 12px;color:#dc2626;font-size:13px;
+                      font-weight:700;text-align:center;">
+                      ما الذي فقدته الآن؟
+                    </p>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                      ${['❌ AI Coach والتحليل الذكي',
+                         '❌ إشعارات Telegram اليومية',
+                         '❌ تصدير البيانات والشهادات',
+                         '❌ أكثر من حساب واحد',
+                         '❌ تحليلات متقدمة'].map(item => `
+                        <p style="margin:0;font-size:13px;color:#7f1d1d;">
+                          ${item}
+                        </p>
+                      `).join('')}
+                    </div>
+                  </div>
+
+                  <!-- Upgrade CTA -->
+                  <div style="background:#f0fdf9;border:1px solid #99f6e4;
+                    border-radius:16px;padding:20px;margin-bottom:28px;
+                    text-align:center;">
+                    <p style="margin:0 0 4px;color:#0d9488;font-size:13px;
+                      font-weight:700;">
+                      اشترك الآن
+                    </p>
+                    <p style="margin:0 0 16px;color:#0f172a;font-size:22px;
+                      font-weight:900;">
+                      3,700 دج / شهر
+                    </p>
+                    <p style="margin:0 0 4px;color:#64748b;font-size:12px;">
+                      أو 15 USDT / شهر
+                    </p>
+                  </div>
+
+                  <!-- CTA Button -->
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" style="padding-bottom:24px;">
+                        <a href="https://neuroport.xyz/settings?tab=subscription"
+                          style="display:inline-block;background:#14b8a6;
+                          color:#ffffff;text-decoration:none;
+                          padding:16px 48px;border-radius:14px;
+                          font-weight:900;font-size:16px;">
+                          ترقية إلى Pro ⭐
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <p style="margin:0;color:#94a3b8;font-size:12px;
+                    text-align:center;">
+                    بياناتك وصفقاتك محفوظة بأمان.
+                    ستعود كل المميزات فور الاشتراك.
+                  </p>
+
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="background:#f8fafc;padding:20px 32px;
+                  border-top:1px solid #e2e8f0;text-align:center;">
+                  <p style="margin:0;color:#cbd5e1;font-size:11px;">
+                    © 2026 TradeSmartDz —
+                    <a href="mailto:tradesmartdz2@gmail.com"
+                      style="color:#14b8a6;text-decoration:none;">
+                      tradesmartdz2@gmail.com
+                    </a>
+                  </p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+    `;
+}
+
 // ── CORS ───────────────────────────────────────────────────────────────────
 
 const corsHeaders = {
@@ -482,6 +617,9 @@ Deno.serve(async (req) => {
     } else if (type === 'trial_reminder') {
       subject = '⚡ TradeSmartDz — تجربتك المجانية على وشك الانتهاء';
       html = buildTrialReminderEmail(userEmail, body.daysLeft ?? 1);
+    } else if (type === 'trial_expired') {
+      subject = 'انتهت فترة تجربتك المجانية — TradeSmartDz';
+      html = buildTrialExpiredEmail(userEmail);
     } else {
       return new Response(JSON.stringify({ error: 'Unknown type' }), {
         status: 400,
