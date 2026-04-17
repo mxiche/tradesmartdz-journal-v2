@@ -14,6 +14,7 @@ import {
 import { Tables } from '@/integrations/supabase/types';
 import { Loader2, FileDown, Calendar, Zap, Target, X as XIcon } from 'lucide-react';
 import { t } from '@/lib/i18n';
+import { toast } from 'sonner';
 
 type Trade = Tables<'trades'>;
 type Account = Tables<'mt5_accounts'>;
@@ -533,11 +534,18 @@ const AnalyticsPage = () => {
       if (!ctx) return;
 
       const img = new Image();
-      img.src = '/templates/certificate-template.png';
+      img.crossOrigin = 'anonymous';
 
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => {
+          console.log('Template loaded:', img.width, img.height);
+          resolve();
+        };
+        img.onerror = (e) => {
+          console.error('Failed to load template:', e);
+          reject(new Error('Template image failed to load'));
+        };
+        img.src = '/templates/certificate-template.png?' + Date.now();
       });
 
       canvas.width = img.width;
@@ -608,6 +616,9 @@ const AnalyticsPage = () => {
       link.download = `TradeSmartDz-Certificate-${name}.png`;
       link.href = canvas.toDataURL('image/png', 1.0);
       link.click();
+    } catch (err) {
+      console.error('Certificate generation failed:', err);
+      toast.error('Could not load certificate template. ' + String(err));
     } finally {
       setCertLoading(false);
     }
