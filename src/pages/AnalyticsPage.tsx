@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ProLockOverlay } from '@/components/ProLockOverlay';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -13,8 +13,6 @@ import {
 } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
 import { Loader2, FileDown, Calendar, Zap, Target, X as XIcon } from 'lucide-react';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { t } from '@/lib/i18n';
 
 type Trade = Tables<'trades'>;
@@ -215,251 +213,6 @@ function EmptyState({ msg }: { msg: string }) {
   );
 }
 
-// ─── Certificate (kept from original) ─────────────────────────
-interface CertProps {
-  userName: string; lang: Lang; totalTrades: number;
-  winRate: string; totalPnl: number; bestTrade: number; profitFactor: string;
-}
-const CertificateTemplate = forwardRef<HTMLDivElement, CertProps>(
-  function CertificateTemplate({ userName, lang, totalTrades, winRate, totalPnl, bestTrade, profitFactor }, ref) {
-    const pnlColor = totalPnl >= 0 ? '#0d9488' : '#dc2626';
-    const isRtl = lang === 'ar';
-    const locale = isRtl ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US';
-    const fontFamily = isRtl
-      ? 'Arial, Tahoma, "Traditional Arabic", sans-serif'
-      : 'Arial, sans-serif';
-    const certDate = new Date().toLocaleDateString(locale, { month: 'long', year: 'numeric' });
-    const issuedDate = new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
-    return (
-      <div ref={ref} style={{ position: 'fixed', left: -9999, top: 0, width: 900, minHeight: 620, fontFamily }}>
-        <div style={{
-          width: 900,
-          minHeight: 620,
-          background: '#ffffff',
-          fontFamily,
-          position: 'relative',
-          border: '2px solid #14b8a6',
-          borderRadius: 4,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          direction: isRtl ? 'rtl' : 'ltr',
-        }}>
-          {/* TOP HEADER BAR */}
-          <div style={{
-            background: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-            padding: '20px 40px',
-            display: 'flex',
-            flexDirection: isRtl ? 'row-reverse' : 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {/* Logo SVG — candlestick icon from Logo.tsx, colors set to white */}
-              <div style={{ width: 36, height: 36, flexShrink: 0 }}>
-                <svg viewBox="0 0 32 32" width="36" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  {/* Red candle (left) */}
-                  <line x1="7" y1="4" x2="7" y2="7" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
-                  <rect x="4.5" y="7" width="5" height="9" rx="0.75" fill="#ffffff" />
-                  <line x1="7" y1="16" x2="7" y2="20" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
-                  <polyline points="5,22 7,26 9,22" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  <line x1="7" y1="22" x2="7" y2="26" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
-                  {/* Green candle (right) */}
-                  <line x1="25" y1="4" x2="25" y2="8" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
-                  <rect x="22.5" y="8" width="5" height="9" rx="0.75" fill="#ffffff" />
-                  <line x1="25" y1="17" x2="25" y2="20" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
-                  <polyline points="23,24 25,20 27,24" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  <line x1="25" y1="20" x2="25" y2="26" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
-                  {/* Middle candle (center) */}
-                  <line x1="16" y1="2" x2="16" y2="6" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6" />
-                  <rect x="13.5" y="6" width="5" height="11" rx="0.75" stroke="#ffffff" strokeWidth="1.25" strokeOpacity="0.5" fill="none" />
-                  <line x1="16" y1="17" x2="16" y2="22" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6" />
-                </svg>
-              </div>
-              <span style={{ color: '#ffffff', fontSize: 18, fontWeight: 900, letterSpacing: isRtl ? 'normal' : 1 }}>
-                TradeSmartDz
-              </span>
-            </div>
-            <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 600 }}>
-              {certDate}
-            </span>
-          </div>
-
-          {/* MAIN CONTENT */}
-          <div style={{ flex: 1, padding: '48px 60px 40px', display: 'flex', flexDirection: 'column', direction: isRtl ? 'rtl' : 'ltr' }}>
-
-            {/* Title */}
-            <div style={{ textAlign: 'center', marginBottom: 32 }}>
-              <p style={{
-                margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: '#14b8a6',
-                letterSpacing: isRtl ? 'normal' : 4,
-                textTransform: isRtl ? 'none' : 'uppercase',
-              }}>
-                {t('cert_official_doc', lang)}
-              </p>
-              <h1 style={{
-                margin: '0 0 4px', fontSize: 32, fontWeight: 900, color: '#0f172a',
-                letterSpacing: isRtl ? 'normal' : 3,
-                textTransform: isRtl ? 'none' : 'uppercase',
-              }}>
-                {t('cert_performance_report', lang)}
-              </h1>
-              <p style={{ margin: 0, fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>
-                {t('cert_proudly_presented', lang)}
-              </p>
-            </div>
-
-            {/* Name box */}
-            <div style={{
-              background: 'linear-gradient(135deg, #f0fdf9, #e6fffa)',
-              border: '2px solid #99f6e4',
-              borderRadius: 16,
-              padding: '16px 40px 20px',
-              textAlign: 'center',
-              marginBottom: 40,
-            }}>
-              <div style={{
-                display: 'inline-block',
-                background: '#14b8a6',
-                color: '#ffffff',
-                fontSize: 10, fontWeight: 700,
-                padding: '3px 14px',
-                borderRadius: 999,
-                letterSpacing: isRtl ? 'normal' : 2,
-                marginBottom: 12,
-              }}>
-                {t('cert_trader_badge', lang)}
-              </div>
-              <p style={{
-                margin: 0,
-                fontSize: 40, fontWeight: 900,
-                color: '#0f172a',
-                letterSpacing: isRtl ? 'normal' : -1,
-                textTransform: isRtl ? 'none' : 'uppercase',
-              }}>
-                {userName}
-              </p>
-            </div>
-
-            {/* Stats grid — top row 3 cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-              {[
-                { label: t('cert_total_trades', lang), value: String(totalTrades), color: '#0f172a' },
-                { label: t('cert_win_rate', lang), value: `${winRate}%`, color: '#0d9488' },
-                { label: t('cert_total_pnl', lang), value: `${totalPnl >= 0 ? '+' : ''}$${Number(totalPnl).toFixed(2)}`, color: pnlColor },
-              ].map((stat, i) => (
-                <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
-                  <p style={{
-                    margin: '0 0 10px',
-                    fontSize: isRtl ? 9 : 10, fontWeight: 700, color: '#94a3b8',
-                    letterSpacing: isRtl ? 'normal' : 2,
-                    textTransform: isRtl ? 'none' : 'uppercase',
-                    wordBreak: 'keep-all',
-                  }}>
-                    {stat.label}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 28, fontWeight: 900, color: stat.color }}>
-                    {stat.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Stats grid — bottom row 2 cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
-              {[
-                { label: t('cert_best_trade', lang), value: `+$${Number(bestTrade).toFixed(2)}`, color: '#0d9488' },
-                { label: t('cert_profit_factor', lang), value: String(profitFactor), color: '#0f172a' },
-              ].map((stat, i) => (
-                <div key={i} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '20px 16px', textAlign: 'center' }}>
-                  <p style={{
-                    margin: '0 0 10px',
-                    fontSize: isRtl ? 9 : 10, fontWeight: 700, color: '#94a3b8',
-                    letterSpacing: isRtl ? 'normal' : 2,
-                    textTransform: isRtl ? 'none' : 'uppercase',
-                    wordBreak: 'keep-all',
-                  }}>
-                    {stat.label}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 28, fontWeight: 900, color: stat.color }}>
-                    {stat.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Quote */}
-            <div style={{ textAlign: 'center', marginBottom: 32 }}>
-              <p style={{ margin: 0, fontSize: 13, fontStyle: 'italic', color: '#94a3b8' }}>
-                &ldquo;{t('cert_quote', lang)}&rdquo;
-              </p>
-            </div>
-
-            {/* Footer row */}
-            <div style={{
-              display: 'flex',
-              flexDirection: isRtl ? 'row-reverse' : 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              borderTop: '1px solid #e2e8f0',
-              paddingTop: 24,
-            }}>
-
-              {/* Verified badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 60, height: 60,
-                  borderRadius: '50%',
-                  border: '2.5px solid #14b8a6',
-                  background: '#f0fdf9',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-                <div style={{ textAlign: isRtl ? 'right' : 'left' }}>
-                  <p style={{
-                    margin: '0 0 2px', fontSize: 11, fontWeight: 700, color: '#14b8a6',
-                    letterSpacing: isRtl ? 'normal' : 2,
-                    textTransform: isRtl ? 'none' : 'uppercase',
-                  }}>
-                    {t('cert_verified_trader', lang)}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
-                    TradeSmartDz • neuroport.xyz
-                  </p>
-                </div>
-              </div>
-
-              {/* Signature */}
-              <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
-                <p style={{ margin: '0 0 2px', fontSize: 20, fontWeight: 900, color: '#14b8a6', fontStyle: 'italic' }}>
-                  TradeSmartDz
-                </p>
-                <p style={{ margin: '0 0 2px', fontSize: 12, color: '#64748b' }}>
-                  {t('cert_founder', lang)}
-                </p>
-                <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
-                  {t('cert_issued', lang)}: {issuedDate}
-                </p>
-              </div>
-
-            </div>
-          </div>
-
-          {/* BOTTOM TEAL ACCENT BAR */}
-          <div style={{ height: 6, background: 'linear-gradient(90deg, #14b8a6, #0d9488, #14b8a6)' }} />
-        </div>
-      </div>
-    );
-  }
-);
-CertificateTemplate.displayName = 'CertificateTemplate';
-
 // ─── Main component ────────────────────────────────────────────
 const AnalyticsPage = () => {
   const { t, language } = useLanguage();
@@ -477,7 +230,6 @@ const AnalyticsPage = () => {
   const [timeRange, setTimeRange] = useState('allTime');
   const [accountFilter, setAccountFilter] = useState('all');
   const [certLoading, setCertLoading] = useState(false);
-  const certRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -769,29 +521,94 @@ const AnalyticsPage = () => {
     profitFactor: stats.profitFactor,
   }), [stats]);
 
-  const downloadCertificate = async () => {
+  const generateCertificate = async () => {
     if (!isPro) {
       navigate('/settings?tab=subscription');
       return;
     }
-    const el = certRef.current;
-    if (!el) return;
     setCertLoading(true);
-    const prevLeft = el.style.left;
-    el.style.left = '0px';
-    el.style.zIndex = '9999';
     try {
-      await document.fonts.ready;
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdfW = canvas.width / 2;
-      const pdfH = canvas.height / 2;
-      const pdf = new jsPDF({ orientation: pdfW > pdfH ? 'landscape' : 'portrait', unit: 'px', format: [pdfW, pdfH] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
-      pdf.save(`tradesmartdz-certificate-${new Date().toISOString().slice(0,10)}.pdf`);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const img = new Image();
+      img.src = '/templates/certificate-template.png';
+
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      console.log('Certificate dimensions:', img.width, img.height);
+
+      const drawText = (
+        text: string,
+        x: number,
+        y: number,
+        fontSize: number,
+        color: string,
+        align: CanvasTextAlign = 'center',
+        fontWeight = 'bold',
+      ) => {
+        ctx.font = `${fontWeight} ${fontSize}px Arial, sans-serif`;
+        ctx.fillStyle = color;
+        ctx.textAlign = align;
+        ctx.fillText(text, x, y);
+      };
+
+      const name = fullName || user?.email?.split('@')[0] || 'Trader';
+      const tradesStr = String(certStats.totalTrades);
+      const winRateStr = `${certStats.winRate}%`;
+      const pnl = `${certStats.totalPnl >= 0 ? '+' : ''}$${Number(certStats.totalPnl).toFixed(2)}`;
+      const best = `+$${Number(certStats.bestTrade).toFixed(2)}`;
+      const pf = String(certStats.profitFactor);
+      const tradingDays = String(
+        new Set(
+          trades
+            .filter(tr => tr.close_time)
+            .map(tr => new Date(tr.close_time!).toDateString())
+        ).size
+      );
+      const dateStr = new Date().toLocaleDateString('en-US', {
+        day: 'numeric', month: 'long', year: 'numeric',
+      });
+
+      const W = canvas.width;
+      const H = canvas.height;
+      const scaleY = H / 892;
+
+      // Trader name — centered, upper middle
+      drawText(name.toUpperCase(), W * 0.5, H * 0.42, Math.round(52 * scaleY), '#0f172a', 'center', '900');
+
+      // Row 1: Total Trades | Win Rate | Total P&L
+      drawText(tradesStr,  W * 0.183, H * 0.595, Math.round(36 * scaleY), '#0f172a',  'center', 'bold');
+      drawText(winRateStr, W * 0.5,   H * 0.595, Math.round(36 * scaleY), '#14b8a6',  'center', 'bold');
+      drawText(pnl, W * 0.817, H * 0.595, Math.round(36 * scaleY),
+        certStats.totalPnl >= 0 ? '#0d9488' : '#dc2626', 'center', 'bold');
+
+      // Row 2: Best Trade | Profit Factor | Trading Days
+      drawText(best,        W * 0.183, H * 0.73, Math.round(36 * scaleY), '#0d9488', 'center', 'bold');
+      drawText(pf,          W * 0.5,   H * 0.73, Math.round(36 * scaleY), '#0f172a', 'center', 'bold');
+      drawText(tradingDays, W * 0.817, H * 0.73, Math.round(36 * scaleY), '#0f172a', 'center', 'bold');
+
+      // Issued date — bottom
+      drawText(dateStr, W * 0.88, H * 0.895, Math.round(14 * scaleY), '#64748b', 'left', 'normal');
+
+      console.log('Certificate generated successfully', {
+        width: W, height: H,
+        name, trades: tradesStr, winRateStr, pnl, best, pf, tradingDays, dateStr,
+      });
+
+      const link = document.createElement('a');
+      link.download = `TradeSmartDz-Certificate-${name}.png`;
+      link.href = canvas.toDataURL('image/png', 1.0);
+      link.click();
     } finally {
-      el.style.left = prevLeft;
-      el.style.zIndex = '';
       setCertLoading(false);
     }
   };
@@ -853,7 +670,7 @@ const AnalyticsPage = () => {
             </SelectContent>
           </Select>
           {/* Certificate */}
-          <Button variant="outline" size="sm" onClick={downloadCertificate} disabled={certLoading} className="gap-1.5 h-9">
+          <Button variant="outline" size="sm" onClick={generateCertificate} disabled={certLoading} className="gap-1.5 h-9">
             {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
             <span className="hidden sm:inline">{l.certificate}</span>
           </Button>
@@ -1274,17 +1091,6 @@ const AnalyticsPage = () => {
         )}
       </Section>
 
-      {/* Hidden certificate */}
-      <CertificateTemplate
-        ref={certRef}
-        userName={fullName || 'Trader'}
-        lang={lang}
-        totalTrades={certStats.totalTrades}
-        winRate={certStats.winRate}
-        totalPnl={certStats.totalPnl}
-        bestTrade={certStats.bestTrade}
-        profitFactor={certStats.profitFactor}
-      />
     </div>
   );
 };
