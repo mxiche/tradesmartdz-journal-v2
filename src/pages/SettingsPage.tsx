@@ -74,6 +74,14 @@ const SettingsPage = () => {
   const [pendingSubmission, setPendingSubmission] = useState<{ submitted_at: string } | null>(null);
   const [screenshotSent, setScreenshotSent] = useState(false);
 
+  // News alerts preferences
+  const [newsPrefs, setNewsPrefs] = useState({
+    enabled: false,
+    impact: ['High'] as string[],
+    currencies: ['USD', 'EUR', 'GBP'] as string[],
+    minutesBefore: 15,
+  });
+
   useEffect(() => {
     if (!user) return;
     const fetchAccounts = async () => {
@@ -84,14 +92,22 @@ const SettingsPage = () => {
     };
     fetchAccounts();
 
-    // Load telegram chat id
+    // Load telegram chat id and news prefs
     supabase
       .from('user_preferences')
-      .select('telegram_chat_id')
+      .select('telegram_chat_id, news_alerts_enabled, news_alert_currencies, news_alert_impact, news_alert_minutes_before')
       .eq('user_id', user.id)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.telegram_chat_id) setTelegramChatId(data.telegram_chat_id);
+        if (data) {
+          setNewsPrefs({
+            enabled: (data as any).news_alerts_enabled ?? false,
+            impact: (data as any).news_alert_impact ?? ['High'],
+            currencies: (data as any).news_alert_currencies ?? ['USD', 'EUR', 'GBP'],
+            minutesBefore: (data as any).news_alert_minutes_before ?? 15,
+          });
+        }
       });
 
     // Load pending subscription request
@@ -316,6 +332,17 @@ const SettingsPage = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSaveNewsPrefs = async (prefs: typeof newsPrefs) => {
+    setNewsPrefs(prefs);
+    await supabase.from('user_preferences').upsert({
+      user_id: user?.id,
+      news_alerts_enabled: prefs.enabled,
+      news_alert_currencies: prefs.currencies,
+      news_alert_impact: prefs.impact,
+      news_alert_minutes_before: prefs.minutesBefore,
+    } as any, { onConflict: 'user_id' });
   };
 
   const resetModal = () => {
@@ -570,6 +597,117 @@ const SettingsPage = () => {
                   ))}
                 </div>
               </div>
+
+              {/* News Alerts section — only if Telegram connected and Pro */}
+              {telegramChatId && isPro && (
+                <div className="space-y-4 border-t border-border pt-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-sm">
+                        {lang === 'ar' ? '📰 تنبيهات الأخبار الاقتصادية' : lang === 'fr' ? '📰 Alertes actualités économiques' : '📰 Economic News Alerts'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {lang === 'ar' ? 'تلقّ تنبيهاً قبل صدور الأخبار المؤثرة' : lang === 'fr' ? 'Recevez une alerte avant les nouvelles importantes' : 'Get notified before high-impact news releases'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={newsPrefs.enabled}
+                      onCheckedChange={(checked) => handleSaveNewsPrefs({ ...newsPrefs, enabled: checked })}
+                    />
+                  </div>
+
+                  {newsPrefs.enabled && (
+                    <>
+                      {/* Impact level */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {lang === 'ar' ? 'مستوى التأثير' : lang === 'fr' ? "Niveau d'impact" : 'Impact Level'}
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
+                          {[
+                            { value: 'High', label: lang === 'ar' ? 'عالي 🔴' : 'High 🔴' },
+                            { value: 'Medium', label: lang === 'ar' ? 'متوسط 🟡' : 'Medium 🟡' },
+                            { value: 'Low', label: lang === 'ar' ? 'منخفض 🟢' : 'Low 🟢' },
+                          ].map(({ value, label }) => {
+                            const selected = newsPrefs.impact.includes(value);
+                            return (
+                              <button
+                                key={value}
+                                onClick={() => {
+                                  const next = selected
+                                    ? newsPrefs.impact.filter(v => v !== value)
+                                    : [...newsPrefs.impact, value];
+                                  if (next.length > 0) handleSaveNewsPrefs({ ...newsPrefs, impact: next });
+                                }}
+                                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                                  selected
+                                    ? 'bg-teal-500/20 text-teal-500 border-teal-500/40'
+                                    : 'bg-secondary text-muted-foreground border-border'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Currencies */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {lang === 'ar' ? 'العملات' : lang === 'fr' ? 'Devises' : 'Currencies'}
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
+                          {['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'AUD', 'CAD', 'NZD'].map(cur => {
+                            const selected = newsPrefs.currencies.includes(cur);
+                            return (
+                              <button
+                                key={cur}
+                                onClick={() => {
+                                  const next = selected
+                                    ? newsPrefs.currencies.filter(v => v !== cur)
+                                    : [...newsPrefs.currencies, cur];
+                                  if (next.length > 0) handleSaveNewsPrefs({ ...newsPrefs, currencies: next });
+                                }}
+                                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                                  selected
+                                    ? 'bg-teal-500/20 text-teal-500 border-teal-500/40'
+                                    : 'bg-secondary text-muted-foreground border-border'
+                                }`}
+                              >
+                                {cur}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Alert timing */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {lang === 'ar' ? 'وقت التنبيه' : lang === 'fr' ? 'Timing de l\'alerte' : 'Alert Timing'}
+                        </p>
+                        <div className="flex gap-2">
+                          {[15, 30, 60].map(min => (
+                            <button
+                              key={min}
+                              onClick={() => handleSaveNewsPrefs({ ...newsPrefs, minutesBefore: min })}
+                              className={`px-4 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                                newsPrefs.minutesBefore === min
+                                  ? 'bg-teal-500/20 text-teal-500 border-teal-500/40'
+                                  : 'bg-secondary text-muted-foreground border-border'
+                              }`}
+                            >
+                              {min} {lang === 'ar' ? 'دقيقة' : lang === 'fr' ? 'min' : 'min'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
             </CardContent>
           </Card>
         </TabsContent>
