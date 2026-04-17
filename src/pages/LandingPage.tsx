@@ -181,13 +181,13 @@ const LandingPage = () => {
 
             <Link
               to="/login"
-              className="hidden md:block text-sm font-semibold text-gray-700 hover:text-teal-600 transition-colors px-3 py-2"
+              className="text-sm font-semibold text-gray-700 hover:text-teal-600 transition-colors px-3 py-2"
             >
               {t('login')}
             </Link>
             <Link
               to="/register"
-              className="bg-teal-500 hover:bg-teal-600 text-white font-bold text-sm px-4 py-2 md:px-5 md:py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-teal-500/25 whitespace-nowrap"
+              className="hidden sm:block bg-teal-500 hover:bg-teal-600 text-white font-bold text-sm px-4 py-2 md:px-5 md:py-2.5 rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-teal-500/25 whitespace-nowrap"
             >
               {isAr ? 'ابدأ' : lang === 'fr' ? 'Commencer' : 'Start Free'}
             </Link>

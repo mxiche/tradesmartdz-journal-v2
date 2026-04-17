@@ -72,6 +72,7 @@ const SettingsPage = () => {
   const [reference, setReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingSubmission, setPendingSubmission] = useState<{ submitted_at: string } | null>(null);
+  const [screenshotSent, setScreenshotSent] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -322,6 +323,7 @@ const SettingsPage = () => {
     setUpgradeStep(1);
     setPaymentMethod(null);
     setReference('');
+    setScreenshotSent(false);
   };
 
   return (
@@ -748,7 +750,7 @@ const SettingsPage = () => {
                     lang === 'ar' ? 'حسابات غير محدودة' : lang === 'fr' ? 'Comptes illimités' : 'Unlimited accounts',
                     lang === 'ar' ? 'صفقات غير محدودة' : lang === 'fr' ? 'Trades illimités' : 'Unlimited trades',
                     lang === 'ar' ? 'تحليلات كاملة' : lang === 'fr' ? 'Analytiques complètes' : 'Full analytics',
-                    lang === 'ar' ? 'مدرب ذكي (تحليل/يوم، 10 رسائل/يوم)' : lang === 'fr' ? 'Coach IA (1 analyse/jour, 10 msgs/jour)' : 'AI Coach (1 analysis/day, 10 msgs/day)',
+                    lang === 'ar' ? 'مدرب ذكي (تحليل/يوم، 4 رسائل/يوم)' : lang === 'fr' ? 'Coach IA (1 analyse/jour, 4 msgs/jour)' : 'AI Coach (1 analysis/day, 4 msgs/day)',
                     lang === 'ar' ? 'إشعارات Telegram' : lang === 'fr' ? 'Notifications Telegram' : 'Telegram notifications',
                     lang === 'ar' ? 'تصدير PDF وCSV' : lang === 'fr' ? 'Export PDF & CSV' : 'PDF & CSV export',
                     lang === 'ar' ? 'دعم أولوي' : lang === 'fr' ? 'Support prioritaire' : 'Priority support',
@@ -1056,31 +1058,26 @@ const SettingsPage = () => {
                   />
                 </div>
 
-                {/* Telegram screenshot CTA */}
-                <a
-                  href={`https://t.me/Tradesmartdzbot?start=payment_${user?.id || 'guest'}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start gap-3 rounded-xl bg-blue-500/10 border border-blue-500/30 p-4 mb-6 hover:bg-blue-500/15 transition-colors"
-                >
-                  <span className="text-2xl flex-shrink-0">📸</span>
-                  <div>
-                    <p className="font-semibold text-sm text-blue-400">
-                      {lang === 'ar' ? 'أرسل صورة إثبات الدفع عبر البوت 📸' : lang === 'fr' ? 'Envoyer la preuve via le bot 📸' : 'Send payment screenshot via bot 📸'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {lang === 'ar'
-                        ? 'اضغط على الزر، سيطلب منك البوت صورة الإثبات تلقائياً'
-                        : lang === 'fr'
-                        ? 'Appuyez sur le bouton, le bot vous demandera la preuve automatiquement'
-                        : 'Press the button, the bot will automatically ask for your screenshot'}
-                    </p>
-                  </div>
-                </a>
+                {/* Screenshot confirmation checkbox */}
+                <label className="flex items-start gap-3 cursor-pointer mb-6 select-none">
+                  <input
+                    type="checkbox"
+                    checked={screenshotSent}
+                    onChange={e => setScreenshotSent(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-teal-500 cursor-pointer flex-shrink-0"
+                  />
+                  <span className="text-sm text-foreground">
+                    {lang === 'ar'
+                      ? 'لقد أرسلت صورة إثبات الدفع عبر Telegram'
+                      : lang === 'fr'
+                      ? "J'ai envoyé la preuve de paiement via Telegram"
+                      : "I've sent the payment screenshot via Telegram"}
+                  </span>
+                </label>
 
                 <Button
                   onClick={handleSubmitPayment}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !screenshotSent}
                   className="w-full bg-teal-500 hover:bg-teal-600 text-black font-bold py-3 disabled:opacity-50"
                 >
                   {isSubmitting
@@ -1131,25 +1128,6 @@ const SettingsPage = () => {
                     <span className="font-bold">{paymentMethod === 'baridimob' ? '3,700 DA' : '15 USDT'}</span>
                   </div>
                 </div>
-
-                {/* Telegram CTA */}
-                <a
-                  href={`https://t.me/Tradesmartdzbot?start=payment_${user?.id || 'guest'}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-xl bg-blue-500/10 border border-blue-500/30 p-4 mb-4 text-left hover:bg-blue-500/15 transition-colors"
-                >
-                  <p className="font-semibold text-sm text-blue-400 mb-1">
-                    {lang === 'ar' ? 'أرسل صورة إثبات الدفع عبر البوت 📸' : lang === 'fr' ? 'Envoyer la preuve via le bot 📸' : 'Send payment screenshot via bot 📸'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {lang === 'ar'
-                      ? 'اضغط على الزر، سيطلب منك البوت صورة الإثبات تلقائياً'
-                      : lang === 'fr'
-                      ? 'Appuyez sur le bouton, le bot vous demandera la preuve automatiquement'
-                      : 'Press the button, the bot will automatically ask for your screenshot'}
-                  </p>
-                </a>
 
                 {/* Support email */}
                 <p className="text-xs text-muted-foreground mb-6">

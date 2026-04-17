@@ -1223,6 +1223,7 @@ const TradesPage = () => {
   const [editSetupTag, setEditSetupTag] = useState('');
   const [editOpenTime, setEditOpenTime] = useState('');
   const [editCloseTime, setEditCloseTime] = useState('');
+  const [editCommission, setEditCommission] = useState('');
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingBulk, setDeletingBulk] = useState(false);
@@ -1394,6 +1395,7 @@ const TradesPage = () => {
     profit: '',      // Win / Loss / BE
     tp1Amount: '',   // Partial TP1/TP2 — TP1 portion
     tp2Amount: '',   // Partial TP1/TP2 — TP2 portion (optional)
+    commission: '',
     risk: '',
     open_time: '',
     close_time: '',
@@ -1418,8 +1420,8 @@ const TradesPage = () => {
   const resetForm = () => {
     setForm({
       symbol: '', direction: '', result: '', profit: '', tp1Amount: '', tp2Amount: '',
-      risk: '', open_time: '', close_time: '', session: '', setup_tag: '', notes: '',
-      account_id: '',
+      commission: '', risk: '', open_time: '', close_time: '', session: '', setup_tag: '',
+      notes: '', account_id: '',
     });
     setAddScreenshotFile(null);
   };
@@ -1468,6 +1470,7 @@ const TradesPage = () => {
       symbol: form.symbol.trim().toUpperCase(),
       direction: form.direction,
       profit: finalProfit,
+      commission: parseFloat(form.commission) || null,
       open_time: new Date(form.open_time).toISOString(),
       close_time: new Date(form.close_time).toISOString(),
       duration: duration || null,
@@ -1613,6 +1616,7 @@ const TradesPage = () => {
     setEditSetupTag(setup ?? '');
     setEditOpenTime(trade.open_time ? new Date(trade.open_time).toISOString().slice(0,16) : '');
     setEditCloseTime(trade.close_time ? new Date(trade.close_time).toISOString().slice(0,16) : '');
+    setEditCommission((trade as any).commission != null ? String((trade as any).commission) : '');
     setScreenshotUrl(trade.screenshot_url ?? null);
     setUploadProgress(0);
     setIsDragging(false);
@@ -1680,15 +1684,16 @@ const TradesPage = () => {
     const duration = (editOpenTime && editCloseTime) ? computeDuration(editOpenTime, editCloseTime) || null : selectedTrade.duration;
 
     const updatePayload: Record<string, unknown> = {
-      symbol:    editSymbol.trim().toUpperCase() || selectedTrade.symbol,
-      direction: editDirection,
-      profit:    finalProfit,
-      setup_tag: setupTag,
-      notes:     finalNotes,
-      session:   (editSession && editSession !== 'none') ? editSession : null,
-      rating:    editRating || null,
-      reviewed:  editReviewed,
-      open_time: editOpenTime ? new Date(editOpenTime).toISOString() : selectedTrade.open_time,
+      symbol:     editSymbol.trim().toUpperCase() || selectedTrade.symbol,
+      direction:  editDirection,
+      profit:     finalProfit,
+      commission: parseFloat(editCommission) || null,
+      setup_tag:  setupTag,
+      notes:      finalNotes,
+      session:    (editSession && editSession !== 'none') ? editSession : null,
+      rating:     editRating || null,
+      reviewed:   editReviewed,
+      open_time:  editOpenTime ? new Date(editOpenTime).toISOString() : selectedTrade.open_time,
       close_time: editCloseTime ? new Date(editCloseTime).toISOString() : selectedTrade.close_time,
       duration,
     };
@@ -1980,6 +1985,8 @@ const TradesPage = () => {
                     const rrVal = extractRR(trade.notes);
                     const preview = notesPreview(trade.notes);
                     const pnl = trade.profit ?? 0;
+                    const commission = (trade as any).commission ?? 0;
+                    const netPnl = pnl - commission;
                     return (
                       <TableRow
                         key={trade.id}
@@ -2038,8 +2045,11 @@ const TradesPage = () => {
                         </TableCell>
 
                         {/* P&L */}
-                        <TableCell className={`font-semibold tabular-nums ${pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
-                          {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+                        <TableCell className={`font-semibold tabular-nums ${netPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)}
+                          {commission > 0 && (
+                            <span className="block text-[10px] text-muted-foreground font-normal">−${commission.toFixed(2)} comm</span>
+                          )}
                         </TableCell>
 
                         {/* R:R */}
@@ -2317,6 +2327,28 @@ const TradesPage = () => {
               </div>
             )}
 
+            {/* Commission */}
+            <div className="space-y-1.5">
+              <Label>{lang === 'ar' ? 'العمولة ($)' : lang === 'fr' ? 'Commission ($)' : 'Commission ($)'}
+                <span className="ms-1 text-xs text-muted-foreground">({lang === 'ar' ? 'اختياري' : lang === 'fr' ? 'optionnel' : 'optional'})</span>
+              </Label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={form.commission}
+                onChange={e => setForm(f => ({ ...f, commission: e.target.value }))}
+              />
+              {form.commission && parseFloat(form.commission) > 0 && form.profit && (
+                <p className="text-xs text-muted-foreground">
+                  {lang === 'ar' ? 'صافي الربح:' : lang === 'fr' ? 'P&L net :' : 'Net P&L:'}{' '}
+                  <span className={parseFloat(form.profit) - parseFloat(form.commission) >= 0 ? 'text-profit font-medium' : 'text-loss font-medium'}>
+                    ${(parseFloat(form.profit) - parseFloat(form.commission)).toFixed(2)}
+                  </span>
+                </p>
+              )}
+            </div>
+
             {/* Open / Close time */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -2535,6 +2567,20 @@ const TradesPage = () => {
                         <Label className="text-xs">R:R</Label>
                         <Input readOnly value={rrCalc} className="h-8 text-sm bg-secondary cursor-default text-muted-foreground" />
                       </div>
+                    </div>
+
+                    {/* Commission */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">{lang === 'ar' ? 'العمولة ($)' : lang === 'fr' ? 'Commission ($)' : 'Commission ($)'}</Label>
+                      <Input type="number" step="0.01" placeholder="0.00" value={editCommission} onChange={e => setEditCommission(e.target.value)} className="h-8 text-sm" />
+                      {editCommission && parseFloat(editCommission) > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {lang === 'ar' ? 'صافي:' : lang === 'fr' ? 'Net :' : 'Net:'}{' '}
+                          <span className={parseFloat(editProfit) - parseFloat(editCommission) >= 0 ? 'text-profit font-medium' : 'text-loss font-medium'}>
+                            ${(parseFloat(editProfit || '0') - parseFloat(editCommission)).toFixed(2)}
+                          </span>
+                        </p>
+                      )}
                     </div>
 
                     {/* Open / Close time */}
