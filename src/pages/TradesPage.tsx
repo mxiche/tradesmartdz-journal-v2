@@ -2159,8 +2159,8 @@ const TradesPage = () => {
 
       {/* Add Trade Dialog */}
       <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) resetForm(); }}>
-        <DialogContent className="max-h-[92vh] flex flex-col p-0 sm:overflow-hidden sm:max-w-lg max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:rounded-t-3xl max-sm:rounded-b-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom duration-300 ease-out">
-          <div ref={addSheetRef} className="flex flex-col flex-1 min-h-0">
+        <DialogContent className="max-h-[92vh] flex flex-col p-0 sm:overflow-hidden sm:max-w-lg max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:rounded-b-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom duration-300 ease-out bg-transparent shadow-none border-0">
+          <div ref={addSheetRef} className="flex flex-col flex-1 min-h-0 bg-background rounded-t-3xl overflow-hidden shadow-2xl">
           {/* Mobile drag handle — swipe to dismiss */}
           <div
             className="sm:hidden flex justify-center pt-3 pb-1 flex-shrink-0 cursor-grab active:cursor-grabbing"

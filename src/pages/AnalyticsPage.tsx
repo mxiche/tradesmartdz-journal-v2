@@ -652,19 +652,20 @@ const AnalyticsPage = () => {
 
   const noDataMsg = l.noData;
 
-  const renderCustomLabel = (props: any) => {
+  const renderBarLabel = (props: any) => {
     const { x, y, width, height, value } = props;
-    if (!value) return null;
+    if (value === null || value === undefined) return null;
     const isNegative = value < 0;
-    const label = `${value >= 0 ? '+' : ''}$${Math.abs(value)}`;
+    const absVal = Math.abs(value);
+    const label = `${value >= 0 ? '+' : '-'}$${absVal}`;
     return (
       <text
-        x={isNegative ? x - 8 : x + width + 8}
+        x={isNegative ? x - 6 : x + Math.abs(width) + 6}
         y={y + height / 2}
-        dy={4}
+        dy={5}
         textAnchor={isNegative ? 'end' : 'start'}
         fontSize={12}
-        fontWeight={600}
+        fontWeight={700}
         fill={isNegative ? '#ef4444' : '#0d9488'}
       >
         {label}
@@ -1030,7 +1031,7 @@ const AnalyticsPage = () => {
               <BarChart
                 layout="vertical"
                 data={symbolData}
-                margin={{ top: 8, right: 80, left: 80, bottom: 8 }}
+                margin={{ top: 8, right: 100, left: 80, bottom: 8 }}
                 cursor={false}
               >
                 <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} horizontal={false} />
@@ -1057,7 +1058,7 @@ const AnalyticsPage = () => {
                       fillOpacity={0.9}
                     />
                   ))}
-                  <LabelList content={renderCustomLabel} />
+                  <LabelList content={renderBarLabel} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
