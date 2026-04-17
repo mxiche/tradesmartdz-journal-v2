@@ -42,8 +42,8 @@
 //     body := '{"job":"daily_report"}'::jsonb
 //   );$$);
 //
-// -- Weekly summary Monday 9:00 AM Algeria (8:00 UTC)
-// SELECT cron.schedule('weekly-summary','0 8 * * 1',$$
+// -- Weekly summary Saturday 00:00 Algeria (Friday 23:00 UTC)
+// SELECT cron.schedule('weekly-summary','0 23 * * 5',$$
 //   SELECT net.http_post(
 //     url := 'https://vikqwycjqqoobteslbxp.supabase.co/functions/v1/telegram-notifications',
 //     headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer SERVICE_ROLE_KEY'),
