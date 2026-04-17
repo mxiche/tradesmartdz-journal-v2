@@ -608,22 +608,22 @@ const AnalyticsPage = () => {
       const scaleY = H / 892;
 
       // Trader name — between the two teal lines
-      drawTextFit(name.toUpperCase(), W * 0.5, H * 0.385, W * 0.55,
+      drawTextFit(name.toUpperCase(), W * 0.5, H * 0.455, W * 0.55,
         Math.round(48 * scaleY), '#0f172a', 'center', '900');
 
-      // Row 1: Total Trades | Win Rate | Total P&L (lower half of each box)
-      drawTextFit(tradesStr,  W * 0.183, H * 0.625, W * 0.22, Math.round(40 * scaleY), '#0f172a',  'center', 'bold');
-      drawTextFit(winRateStr, W * 0.5,   H * 0.625, W * 0.22, Math.round(40 * scaleY), '#14b8a6',  'center', 'bold');
-      drawTextFit(pnl, W * 0.817, H * 0.625, W * 0.25,
+      // Row 1: Total Trades | Win Rate | Total P&L (centered in each box)
+      drawTextFit(tradesStr,  W * 0.275, H * 0.60, W * 0.22, Math.round(40 * scaleY), '#0f172a',  'center', 'bold');
+      drawTextFit(winRateStr, W * 0.5,   H * 0.60, W * 0.22, Math.round(40 * scaleY), '#14b8a6',  'center', 'bold');
+      drawTextFit(pnl, W * 0.817, H * 0.60, W * 0.25,
         Math.round(40 * scaleY), certStats.totalPnl >= 0 ? '#0d9488' : '#dc2626', 'center', 'bold');
 
-      // Row 2: Best Trade | Profit Factor | Trading Days (lower half of each box)
-      drawTextFit(best,        W * 0.183, H * 0.775, W * 0.22, Math.round(40 * scaleY), '#0d9488', 'center', 'bold');
-      drawTextFit(pf,          W * 0.5,   H * 0.775, W * 0.22, Math.round(40 * scaleY), '#0f172a', 'center', 'bold');
-      drawTextFit(tradingDays, W * 0.817, H * 0.775, W * 0.22, Math.round(40 * scaleY), '#0f172a', 'center', 'bold');
+      // Row 2: Best Trade | Profit Factor | Trading Days (centered in each box)
+      drawTextFit(best,        W * 0.275, H * 0.755, W * 0.22, Math.round(40 * scaleY), '#0d9488', 'center', 'bold');
+      drawTextFit(pf,          W * 0.5,   H * 0.755, W * 0.22, Math.round(40 * scaleY), '#0f172a', 'center', 'bold');
+      drawTextFit(tradingDays, W * 0.817, H * 0.755, W * 0.22, Math.round(40 * scaleY), '#0f172a', 'center', 'bold');
 
       // Issued date — bottom right after "Issued: " text on template
-      drawTextFit(dateStr, W * 0.83, H * 0.915, W * 0.35,
+      drawTextFit(dateStr, W * 0.845, H * 0.927, W * 0.35,
         Math.round(13 * scaleY), '#64748b', 'left', 'normal');
 
       console.log('Certificate generated successfully', {
