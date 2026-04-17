@@ -159,7 +159,7 @@ function TradesmartScore({
     for (const tr of closedTrades) {
       if (!tr.close_time) continue;
       const k = new Date(tr.close_time).toLocaleDateString('en-CA');
-      byDay[k] = (byDay[k] ?? 0) + (tr.profit ?? 0);
+      byDay[k] = (byDay[k] ?? 0) + ((tr.profit ?? 0) - ((tr as any).commission ?? 0));
     }
     const dailyPnls = Object.values(byDay);
     let consistencyScore = 50;
@@ -182,7 +182,7 @@ function TradesmartScore({
     const sorted = [...closedTrades].sort((a, b) => new Date(a.close_time!).getTime() - new Date(b.close_time!).getTime());
     let running = 0, peak = 0, maxDd = 0;
     for (const tr of sorted) {
-      running += tr.profit ?? 0;
+      running += (tr.profit ?? 0) - ((tr as any).commission ?? 0);
       if (running > peak) peak = running;
       const dd = peak - running;
       if (dd > maxDd) maxDd = dd;
@@ -191,7 +191,7 @@ function TradesmartScore({
     const drawdownScore = Math.max(0, 100 - maxDdPct * 5); // 20% DD → 0
 
     // 6. Recovery Factor: totalPnL / maxDrawdown × 50, capped at 100
-    const totalPnl = closedTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
+    const totalPnl = closedTrades.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
     let recoveryScore = 50;
     if (maxDd > 0) {
       recoveryScore = Math.max(0, Math.min((totalPnl / maxDd) * 50, 100));
@@ -483,12 +483,12 @@ function DayDetailModal({
   day: number; month: number; year: number;
   dayTrades: Trade[]; lang: 'ar'|'fr'|'en'; onClose: () => void;
 }) {
-  const totalPnl = dayTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
-  const wins = dayTrades.filter(tr => (tr.profit ?? 0) > 0).length;
-  const losses = dayTrades.filter(tr => (tr.profit ?? 0) < 0).length;
+  const totalPnl = dayTrades.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
+  const wins = dayTrades.filter(tr => ((tr.profit ?? 0) - ((tr as any).commission ?? 0)) > 0).length;
+  const losses = dayTrades.filter(tr => ((tr.profit ?? 0) - ((tr as any).commission ?? 0)) < 0).length;
   const winRate = dayTrades.length > 0 ? Math.round((wins / dayTrades.length) * 100) : 0;
-  const bestVal = dayTrades.length > 0 ? Math.max(...dayTrades.map(t => t.profit ?? 0)) : 0;
-  const worstVal = dayTrades.length > 0 ? Math.min(...dayTrades.map(t => t.profit ?? 0)) : 0;
+  const bestVal = dayTrades.length > 0 ? Math.max(...dayTrades.map(t => (t.profit ?? 0) - ((t as any).commission ?? 0))) : 0;
+  const worstVal = dayTrades.length > 0 ? Math.min(...dayTrades.map(t => (t.profit ?? 0) - ((t as any).commission ?? 0))) : 0;
 
   const dateStr = new Date(year, month, day).toLocaleDateString(
     lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US',
@@ -585,7 +585,7 @@ function DayDetailModal({
               {lang === 'ar' ? 'الصفقات' : lang === 'fr' ? 'Trades' : 'Trades'}
             </p>
             {dayTrades.map((tr, i) => {
-              const pnl = tr.profit ?? 0;
+              const pnl = (tr.profit ?? 0) - ((tr as any).commission ?? 0);
               return (
                 <div key={tr.id ?? i} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
                   <div className="flex items-center gap-2">
@@ -641,10 +641,11 @@ function TradingCalendar({
       if (!tr.close_time || tr.profit === null) continue;
       const k = isoDay(new Date(tr.close_time));
       if (!byDay[k]) byDay[k] = { pnl: 0, count: 0, wins: 0, dayTrades: [] };
-      byDay[k].pnl   += tr.profit;
+      const netPnl = (tr.profit ?? 0) - ((tr as any).commission ?? 0);
+      byDay[k].pnl   += netPnl;
       byDay[k].count += 1;
       byDay[k].dayTrades.push(tr);
-      if (tr.profit > 0) byDay[k].wins += 1;
+      if (netPnl > 0) byDay[k].wins += 1;
     }
 
     // Start grid on Sunday of the week containing the 1st (same as CalendarPage)
@@ -1501,12 +1502,12 @@ const DashboardPage = () => {
   const closedTrades = filteredTrades.filter(tr => tr.profit !== null);
 
   // ---- stats ----
-  const totalPnl      = closedTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
-  const wins          = closedTrades.filter(tr => (tr.profit ?? 0) > 0);
-  const losses        = closedTrades.filter(tr => (tr.profit ?? 0) < 0);
+  const totalPnl      = closedTrades.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
+  const wins          = closedTrades.filter(tr => ((tr.profit ?? 0) - ((tr as any).commission ?? 0)) > 0);
+  const losses        = closedTrades.filter(tr => ((tr.profit ?? 0) - ((tr as any).commission ?? 0)) < 0);
   const winRate       = closedTrades.length ? (wins.length / closedTrades.length) * 100 : 0;
-  const grossProfit   = wins.reduce((s, tr) => s + (tr.profit ?? 0), 0);
-  const grossLoss     = Math.abs(losses.reduce((s, tr) => s + (tr.profit ?? 0), 0));
+  const grossProfit   = wins.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
+  const grossLoss     = Math.abs(losses.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0));
   const profitFactor  = grossLoss > 0 ? +(grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? null : 0;
   const avgWin        = wins.length ? grossProfit / wins.length : 0;
   const avgLoss       = losses.length ? grossLoss / losses.length : 0;
@@ -1516,10 +1517,10 @@ const DashboardPage = () => {
     if (!closedTrades.length) return { count: 0, type: 'win' as 'win'|'loss' };
     const sorted = [...closedTrades].sort((a, b) => new Date(a.close_time!).getTime() - new Date(b.close_time!).getTime());
     const last = sorted[sorted.length - 1];
-    const isWin = (last.profit ?? 0) > 0;
+    const isWin = ((last.profit ?? 0) - ((last as any).commission ?? 0)) > 0;
     let count = 0;
     for (let i = sorted.length - 1; i >= 0; i--) {
-      const w = (sorted[i].profit ?? 0) > 0;
+      const w = ((sorted[i].profit ?? 0) - ((sorted[i] as any).commission ?? 0)) > 0;
       if (w === isWin) count++;
       else break;
     }
@@ -1539,7 +1540,7 @@ const DashboardPage = () => {
     startOfWeek.setHours(0, 0, 0, 0);
     return closedTrades
       .filter(tr => tr.close_time && new Date(tr.close_time) >= startOfWeek)
-      .reduce((s, tr) => s + (tr.profit ?? 0), 0);
+      .reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
   }, [closedTrades]);
 
   const weeklyProgress = weeklyGoal > 0 ? Math.min((thisWeekPnl / weeklyGoal) * 100, 100) : 0;
@@ -1555,7 +1556,7 @@ const DashboardPage = () => {
       if (!tr.close_time) continue;
       const h = new Date(tr.close_time).getHours();
       if (!hourGroups[h]) hourGroups[h] = { pnl: 0, count: 0 };
-      hourGroups[h].pnl += tr.profit ?? 0;
+      hourGroups[h].pnl += (tr.profit ?? 0) - ((tr as any).commission ?? 0);
       hourGroups[h].count += 1;
     }
     const bestHourEntry = Object.entries(hourGroups).sort((a, b) => b[1].pnl - a[1].pnl)[0];
@@ -1572,7 +1573,7 @@ const DashboardPage = () => {
     const symbolGroups: Record<string, number> = {};
     for (const tr of closedTrades) {
       if (!tr.symbol) continue;
-      symbolGroups[tr.symbol] = (symbolGroups[tr.symbol] ?? 0) + (tr.profit ?? 0);
+      symbolGroups[tr.symbol] = (symbolGroups[tr.symbol] ?? 0) + ((tr.profit ?? 0) - ((tr as any).commission ?? 0));
     }
     const bestSymbol = Object.entries(symbolGroups).sort((a, b) => b[1] - a[1])[0];
     if (bestSymbol && bestSymbol[1] > 0) {
@@ -1588,7 +1589,7 @@ const DashboardPage = () => {
       if (!tr.setup_tag) continue;
       const parts = tr.setup_tag.split(',').map(s => s.trim()).filter(s => !['Win','Loss','Breakeven','Partial Win - TP1','Partial Win - TP2'].includes(s));
       for (const s of parts) {
-        if (s) setupGroups[s] = (setupGroups[s] ?? 0) + (tr.profit ?? 0);
+        if (s) setupGroups[s] = (setupGroups[s] ?? 0) + ((tr.profit ?? 0) - ((tr as any).commission ?? 0));
       }
     }
     const bestSetup = Object.entries(setupGroups).sort((a, b) => b[1] - a[1])[0];
@@ -1650,7 +1651,7 @@ const DashboardPage = () => {
     const byDay = new Map<string, number>();
     for (const tr of sorted) {
       const day = new Date(tr.close_time!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      byDay.set(day, (byDay.get(day) ?? 0) + (tr.profit ?? 0));
+      byDay.set(day, (byDay.get(day) ?? 0) + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)));
     }
     let running = startBalance;
     const pts = Array.from(byDay.entries()).map(([date, dailyPnl]) => {

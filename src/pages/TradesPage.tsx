@@ -2340,11 +2340,15 @@ const TradesPage = () => {
                 onChange={e => setForm(f => ({ ...f, commission: e.target.value }))}
               />
               {form.commission && parseFloat(form.commission) > 0 && form.profit && (
-                <p className="text-xs text-muted-foreground">
-                  {lang === 'ar' ? 'صافي الربح:' : lang === 'fr' ? 'P&L net :' : 'Net P&L:'}{' '}
-                  <span className={parseFloat(form.profit) - parseFloat(form.commission) >= 0 ? 'text-profit font-medium' : 'text-loss font-medium'}>
-                    ${(parseFloat(form.profit) - parseFloat(form.commission)).toFixed(2)}
-                  </span>
+                <p className="text-xs text-gray-400 mt-1">
+                  {(() => {
+                    const netPnl = parseFloat(form.profit) - parseFloat(form.commission);
+                    return lang === 'ar'
+                      ? `صافي الربح: ${netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)} (بعد خصم العمولة ${form.commission})`
+                      : lang === 'fr'
+                      ? `P&L net: ${netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)} (après comm. ${form.commission})`
+                      : `Net P&L: ${netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)} (after ${form.commission} commission)`;
+                  })()}
                 </p>
               )}
             </div>
@@ -2574,11 +2578,15 @@ const TradesPage = () => {
                       <Label className="text-xs">{lang === 'ar' ? 'العمولة ($)' : lang === 'fr' ? 'Commission ($)' : 'Commission ($)'}</Label>
                       <Input type="number" step="0.01" placeholder="0.00" value={editCommission} onChange={e => setEditCommission(e.target.value)} className="h-8 text-sm" />
                       {editCommission && parseFloat(editCommission) > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          {lang === 'ar' ? 'صافي:' : lang === 'fr' ? 'Net :' : 'Net:'}{' '}
-                          <span className={parseFloat(editProfit) - parseFloat(editCommission) >= 0 ? 'text-profit font-medium' : 'text-loss font-medium'}>
-                            ${(parseFloat(editProfit || '0') - parseFloat(editCommission)).toFixed(2)}
-                          </span>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {(() => {
+                            const netPnl = parseFloat(editProfit || '0') - parseFloat(editCommission);
+                            return lang === 'ar'
+                              ? `صافي الربح: ${netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)} (بعد خصم العمولة ${editCommission})`
+                              : lang === 'fr'
+                              ? `P&L net: ${netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)} (après comm. ${editCommission})`
+                              : `Net P&L: ${netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)} (after ${editCommission} commission)`;
+                          })()}
                         </p>
                       )}
                     </div>
