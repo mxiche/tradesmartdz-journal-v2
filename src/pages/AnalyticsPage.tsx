@@ -613,8 +613,10 @@ const AnalyticsPage = () => {
 
       // Row 1 boxes (tops ~55%, bottoms ~65%, number center ~62.5%)
       // Col centers: ~27%, ~50%, ~73%
-      drawTextFit(tradesStr,  W * 0.27, H * 0.645, W * 0.18, Math.round(38 * scaleY), '#0f172a',  'center', 'bold');
-      drawTextFit(winRateStr, W * 0.5,  H * 0.645, W * 0.18, Math.round(38 * scaleY), '#14b8a6',  'center', 'bold');
+      const winRateColor = certStats.winRate >= 60 ? '#0d9488' : certStats.winRate >= 40 ? '#f59e0b' : '#dc2626';
+
+      drawTextFit(tradesStr,  W * 0.27, H * 0.645, W * 0.18, Math.round(38 * scaleY), '#0f172a',    'center', 'bold');
+      drawTextFit(winRateStr, W * 0.5,  H * 0.645, W * 0.18, Math.round(38 * scaleY), winRateColor, 'center', 'bold');
       drawTextFit(pnl, W * 0.73, H * 0.645, W * 0.18,
         Math.round(38 * scaleY), certStats.totalPnl >= 0 ? '#0d9488' : '#dc2626', 'center', 'bold');
 
@@ -625,7 +627,7 @@ const AnalyticsPage = () => {
 
       // Issued date — after "Issued:" label at ~91% height, ~79.5% width
       drawTextFit(dateStr, W * 0.868, H * 0.948, W * 0.35,
-        Math.round(13 * scaleY), '#64748b', 'left', 'normal');
+        Math.round(16 * scaleY), '#0f172a', 'left', 'bold');
 
       console.log('Certificate generated successfully', {
         width: W, height: H,
