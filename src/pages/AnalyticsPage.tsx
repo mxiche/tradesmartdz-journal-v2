@@ -522,7 +522,7 @@ const AnalyticsPage = () => {
     profitFactor: stats.profitFactor,
   }), [stats]);
 
-  const generateCertificate = async () => {
+  const generateCertificate = async (debugMode = false) => {
     if (!isPro) {
       navigate('/settings?tab=subscription');
       return;
@@ -553,6 +553,40 @@ const AnalyticsPage = () => {
       ctx.drawImage(img, 0, 0);
 
       console.log('Certificate dimensions:', img.width, img.height);
+
+      if (debugMode) {
+        const W = canvas.width;
+        const H = canvas.height;
+
+        // Red lines + labels every 10%
+        ctx.strokeStyle = 'rgba(255,0,0,0.3)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= 10; x++) {
+          ctx.beginPath(); ctx.moveTo(W * (x / 10), 0); ctx.lineTo(W * (x / 10), H); ctx.stroke();
+          ctx.fillStyle = 'red'; ctx.font = '20px Arial'; ctx.textAlign = 'left';
+          ctx.fillText(`${x * 10}%`, W * (x / 10) + 2, 20);
+        }
+        for (let y = 0; y <= 10; y++) {
+          ctx.beginPath(); ctx.moveTo(0, H * (y / 10)); ctx.lineTo(W, H * (y / 10)); ctx.stroke();
+          ctx.fillStyle = 'red'; ctx.font = '20px Arial'; ctx.textAlign = 'left';
+          ctx.fillText(`${y * 10}%`, 2, H * (y / 10) + 20);
+        }
+
+        // Blue finer lines every 5%
+        ctx.strokeStyle = 'rgba(0,0,255,0.15)';
+        for (let x = 0; x <= 20; x++) {
+          ctx.beginPath(); ctx.moveTo(W * (x / 20), 0); ctx.lineTo(W * (x / 20), H); ctx.stroke();
+        }
+        for (let y = 0; y <= 20; y++) {
+          ctx.beginPath(); ctx.moveTo(0, H * (y / 20)); ctx.lineTo(W, H * (y / 20)); ctx.stroke();
+        }
+
+        const link = document.createElement('a');
+        link.download = 'certificate-grid-debug.png';
+        link.href = canvas.toDataURL('image/png', 1.0);
+        link.click();
+        return;
+      }
 
       const drawTextFit = (
         text: string,
@@ -700,10 +734,14 @@ const AnalyticsPage = () => {
             </SelectContent>
           </Select>
           {/* Certificate */}
-          <Button variant="outline" size="sm" onClick={generateCertificate} disabled={certLoading} className="gap-1.5 h-9">
+          <Button variant="outline" size="sm" onClick={() => generateCertificate()} disabled={certLoading} className="gap-1.5 h-9">
             {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
             <span className="hidden sm:inline">{l.certificate}</span>
           </Button>
+          {/* TODO: remove after calibration */}
+          <button onClick={() => generateCertificate(true)} className="text-xs text-gray-400 underline ml-2">
+            Debug Grid
+          </button>
         </div>
       </div>
 
