@@ -522,7 +522,7 @@ const AnalyticsPage = () => {
     profitFactor: stats.profitFactor,
   }), [stats]);
 
-  const generateCertificate = async (debugMode = false) => {
+  const generateCertificate = async () => {
     if (!isPro) {
       navigate('/settings?tab=subscription');
       return;
@@ -553,40 +553,6 @@ const AnalyticsPage = () => {
       ctx.drawImage(img, 0, 0);
 
       console.log('Certificate dimensions:', img.width, img.height);
-
-      if (debugMode) {
-        const W = canvas.width;
-        const H = canvas.height;
-
-        // Red lines + labels every 10%
-        ctx.strokeStyle = 'rgba(255,0,0,0.3)';
-        ctx.lineWidth = 1;
-        for (let x = 0; x <= 10; x++) {
-          ctx.beginPath(); ctx.moveTo(W * (x / 10), 0); ctx.lineTo(W * (x / 10), H); ctx.stroke();
-          ctx.fillStyle = 'red'; ctx.font = '20px Arial'; ctx.textAlign = 'left';
-          ctx.fillText(`${x * 10}%`, W * (x / 10) + 2, 20);
-        }
-        for (let y = 0; y <= 10; y++) {
-          ctx.beginPath(); ctx.moveTo(0, H * (y / 10)); ctx.lineTo(W, H * (y / 10)); ctx.stroke();
-          ctx.fillStyle = 'red'; ctx.font = '20px Arial'; ctx.textAlign = 'left';
-          ctx.fillText(`${y * 10}%`, 2, H * (y / 10) + 20);
-        }
-
-        // Blue finer lines every 5%
-        ctx.strokeStyle = 'rgba(0,0,255,0.15)';
-        for (let x = 0; x <= 20; x++) {
-          ctx.beginPath(); ctx.moveTo(W * (x / 20), 0); ctx.lineTo(W * (x / 20), H); ctx.stroke();
-        }
-        for (let y = 0; y <= 20; y++) {
-          ctx.beginPath(); ctx.moveTo(0, H * (y / 20)); ctx.lineTo(W, H * (y / 20)); ctx.stroke();
-        }
-
-        const link = document.createElement('a');
-        link.download = 'certificate-grid-debug.png';
-        link.href = canvas.toDataURL('image/png', 1.0);
-        link.click();
-        return;
-      }
 
       const drawTextFit = (
         text: string,
@@ -641,23 +607,24 @@ const AnalyticsPage = () => {
       const H = canvas.height;
       const scaleY = H / 892;
 
-      // Trader name — between the two teal lines
-      drawTextFit(name.toUpperCase(), W * 0.5, H * 0.455, W * 0.55,
-        Math.round(48 * scaleY), '#0f172a', 'center', '900');
+      // Trader name — between teal lines at 40% and 50%, center at 45%
+      drawTextFit(name.toUpperCase(), W * 0.5, H * 0.455, W * 0.6,
+        Math.round(44 * scaleY), '#0f172a', 'center', '900');
 
-      // Row 1: Total Trades | Win Rate | Total P&L (centered in each box)
-      drawTextFit(tradesStr,  W * 0.275, H * 0.60, W * 0.22, Math.round(40 * scaleY), '#0f172a',  'center', 'bold');
-      drawTextFit(winRateStr, W * 0.5,   H * 0.60, W * 0.22, Math.round(40 * scaleY), '#14b8a6',  'center', 'bold');
-      drawTextFit(pnl, W * 0.817, H * 0.60, W * 0.25,
-        Math.round(40 * scaleY), certStats.totalPnl >= 0 ? '#0d9488' : '#dc2626', 'center', 'bold');
+      // Row 1 boxes (tops ~55%, bottoms ~65%, number center ~62.5%)
+      // Col centers: ~27%, ~50%, ~73%
+      drawTextFit(tradesStr,  W * 0.27, H * 0.625, W * 0.18, Math.round(38 * scaleY), '#0f172a',  'center', 'bold');
+      drawTextFit(winRateStr, W * 0.5,  H * 0.625, W * 0.18, Math.round(38 * scaleY), '#14b8a6',  'center', 'bold');
+      drawTextFit(pnl, W * 0.73, H * 0.625, W * 0.18,
+        Math.round(38 * scaleY), certStats.totalPnl >= 0 ? '#0d9488' : '#dc2626', 'center', 'bold');
 
-      // Row 2: Best Trade | Profit Factor | Trading Days (centered in each box)
-      drawTextFit(best,        W * 0.275, H * 0.755, W * 0.22, Math.round(40 * scaleY), '#0d9488', 'center', 'bold');
-      drawTextFit(pf,          W * 0.5,   H * 0.755, W * 0.22, Math.round(40 * scaleY), '#0f172a', 'center', 'bold');
-      drawTextFit(tradingDays, W * 0.817, H * 0.755, W * 0.22, Math.round(40 * scaleY), '#0f172a', 'center', 'bold');
+      // Row 2 boxes (tops ~67%, bottoms ~77%, number center ~73.5%)
+      drawTextFit(best,        W * 0.27, H * 0.735, W * 0.18, Math.round(38 * scaleY), '#0d9488', 'center', 'bold');
+      drawTextFit(pf,          W * 0.5,  H * 0.735, W * 0.18, Math.round(38 * scaleY), '#0f172a', 'center', 'bold');
+      drawTextFit(tradingDays, W * 0.73, H * 0.735, W * 0.18, Math.round(38 * scaleY), '#0f172a', 'center', 'bold');
 
-      // Issued date — bottom right after "Issued: " text on template
-      drawTextFit(dateStr, W * 0.845, H * 0.927, W * 0.35,
+      // Issued date — after "Issued:" label at ~91% height, ~79.5% width
+      drawTextFit(dateStr, W * 0.795, H * 0.915, W * 0.35,
         Math.round(13 * scaleY), '#64748b', 'left', 'normal');
 
       console.log('Certificate generated successfully', {
@@ -734,14 +701,10 @@ const AnalyticsPage = () => {
             </SelectContent>
           </Select>
           {/* Certificate */}
-          <Button variant="outline" size="sm" onClick={() => generateCertificate()} disabled={certLoading} className="gap-1.5 h-9">
+          <Button variant="outline" size="sm" onClick={generateCertificate} disabled={certLoading} className="gap-1.5 h-9">
             {certLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
             <span className="hidden sm:inline">{l.certificate}</span>
           </Button>
-          {/* TODO: remove after calibration */}
-          <button onClick={() => generateCertificate(true)} className="text-xs text-gray-400 underline ml-2">
-            Debug Grid
-          </button>
         </div>
       </div>
 
