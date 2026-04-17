@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   TrendingUp, TrendingDown, Loader2, Plus, ChevronLeft, ChevronRight, Camera, X, Download,
+  Lightbulb, Target, Shield, AlertTriangle, CalendarDays, BarChart2,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { t } from '@/lib/i18n';
@@ -136,11 +137,11 @@ function WinRateDonut({ wins, total, lang }: { wins: number; total: number; lang
 
 // ─── TradeSmartDz Score ───────────────────────────────────────
 function TradesmartScore({
-  closedTrades, wins, losses, profitFactor, avgWin, avgLoss, lang,
+  closedTrades, wins, losses, profitFactor, avgWin, avgLoss, lang, tradesCount,
 }: {
   closedTrades: Trade[]; wins: Trade[]; losses: Trade[];
   profitFactor: number | null; avgWin: number; avgLoss: number;
-  lang: 'ar'|'fr'|'en';
+  lang: 'ar'|'fr'|'en'; tradesCount: number;
 }) {
   const scores = useMemo(() => {
     if (closedTrades.length < 5) return null;
@@ -230,16 +231,29 @@ function TradesmartScore({
     : { text: lang === 'ar' ? 'يحتاج تحسين' : lang === 'fr' ? 'À améliorer' : 'Needs improvement',  color: '#ef4444' };
 
   if (!scores) {
+    const needed = Math.max(0, 5 - tradesCount);
     return (
       <Card className="border-border bg-card">
         <CardHeader className="pb-1">
           <CardTitle className="text-base">{L.title}</CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center justify-center py-8">
-          <div className="text-center">
-            <p className="mb-2 text-3xl">📊</p>
-            <p className="text-sm text-muted-foreground">{L.minTrades}</p>
+        <CardContent className="flex flex-col items-center gap-4 py-8">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+            <BarChart2 className="h-7 w-7 text-primary/60" />
           </div>
+          <p className="text-sm text-muted-foreground text-center max-w-xs">{L.minTrades}</p>
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: 5 }, (_, i) => (
+              <div
+                key={i}
+                className={`h-2 w-8 rounded-full transition-colors ${i < tradesCount ? 'bg-primary' : 'bg-border'}`}
+              />
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {tradesCount}/5 {lang === 'ar' ? 'صفقات' : lang === 'fr' ? 'trades' : 'trades'}
+            {needed > 0 && ` — ${needed} ${lang === 'ar' ? 'متبقية' : lang === 'fr' ? 'restants' : 'to go'}`}
+          </p>
         </CardContent>
       </Card>
     );
@@ -345,9 +359,9 @@ function isoDay(d: Date) { return d.toLocaleDateString('en-CA'); } // YYYY-MM-DD
 function fmtPnlCal(val: number): string {
   const abs = Math.abs(val);
   const sign = val >= 0 ? '+' : '-';
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000)     return `${sign}$${(abs / 1_000).toFixed(1)}K`;
-  return `${sign}$${abs.toFixed(2)}`;
+  if (abs >= 10000) return `${sign}${(abs / 1000).toFixed(1)}K`;
+  if (abs >= 1000)  return `${sign}${(abs / 1000).toFixed(2)}K`;
+  return `${sign}${abs.toFixed(0)}`;
 }
 
 const CAL_MONTH_NAMES: Record<'ar'|'fr'|'en', string[]> = {
@@ -401,7 +415,7 @@ function DashDayCell({ d, lang, onClick }: { d: DashDayData; lang: 'ar'|'fr'|'en
 
   return (
     <div
-      className={`relative flex min-h-[65px] sm:min-h-[90px] flex-col overflow-hidden rounded-lg border p-1.5 sm:p-2 transition-all duration-150 select-none
+      className={`relative flex min-h-[72px] md:min-h-[80px] flex-col overflow-hidden rounded-lg border p-1.5 sm:p-2 transition-all duration-150 select-none
         ${bg} ${border || 'border-border/40'}
         ${d.isCurrentMonth ? 'cursor-pointer hover:border-primary/40 hover:brightness-110' : ''}
       `}
@@ -417,7 +431,7 @@ function DashDayCell({ d, lang, onClick }: { d: DashDayData; lang: 'ar'|'fr'|'en
       {/* Trade data */}
       {hasTrades && d.isCurrentMonth && (
         <div className="mt-0.5 sm:mt-1 flex flex-1 flex-col items-center justify-center gap-0.5">
-          <span className={`w-full truncate text-center text-[11px] sm:text-base font-bold leading-tight ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+          <span className={`w-full text-center text-xs font-bold leading-tight ${d.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
             {fmtPnlCal(d.pnl)}
           </span>
           <span className="text-[9px] sm:text-[10px] text-muted-foreground">
@@ -804,7 +818,7 @@ function TradingCalendar({
     d.setHours(0, 0, 0, 0);
     return d;
   });
-  const [mobileShowFullMonth, setMobileShowFullMonth] = useState(false);
+  const [mobileShowFullMonth, setMobileShowFullMonth] = useState(true);
 
   const mobileLocale = lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US';
 
@@ -1084,9 +1098,8 @@ function TradingCalendar({
           {/* Day name headers */}
           <div className="mb-1 grid grid-cols-7 gap-1">
             {CAL_DAY_NAMES[lang].map((name, i) => (
-              <div key={i} className={`py-1.5 text-center text-xs font-semibold ${i === 0 || i === 6 ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
-                <span className="hidden sm:inline">{name}</span>
-                <span className="sm:hidden">{CAL_DAY_INITIALS[lang][i]}</span>
+              <div key={i} className={`py-1.5 text-center font-semibold overflow-hidden ${i === 0 || i === 6 ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>
+                <span className="block truncate text-[9px] sm:text-xs">{name}</span>
               </div>
             ))}
           </div>
@@ -1427,6 +1440,7 @@ const DashboardPage = () => {
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [addOpen, setAddOpen]   = useState(false);
+  const [insightIndex, setInsightIndex] = useState(0);
 
   // Filters
   const [dateRange, setDateRange] = useState<DateRange>('all');
@@ -1509,6 +1523,98 @@ const DashboardPage = () => {
     }
     return { count, type: isWin ? 'win' : 'loss' as 'win'|'loss' };
   }, [closedTrades]);
+
+  // ---- weekly goal ----
+  const weeklyGoal = useMemo(() => {
+    const raw = localStorage.getItem(`weekly_goal_${user?.id}`);
+    return raw ? parseFloat(raw) : 0;
+  }, [user]);
+
+  const thisWeekPnl = useMemo(() => {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    return closedTrades
+      .filter(tr => tr.close_time && new Date(tr.close_time) >= startOfWeek)
+      .reduce((s, tr) => s + (tr.profit ?? 0), 0);
+  }, [closedTrades]);
+
+  const weeklyProgress = weeklyGoal > 0 ? Math.min((thisWeekPnl / weeklyGoal) * 100, 100) : 0;
+
+  // ---- smart insights ----
+  const insights = useMemo(() => {
+    const result: { icon: string; text: string }[] = [];
+    if (closedTrades.length < 3) return result;
+
+    // Best hour
+    const hourGroups: Record<number, { pnl: number; count: number }> = {};
+    for (const tr of closedTrades) {
+      if (!tr.close_time) continue;
+      const h = new Date(tr.close_time).getHours();
+      if (!hourGroups[h]) hourGroups[h] = { pnl: 0, count: 0 };
+      hourGroups[h].pnl += tr.profit ?? 0;
+      hourGroups[h].count += 1;
+    }
+    const bestHourEntry = Object.entries(hourGroups).sort((a, b) => b[1].pnl - a[1].pnl)[0];
+    if (bestHourEntry) {
+      const h = parseInt(bestHourEntry[0]);
+      const label = `${h}:00–${h + 1}:00`;
+      result.push({
+        icon: '🕐',
+        text: lang === 'ar' ? `أفضل وقت للتداول: ${label}` : lang === 'fr' ? `Meilleure heure: ${label}` : `Best trading hour: ${label}`,
+      });
+    }
+
+    // Best symbol
+    const symbolGroups: Record<string, number> = {};
+    for (const tr of closedTrades) {
+      if (!tr.symbol) continue;
+      symbolGroups[tr.symbol] = (symbolGroups[tr.symbol] ?? 0) + (tr.profit ?? 0);
+    }
+    const bestSymbol = Object.entries(symbolGroups).sort((a, b) => b[1] - a[1])[0];
+    if (bestSymbol && bestSymbol[1] > 0) {
+      result.push({
+        icon: '📈',
+        text: lang === 'ar' ? `أفضل رمز: ${bestSymbol[0]}` : lang === 'fr' ? `Meilleur symbole: ${bestSymbol[0]}` : `Best symbol: ${bestSymbol[0]}`,
+      });
+    }
+
+    // Best setup
+    const setupGroups: Record<string, number> = {};
+    for (const tr of closedTrades) {
+      if (!tr.setup_tag) continue;
+      const parts = tr.setup_tag.split(',').map(s => s.trim()).filter(s => !['Win','Loss','Breakeven','Partial Win - TP1','Partial Win - TP2'].includes(s));
+      for (const s of parts) {
+        if (s) setupGroups[s] = (setupGroups[s] ?? 0) + (tr.profit ?? 0);
+      }
+    }
+    const bestSetup = Object.entries(setupGroups).sort((a, b) => b[1] - a[1])[0];
+    if (bestSetup && bestSetup[1] > 0) {
+      result.push({
+        icon: '🎯',
+        text: lang === 'ar' ? `أفضل استراتيجية: ${bestSetup[0]}` : lang === 'fr' ? `Meilleure stratégie: ${bestSetup[0]}` : `Best setup: ${bestSetup[0]}`,
+      });
+    }
+
+    // Win rate praise
+    if (winRate >= 60) {
+      result.push({
+        icon: '🔥',
+        text: lang === 'ar' ? `نسبة فوزك ${winRate.toFixed(0)}% — رائع!` : lang === 'fr' ? `Taux de réussite ${winRate.toFixed(0)}% — excellent!` : `Win rate ${winRate.toFixed(0)}% — great discipline!`,
+      });
+    }
+
+    return result;
+  }, [closedTrades, winRate, lang]);
+
+  // Start auto-rotate once insights are available
+  useEffect(() => {
+    if (insights.length < 2) return;
+    setInsightIndex(0);
+    const timer = setInterval(() => setInsightIndex(i => (i + 1) % insights.length), 4000);
+    return () => clearInterval(timer);
+  }, [insights.length]);
 
   // ---- equity curve ----
   const selectedEquityAccount = useMemo(
@@ -1605,6 +1711,23 @@ const DashboardPage = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Weekly goal prompt */}
+          {weeklyGoal === 0 && closedTrades.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const val = parseFloat(prompt(lang === 'ar' ? 'هدف الأسبوع ($)' : lang === 'fr' ? 'Objectif hebdomadaire ($)' : 'Weekly profit goal ($)') ?? '');
+                if (!isNaN(val) && val > 0 && user) {
+                  localStorage.setItem(`weekly_goal_${user.id}`, String(val));
+                  window.location.reload();
+                }
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-1.5 text-xs text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Target className="h-3.5 w-3.5" />
+              {lang === 'ar' ? 'تعيين هدف أسبوعي' : lang === 'fr' ? 'Fixer objectif' : 'Set weekly goal'}
+            </button>
+          )}
           {/* Date Range */}
           <Select value={dateRange} onValueChange={v => setDateRange(v as DateRange)}>
             <SelectTrigger className="h-9 w-40 text-sm">
@@ -1679,11 +1802,92 @@ const DashboardPage = () => {
         </Card>
       </div>
 
+      {/* ── WEEKLY GOAL + INSIGHTS ROW ── */}
+      {(weeklyGoal > 0 || insights.length > 0) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {/* Weekly goal progress */}
+          {weeklyGoal > 0 && (
+            <Card className="border-border bg-card">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold text-foreground">
+                      {lang === 'ar' ? 'هدف الأسبوع' : lang === 'fr' ? 'Objectif semaine' : 'Weekly Goal'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = parseFloat(prompt(lang === 'ar' ? 'هدف الأسبوع ($)' : lang === 'fr' ? 'Objectif hebdomadaire ($)' : 'Weekly profit goal ($)', String(weeklyGoal)) ?? '');
+                      if (!isNaN(val) && val > 0 && user) {
+                        localStorage.setItem(`weekly_goal_${user.id}`, String(val));
+                        window.location.reload();
+                      }
+                    }}
+                    className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {lang === 'ar' ? 'تعديل' : lang === 'fr' ? 'Modifier' : 'Edit'}
+                  </button>
+                </div>
+                <div className="flex items-end gap-2 mb-2">
+                  <span className={`text-2xl font-bold tabular-nums ${thisWeekPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                    {thisWeekPnl >= 0 ? '+' : ''}${thisWeekPnl.toFixed(2)}
+                  </span>
+                  <span className="text-sm text-muted-foreground mb-0.5">/ ${weeklyGoal.toFixed(0)}</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-border overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-[width] duration-700 ${thisWeekPnl >= weeklyGoal ? 'bg-profit' : thisWeekPnl > 0 ? 'bg-primary' : 'bg-loss'}`}
+                    style={{ width: `${Math.max(0, weeklyProgress)}%` }}
+                  />
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  {weeklyProgress >= 100
+                    ? (lang === 'ar' ? '🎉 حققت الهدف!' : lang === 'fr' ? '🎉 Objectif atteint!' : '🎉 Goal reached!')
+                    : `${weeklyProgress.toFixed(0)}% ${lang === 'ar' ? 'من الهدف' : lang === 'fr' ? 'de l\'objectif' : 'of goal'}`}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+          {/* Smart insights */}
+          {insights.length > 0 && (
+            <Card className="border-border bg-card">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Lightbulb className="h-4 w-4 text-yellow-400" />
+                  <span className="text-sm font-semibold text-foreground">
+                    {lang === 'ar' ? 'رؤى ذكية' : lang === 'fr' ? 'Insights' : 'Smart Insights'}
+                  </span>
+                </div>
+                <p className="text-sm text-foreground min-h-[2.5rem] transition-all duration-500">
+                  {insights[insightIndex % insights.length]?.icon}{' '}
+                  {insights[insightIndex % insights.length]?.text}
+                </p>
+                {insights.length > 1 && (
+                  <div className="flex gap-1 mt-3">
+                    {insights.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setInsightIndex(i)}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${i === insightIndex % insights.length ? 'w-4 bg-primary' : 'w-1.5 bg-border'}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* ── SCORE CARD ── */}
       <TradesmartScore
         closedTrades={closedTrades} wins={wins} losses={losses}
         profitFactor={typeof profitFactor === 'number' ? profitFactor : 0}
         avgWin={avgWin} avgLoss={avgLoss} lang={lang}
+        tradesCount={closedTrades.length}
       />
 
       {/* ── SECOND ROW: Win Rate + Equity ── */}
@@ -1832,12 +2036,82 @@ const DashboardPage = () => {
               </a>
             </div>
           ) : (
-            <div className="flex gap-4 overflow-x-auto pb-1">
-              {accounts.map(acc => (
-                <div key={acc.id} className="w-72 shrink-0">
-                  <AccountCard acc={acc} lang={lang} compact userId={user?.id} />
-                </div>
-              ))}
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {accounts.map(acc => {
+                const size = acc.account_size ?? acc.starting_balance ?? 0;
+                const hasPropRules = size > 0 && (acc.max_drawdown_limit || acc.daily_loss_limit || acc.profit_target);
+                const accTrades = trades.filter(tr => tr.account_id === acc.id && tr.profit !== null);
+                const accPnl = accTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
+                const ddUsedPct = (acc.max_drawdown_limit && size > 0)
+                  ? Math.min(Math.max((-accPnl / size) * 100, 0), acc.max_drawdown_limit)
+                  : 0;
+                const ddLimit = acc.max_drawdown_limit ?? 0;
+                const ddPct = ddLimit > 0 ? (ddUsedPct / ddLimit) * 100 : 0;
+                const dailyLossTrades = accTrades.filter(tr => {
+                  if (!tr.close_time) return false;
+                  const d = new Date(tr.close_time);
+                  const today = new Date();
+                  return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+                });
+                const dailyPnl = dailyLossTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
+                const dailyLossLimit = acc.daily_loss_limit ?? 0;
+                const dailyUsedPct = (dailyLossLimit > 0 && size > 0)
+                  ? Math.min(Math.max((-dailyPnl / size) * 100, 0), dailyLossLimit)
+                  : 0;
+                const dailyPct = dailyLossLimit > 0 ? (dailyUsedPct / dailyLossLimit) * 100 : 0;
+                const profitTarget = acc.profit_target ?? 0;
+                const profitPct = (profitTarget > 0 && size > 0) ? Math.min((accPnl / (size * profitTarget / 100)) * 100, 100) : 0;
+                const isDdDanger = ddPct >= 80;
+                const isDailyDanger = dailyPct >= 80;
+                return (
+                  <div key={acc.id} className="space-y-3">
+                    <AccountCard acc={acc} lang={lang} compact userId={user?.id} />
+                    {hasPropRules && (
+                      <div className={`rounded-xl border p-3 space-y-2.5 ${isDdDanger || isDailyDanger ? 'border-loss/40 bg-loss/5' : 'border-border bg-card'}`}>
+                        {(isDdDanger || isDailyDanger) && (
+                          <div className="flex items-center gap-1.5 text-xs text-loss font-semibold">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            {lang === 'ar' ? 'تحذير: اقتربت من الحد' : lang === 'fr' ? 'Attention: limite proche' : 'Warning: limit approaching'}
+                          </div>
+                        )}
+                        {ddLimit > 0 && (
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span className="flex items-center gap-1"><Shield className="h-3 w-3" />{lang === 'ar' ? 'الحد الأقصى للسحب' : lang === 'fr' ? 'DD Max' : 'Max Drawdown'}</span>
+                              <span className={isDdDanger ? 'text-loss font-semibold' : ''}>{ddUsedPct.toFixed(1)}% / {ddLimit}%</span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+                              <div className={`h-full rounded-full transition-[width] duration-500 ${ddPct >= 80 ? 'bg-loss' : ddPct >= 50 ? 'bg-yellow-400' : 'bg-[#22c55e]'}`} style={{ width: `${ddPct}%` }} />
+                            </div>
+                          </div>
+                        )}
+                        {dailyLossLimit > 0 && (
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span>{lang === 'ar' ? 'الخسارة اليومية' : lang === 'fr' ? 'Perte/jour' : 'Daily Loss'}</span>
+                              <span className={isDailyDanger ? 'text-loss font-semibold' : ''}>{dailyUsedPct.toFixed(1)}% / {dailyLossLimit}%</span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+                              <div className={`h-full rounded-full transition-[width] duration-500 ${dailyPct >= 80 ? 'bg-loss' : dailyPct >= 50 ? 'bg-yellow-400' : 'bg-[#22c55e]'}`} style={{ width: `${dailyPct}%` }} />
+                            </div>
+                          </div>
+                        )}
+                        {profitTarget > 0 && (
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span className="flex items-center gap-1"><Target className="h-3 w-3" />{lang === 'ar' ? 'هدف الربح' : lang === 'fr' ? 'Objectif profit' : 'Profit Target'}</span>
+                              <span className={profitPct >= 100 ? 'text-profit font-semibold' : ''}>{profitPct.toFixed(0)}%</span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+                              <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${profitPct}%` }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -1880,10 +2154,10 @@ const DashboardPage = () => {
                   <TableRow className="border-border hover:bg-transparent">
                     <TableHead className="ps-4 font-semibold">{lang === 'ar' ? 'الرمز' : lang === 'fr' ? 'Symbole' : 'Symbol'}</TableHead>
                     <TableHead className="font-semibold">{lang === 'ar' ? 'الاتجاه' : lang === 'fr' ? 'Direction' : 'Direction'}</TableHead>
-                    <TableHead className="font-semibold">{lang === 'ar' ? 'النتيجة' : lang === 'fr' ? 'Résultat' : 'Result'}</TableHead>
+                    <TableHead className="hidden sm:table-cell font-semibold">{lang === 'ar' ? 'النتيجة' : lang === 'fr' ? 'Résultat' : 'Result'}</TableHead>
                     <TableHead className="font-semibold">{lang === 'ar' ? 'P&L' : 'P&L'}</TableHead>
-                    <TableHead className="font-semibold">{lang === 'ar' ? 'الحساب' : lang === 'fr' ? 'Compte' : 'Account'}</TableHead>
-                    <TableHead className="pe-4 font-semibold">{lang === 'ar' ? 'التاريخ' : lang === 'fr' ? 'Date' : 'Date'}</TableHead>
+                    <TableHead className="hidden sm:table-cell font-semibold">{lang === 'ar' ? 'الحساب' : lang === 'fr' ? 'Compte' : 'Account'}</TableHead>
+                    <TableHead className="hidden sm:table-cell pe-4 font-semibold">{lang === 'ar' ? 'التاريخ' : lang === 'fr' ? 'Date' : 'Date'}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1893,14 +2167,18 @@ const DashboardPage = () => {
                     const result = parts.find(p => ['Win','Loss','Breakeven','Partial Win - TP1','Partial Win - TP2'].includes(p)) ?? null;
                     const pnl = tr.profit ?? 0;
                     return (
-                      <TableRow key={tr.id} className="border-border hover:bg-secondary/30">
+                      <TableRow
+                        key={tr.id}
+                        className="border-border hover:bg-secondary/30 cursor-pointer"
+                        onClick={() => { window.location.href = '/trades'; }}
+                      >
                         <TableCell className="ps-4 font-bold text-foreground">{tr.symbol}</TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${tr.direction === 'BUY' ? 'border-profit/30 bg-profit/10 text-profit' : 'border-loss/30 bg-loss/10 text-loss'}`}>
                             {tr.direction === 'BUY' ? (lang === 'ar' ? 'شراء' : lang === 'fr' ? 'ACHAT' : 'BUY') : (lang === 'ar' ? 'بيع' : lang === 'fr' ? 'VENTE' : 'SELL')}
                           </span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           {result ? (
                             <Badge variant="secondary" className={
                               result === 'Win' ? 'bg-profit/15 text-profit border-profit/20' :
@@ -1917,7 +2195,7 @@ const DashboardPage = () => {
                         <TableCell className={`font-semibold tabular-nums ${pnl >= 0 ? 'text-profit' : 'text-loss'}`}>
                           {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           {tr.account_id && accountMap[tr.account_id] ? (
                             <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
                               {accountMap[tr.account_id].account_name ?? '—'}
@@ -1928,7 +2206,7 @@ const DashboardPage = () => {
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="pe-4 whitespace-nowrap text-sm text-muted-foreground">
+                        <TableCell className="hidden sm:table-cell pe-4 whitespace-nowrap text-sm text-muted-foreground">
                           {tr.close_time ? new Date(tr.close_time).toLocaleDateString(lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric' }) : '—'}
                         </TableCell>
                       </TableRow>
@@ -1945,7 +2223,7 @@ const DashboardPage = () => {
       <button
         type="button"
         onClick={() => setAddOpen(true)}
-        className="fixed bottom-6 end-6 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 gradient-primary text-primary-foreground"
+        className="fixed bottom-6 end-6 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg shadow-teal-200/60 transition-transform hover:scale-105 active:scale-95 bg-teal-500 hover:bg-teal-600 text-white"
         title={lang === 'ar' ? 'إضافة صفقة' : lang === 'fr' ? 'Ajouter un trade' : 'Add Trade'}
       >
         <Plus className="h-6 w-6" />
