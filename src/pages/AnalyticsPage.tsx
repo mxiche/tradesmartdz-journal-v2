@@ -608,7 +608,7 @@ const AnalyticsPage = () => {
       const scaleY = H / 892;
 
       // Trader name — between teal lines at 40% and 50%, center at 45%
-      drawTextFit(name.toUpperCase(), W * 0.5, H * 0.475, W * 0.6,
+      drawTextFit(name.toUpperCase(), W * 0.5, H * 0.490, W * 0.6,
         Math.round(44 * scaleY), '#0f172a', 'center', '900');
 
       // Row 1 boxes (tops ~55%, bottoms ~65%, number center ~62.5%)
@@ -619,12 +619,12 @@ const AnalyticsPage = () => {
         Math.round(38 * scaleY), certStats.totalPnl >= 0 ? '#0d9488' : '#dc2626', 'center', 'bold');
 
       // Row 2 boxes (tops ~67%, bottoms ~77%, number center ~73.5%)
-      drawTextFit(best,        W * 0.27, H * 0.755, W * 0.18, Math.round(38 * scaleY), '#0d9488', 'center', 'bold');
-      drawTextFit(pf,          W * 0.5,  H * 0.755, W * 0.18, Math.round(38 * scaleY), '#0f172a', 'center', 'bold');
-      drawTextFit(tradingDays, W * 0.73, H * 0.755, W * 0.18, Math.round(38 * scaleY), '#0f172a', 'center', 'bold');
+      drawTextFit(best,        W * 0.27, H * 0.768, W * 0.18, Math.round(38 * scaleY), '#0d9488', 'center', 'bold');
+      drawTextFit(pf,          W * 0.5,  H * 0.768, W * 0.18, Math.round(38 * scaleY), '#0f172a', 'center', 'bold');
+      drawTextFit(tradingDays, W * 0.73, H * 0.768, W * 0.18, Math.round(38 * scaleY), '#0f172a', 'center', 'bold');
 
       // Issued date — after "Issued:" label at ~91% height, ~79.5% width
-      drawTextFit(dateStr, W * 0.845, H * 0.935, W * 0.35,
+      drawTextFit(dateStr, W * 0.868, H * 0.948, W * 0.35,
         Math.round(13 * scaleY), '#64748b', 'left', 'normal');
 
       console.log('Certificate generated successfully', {
