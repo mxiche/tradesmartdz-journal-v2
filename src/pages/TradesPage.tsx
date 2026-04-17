@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check, CheckCircle, Lock } from 'lucide-react';
@@ -916,8 +916,8 @@ function Mt5ImportModal({
                           <SelectTrigger className="h-8 w-44 text-xs">
                             <SelectValue placeholder={lang === 'ar' ? 'الإعداد...' : lang === 'fr' ? 'Setup...' : 'Setup...'} />
                           </SelectTrigger>
-                          <SelectContent>
-                            {userTags.map(tag => (
+                          <SelectContent position="popper" className="z-[9999]">
+                            {(userTags.length > 0 ? userTags : DEFAULT_TAGS).map(tag => (
                               <SelectItem key={tag} value={tag}>{tag}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1226,6 +1226,8 @@ const TradesPage = () => {
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingBulk, setDeletingBulk] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'trade' | 'trades'; ids: string[]; label: string } | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const shareCardRef = useRef<HTMLDivElement>(null);
 
@@ -1716,25 +1718,41 @@ const TradesPage = () => {
     if (selectedTrade?.id === tradeId) setEditReviewed(reviewed);
   }, [selectedTrade]);
 
-  const handleDeleteTrade = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!window.confirm(lang === 'ar' ? 'هل أنت متأكد من حذف هذه الصفقة؟' : lang === 'fr' ? 'Supprimer ce trade ?' : 'Are you sure you want to delete this trade?')) return;
-    await supabase.from('trades').delete().eq('id', id);
-    setTrades(prev => prev.filter(tr => tr.id !== id));
-    setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next; });
-    toast.success(lang === 'ar' ? 'تم الحذف' : lang === 'fr' ? 'Supprimé' : 'Trade deleted');
+  const handleDeleteConfirmed = async (ids: string[]) => {
+    if (ids.length === 1) {
+      await supabase.from('trades').delete().eq('id', ids[0]);
+      setTrades(prev => prev.filter(tr => tr.id !== ids[0]));
+      setSelectedIds(prev => { const next = new Set(prev); next.delete(ids[0]); return next; });
+      toast.success(lang === 'ar' ? 'تم الحذف' : lang === 'fr' ? 'Supprimé' : 'Trade deleted');
+    } else {
+      setDeletingBulk(true);
+      await supabase.from('trades').delete().in('id', ids);
+      setTrades(prev => prev.filter(tr => !ids.includes(tr.id)));
+      setSelectedIds(new Set());
+      setDeletingBulk(false);
+      toast.success(lang === 'ar' ? 'تم الحذف' : lang === 'fr' ? 'Supprimés' : `${ids.length} trade(s) deleted`);
+    }
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteTrade = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteTarget({
+      type: 'trade',
+      ids: [id],
+      label: lang === 'ar' ? 'هل تريد حذف هذه الصفقة؟' : lang === 'fr' ? 'Supprimer ce trade ?' : 'Are you sure you want to delete this trade?',
+    });
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteSelected = () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(lang === 'ar' ? `حذف ${selectedIds.size} صفقات؟` : lang === 'fr' ? `Supprimer ${selectedIds.size} trades ?` : `Delete ${selectedIds.size} selected trade(s)?`)) return;
-    setDeletingBulk(true);
     const ids = [...selectedIds];
-    await supabase.from('trades').delete().in('id', ids);
-    setTrades(prev => prev.filter(tr => !selectedIds.has(tr.id)));
-    setSelectedIds(new Set());
-    setDeletingBulk(false);
-    toast.success(lang === 'ar' ? 'تم الحذف' : lang === 'fr' ? 'Supprimés' : `${ids.length} trade(s) deleted`);
+    setDeleteTarget({
+      type: 'trades',
+      ids,
+      label: lang === 'ar' ? `هل تريد حذف ${ids.length} صفقة؟` : lang === 'fr' ? `Supprimer ${ids.length} trade(s) ?` : `Delete ${ids.length} selected trade(s)?`,
+    });
+    setShowDeleteModal(true);
   };
 
   const toggleSelectAll = () => {
@@ -2769,6 +2787,42 @@ const TradesPage = () => {
             )}
         </SheetContent>
       </Sheet>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <DialogTitle className="text-center text-lg font-bold">
+              {lang === 'ar' ? 'تأكيد الحذف' : lang === 'fr' ? 'Confirmer la suppression' : 'Confirm Delete'}
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm text-muted-foreground">
+              {deleteTarget?.label}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 mt-2 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(false)}
+              className="flex-1 py-2.5 rounded-xl border border-border text-muted-foreground font-semibold text-sm hover:bg-secondary transition-colors"
+            >
+              {lang === 'ar' ? 'إلغاء' : lang === 'fr' ? 'Annuler' : 'Cancel'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowDeleteModal(false);
+                if (deleteTarget) handleDeleteConfirmed(deleteTarget.ids);
+              }}
+              className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-colors"
+            >
+              {lang === 'ar' ? 'حذف' : lang === 'fr' ? 'Supprimer' : 'Delete'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

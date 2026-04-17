@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Pencil, Trash2, Loader2, TrendingUp, TrendingDown, Wallet, Lock } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
@@ -86,6 +86,8 @@ const ConnectPage = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(DEFAULT_FORM);
 
@@ -202,16 +204,18 @@ const ConnectPage = () => {
     await fetchAccounts();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm(
-      lang === 'ar' ? 'هل تريد حذف هذا الحساب؟' :
-      lang === 'fr' ? 'Supprimer ce compte ?' :
-      'Delete this account? This cannot be undone.'
-    )) return;
-    const { error } = await supabase.from('mt5_accounts').delete().eq('id', id);
+  const handleDelete = (id: string) => {
+    setDeleteAccountId(id);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirmed = async () => {
+    if (!deleteAccountId) return;
+    const { error } = await supabase.from('mt5_accounts').delete().eq('id', deleteAccountId);
     if (error) { toast.error('Failed to delete'); return; }
     toast.success(lang === 'ar' ? 'تم الحذف' : lang === 'fr' ? 'Supprimé' : 'Account deleted');
-    setAccounts(prev => prev.filter(a => a.id !== id));
+    setAccounts(prev => prev.filter(a => a.id !== deleteAccountId));
+    setDeleteAccountId(null);
   };
 
   const labelAdd = lang === 'ar' ? 'إضافة حساب' : lang === 'fr' ? 'Ajouter un compte' : 'Add Account';
@@ -484,6 +488,39 @@ const ConnectPage = () => {
               {lang === 'ar' ? 'حفظ' : lang === 'fr' ? 'Enregistrer' : 'Save Account'}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Account Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <DialogTitle className="text-center text-lg font-bold">
+              {lang === 'ar' ? 'تأكيد الحذف' : lang === 'fr' ? 'Confirmer la suppression' : 'Confirm Delete'}
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm text-muted-foreground">
+              {lang === 'ar' ? 'هل تريد حذف هذا الحساب؟ لا يمكن التراجع عن هذا الإجراء.' : lang === 'fr' ? 'Supprimer ce compte ? Cette action est irréversible.' : 'Delete this account? This cannot be undone.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 mt-2 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(false)}
+              className="flex-1 py-2.5 rounded-xl border border-border text-muted-foreground font-semibold text-sm hover:bg-secondary transition-colors"
+            >
+              {lang === 'ar' ? 'إلغاء' : lang === 'fr' ? 'Annuler' : 'Cancel'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowDeleteModal(false); handleDeleteConfirmed(); }}
+              className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-colors"
+            >
+              {lang === 'ar' ? 'حذف' : lang === 'fr' ? 'Supprimer' : 'Delete'}
+            </button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

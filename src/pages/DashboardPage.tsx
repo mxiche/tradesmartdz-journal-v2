@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   TrendingUp, TrendingDown, Loader2, Plus, ChevronLeft, ChevronRight, Camera, X, Download,
   Lightbulb, Target, Shield, AlertTriangle, CalendarDays, BarChart2,
@@ -1441,6 +1441,8 @@ const DashboardPage = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [addOpen, setAddOpen]   = useState(false);
   const [insightIndex, setInsightIndex] = useState(0);
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [goalInput, setGoalInput] = useState('');
 
   // Filters
   const [dateRange, setDateRange] = useState<DateRange>('all');
@@ -1715,13 +1717,7 @@ const DashboardPage = () => {
           {weeklyGoal === 0 && closedTrades.length > 0 && (
             <button
               type="button"
-              onClick={() => {
-                const val = parseFloat(prompt(lang === 'ar' ? 'هدف الأسبوع ($)' : lang === 'fr' ? 'Objectif hebdomadaire ($)' : 'Weekly profit goal ($)') ?? '');
-                if (!isNaN(val) && val > 0 && user) {
-                  localStorage.setItem(`weekly_goal_${user.id}`, String(val));
-                  window.location.reload();
-                }
-              }}
+              onClick={() => { setGoalInput(''); setShowGoalModal(true); }}
               className="flex items-center gap-1.5 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-1.5 text-xs text-primary hover:bg-primary/10 transition-colors"
             >
               <Target className="h-3.5 w-3.5" />
@@ -1818,13 +1814,7 @@ const DashboardPage = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      const val = parseFloat(prompt(lang === 'ar' ? 'هدف الأسبوع ($)' : lang === 'fr' ? 'Objectif hebdomadaire ($)' : 'Weekly profit goal ($)', String(weeklyGoal)) ?? '');
-                      if (!isNaN(val) && val > 0 && user) {
-                        localStorage.setItem(`weekly_goal_${user.id}`, String(val));
-                        window.location.reload();
-                      }
-                    }}
+                    onClick={() => { setGoalInput(String(weeklyGoal)); setShowGoalModal(true); }}
                     className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
                   >
                     {lang === 'ar' ? 'تعديل' : lang === 'fr' ? 'Modifier' : 'Edit'}
@@ -2238,6 +2228,68 @@ const DashboardPage = () => {
         user={user}
         onSaved={fetchData}
       />
+
+      {/* Weekly Goal Modal */}
+      <Dialog open={showGoalModal} onOpenChange={setShowGoalModal}>
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">
+              {lang === 'ar' ? 'تحديد هدف أسبوعي' : lang === 'fr' ? 'Objectif hebdomadaire' : 'Set Weekly Goal'}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              {lang === 'ar' ? 'أدخل هدفك الأسبوعي بالدولار' : lang === 'fr' ? 'Entrez votre objectif en dollars' : 'Enter your weekly profit goal in dollars'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">$</span>
+              <Input
+                type="number"
+                value={goalInput}
+                onChange={e => setGoalInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    const val = parseFloat(goalInput);
+                    if (!isNaN(val) && val > 0 && user) {
+                      localStorage.setItem(`weekly_goal_${user.id}`, String(val));
+                      setShowGoalModal(false);
+                      setGoalInput('');
+                      window.location.reload();
+                    }
+                  }
+                }}
+                placeholder="500"
+                className="pl-8"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setShowGoalModal(false)}
+              className="flex-1 py-2.5 rounded-xl border border-border text-muted-foreground font-semibold text-sm hover:bg-secondary transition-colors"
+            >
+              {lang === 'ar' ? 'إلغاء' : lang === 'fr' ? 'Annuler' : 'Cancel'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const val = parseFloat(goalInput);
+                if (!isNaN(val) && val > 0 && user) {
+                  localStorage.setItem(`weekly_goal_${user.id}`, String(val));
+                  setShowGoalModal(false);
+                  setGoalInput('');
+                  window.location.reload();
+                }
+              }}
+              className="flex-1 py-2.5 rounded-xl bg-teal-500 text-white font-bold text-sm hover:bg-teal-600 transition-colors"
+            >
+              {lang === 'ar' ? 'حفظ' : lang === 'fr' ? 'Enregistrer' : 'Save'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
