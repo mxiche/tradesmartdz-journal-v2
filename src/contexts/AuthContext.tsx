@@ -152,30 +152,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const init = async () => {
-      // Step 1: create trial subscription if user has NO subscription at all
-      const { data: existing } = await supabase
+      // Step 1: create trial if NO subscription exists at all
+      // Run in Supabase SQL Editor to prevent future duplicates:
+      // CREATE UNIQUE INDEX IF NOT EXISTS subscriptions_user_trial_unique
+      //   ON subscriptions(user_id) WHERE status = 'trial';
+      const { data: existingSubs, error: checkError } = await supabase
         .from('subscriptions')
         .select('id, status')
         .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
 
-      if (!existing) {
-        // If trial insert fails, run this SQL in Supabase SQL Editor:
-        // DROP POLICY IF EXISTS "Users can insert own subscription" ON subscriptions;
-        // CREATE POLICY "Users can insert own subscription"
-        // ON subscriptions FOR INSERT
-        // WITH CHECK (auth.uid() = user_id);
-        const { error: insertError } = await supabase.from('subscriptions').insert({
-          user_id: user.id,
-          plan: 'pro',
-          status: 'trial',
-          amount: '0',
-          activated_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-        });
-        if (insertError) {
-          console.error('Trial insert error:', insertError);
+      if (!checkError && (!existingSubs || existingSubs.length === 0)) {
+        // Small delay to prevent race condition on React StrictMode double-mount
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Double-check after delay
+        const { data: checkAgain } = await supabase
+          .from('subscriptions')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1);
+
+        if (!checkAgain || checkAgain.length === 0) {
+          const { error: trialError } = await supabase.from('subscriptions').insert({
+            user_id: user.id,
+            plan: 'pro',
+            status: 'trial',
+            amount: '0',
+            activated_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+          });
+          if (trialError) {
+            console.error('Trial creation error:', trialError);
+          } else {
+            console.log('Trial created for user:', user.id);
+          }
         }
       }
 
