@@ -2032,7 +2032,7 @@ const DashboardPage = () => {
                 const size = acc.account_size ?? acc.starting_balance ?? 0;
                 const hasPropRules = size > 0 && (acc.max_drawdown_limit || acc.daily_loss_limit || acc.profit_target);
                 const accTrades = trades.filter(tr => tr.account_id === acc.id && tr.profit !== null);
-                const accPnl = accTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
+                const accPnl = accTrades.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
                 const ddUsedPct = (acc.max_drawdown_limit && size > 0)
                   ? Math.min(Math.max((-accPnl / size) * 100, 0), acc.max_drawdown_limit)
                   : 0;
@@ -2044,7 +2044,7 @@ const DashboardPage = () => {
                   const today = new Date();
                   return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
                 });
-                const dailyPnl = dailyLossTrades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
+                const dailyPnl = dailyLossTrades.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
                 const dailyLossLimit = acc.daily_loss_limit ?? 0;
                 const dailyUsedPct = (dailyLossLimit > 0 && size > 0)
                   ? Math.min(Math.max((-dailyPnl / size) * 100, 0), dailyLossLimit)
@@ -2156,7 +2156,12 @@ const DashboardPage = () => {
                     const setupTag = tr.setup_tag ?? '';
                     const parts = setupTag.split(',').map(s => s.trim());
                     const result = parts.find(p => ['Win','Loss','Breakeven','Partial Win - TP1','Partial Win - TP2'].includes(p)) ?? null;
-                    const pnl = tr.profit ?? 0;
+                    const pnl = (tr.profit ?? 0) - ((tr as any).commission ?? 0);
+                    const netBadgeClass = pnl > 0
+                      ? 'bg-profit/15 text-profit border-profit/20'
+                      : pnl < 0
+                      ? 'bg-loss/15 text-loss border-loss/20'
+                      : 'bg-yellow-500/15 text-yellow-400';
                     return (
                       <TableRow
                         key={tr.id}
@@ -2171,12 +2176,7 @@ const DashboardPage = () => {
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
                           {result ? (
-                            <Badge variant="secondary" className={
-                              result === 'Win' ? 'bg-profit/15 text-profit border-profit/20' :
-                              result === 'Loss' ? 'bg-loss/15 text-loss border-loss/20' :
-                              result === 'Breakeven' ? 'bg-yellow-500/15 text-yellow-400' :
-                              'bg-blue-500/15 text-blue-400'
-                            }>
+                            <Badge variant="secondary" className={netBadgeClass}>
                               {result === 'Win' ? (lang === 'ar' ? 'ربح' : result) :
                                result === 'Loss' ? (lang === 'ar' ? 'خسارة' : result) :
                                result === 'Breakeven' ? (lang === 'ar' ? 'تعادل' : result) : result}

@@ -77,6 +77,12 @@ function resultBadgeClass(result: string): string {
   }
 }
 
+function netPnlBadgeClass(netPnl: number): string {
+  if (netPnl > 0) return 'bg-profit/20 text-profit border-profit/30';
+  if (netPnl < 0) return 'bg-loss/20 text-loss border-loss/30';
+  return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+}
+
 function resultLabel(result: string, lang: 'ar' | 'fr' | 'en'): string {
   const map: Record<string, Record<string, string>> = {
     Win:                  { ar: 'ربح',         fr: 'Gain',    en: 'Win' },
@@ -2036,7 +2042,7 @@ const TradesPage = () => {
                         {/* Result */}
                         <TableCell>
                           {result ? (
-                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${resultBadgeClass(result)}`}>
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${netPnlBadgeClass(netPnl)}`}>
                               {resultLabel(result, lang)}
                             </span>
                           ) : (
