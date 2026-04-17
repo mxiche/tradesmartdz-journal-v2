@@ -12,7 +12,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,8 +39,7 @@ function formatTimeAgo(isoString: string): string {
 const SettingsPage = () => {
   const { t, language, setLanguage } = useLanguage();
   const lang = language as 'ar' | 'fr' | 'en';
-  const { theme, toggleTheme } = useTheme();
-  const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
+const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
   const navigate = useNavigate();
   const isTrial = userStatus === 'trial';
   const isPro = userStatus === 'active';
@@ -446,14 +444,6 @@ const SettingsPage = () => {
                     <SelectItem value="en">🇬🇧 English</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{t('theme')}</p>
-                  <p className="text-sm text-muted-foreground">{theme === 'dark' ? t('dark') : t('light')}</p>
-                </div>
-                <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} />
               </div>
 
               <div className="flex items-center justify-between">

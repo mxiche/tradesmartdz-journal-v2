@@ -654,17 +654,18 @@ const AnalyticsPage = () => {
 
   const renderCustomLabel = (props: any) => {
     const { x, y, width, height, value } = props;
+    if (!value) return null;
     const isNegative = value < 0;
-    const label = `${value >= 0 ? '+' : '-'}$${Math.abs(value).toFixed(0)}`;
+    const label = `${value >= 0 ? '+' : ''}$${Math.abs(value)}`;
     return (
       <text
         x={isNegative ? x - 8 : x + width + 8}
         y={y + height / 2}
+        dy={4}
         textAnchor={isNegative ? 'end' : 'start'}
-        dominantBaseline="middle"
-        fontSize={11}
-        fontWeight={700}
-        fill={value >= 0 ? '#10b981' : '#ef4444'}
+        fontSize={12}
+        fontWeight={600}
+        fill={isNegative ? '#ef4444' : '#0d9488'}
       >
         {label}
       </text>
@@ -1029,7 +1030,7 @@ const AnalyticsPage = () => {
               <BarChart
                 layout="vertical"
                 data={symbolData}
-                margin={{ top: 8, right: 70, left: 70, bottom: 8 }}
+                margin={{ top: 8, right: 80, left: 80, bottom: 8 }}
                 cursor={false}
               >
                 <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} horizontal={false} />

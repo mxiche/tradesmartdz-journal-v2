@@ -2159,7 +2159,7 @@ const TradesPage = () => {
 
       {/* Add Trade Dialog */}
       <Dialog open={addOpen} onOpenChange={(open) => { setAddOpen(open); if (!open) resetForm(); }}>
-        <DialogContent className="max-h-[92vh] flex flex-col p-0 sm:overflow-hidden sm:max-w-lg">
+        <DialogContent className="max-h-[92vh] flex flex-col p-0 sm:overflow-hidden sm:max-w-lg max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:rounded-t-3xl max-sm:rounded-b-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom duration-300 ease-out">
           <div ref={addSheetRef} className="flex flex-col flex-1 min-h-0">
           {/* Mobile drag handle — swipe to dismiss */}
           <div

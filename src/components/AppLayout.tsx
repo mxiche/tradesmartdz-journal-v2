@@ -8,7 +8,7 @@ import {
   Bell, X, Globe, LogOut, LayoutDashboard, TrendingUp,
   BarChart2, BookOpen, Calendar, Bot, Link2, Settings,
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 const NAV_ITEMS = [
   { icon: LayoutDashboard, label: { ar: 'الرئيسية',   fr: 'Tableau de bord', en: 'Dashboard' }, path: '/dashboard' },
@@ -29,6 +29,71 @@ export default function AppLayout() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const notifications = useMemo(() => {
+    const items: {
+      id: string;
+      type: 'trial' | 'streak' | 'goal' | 'info';
+      title: string;
+      message: string;
+      time: string;
+      read: boolean;
+    }[] = [];
+
+    if (userStatus === 'trial' && trialDaysRemaining !== null && trialDaysRemaining <= 3) {
+      items.push({
+        id: 'trial-warning',
+        type: 'trial',
+        title: language === 'ar' ? '⚡ تجربتك تنتهي قريباً' :
+               language === 'fr' ? '⚡ Essai bientôt terminé' :
+               '⚡ Trial ending soon',
+        message: language === 'ar'
+          ? `متبقي ${trialDaysRemaining} أيام فقط — اشترك الآن`
+          : language === 'fr'
+          ? `${trialDaysRemaining} jours restants — Abonnez-vous`
+          : `${trialDaysRemaining} days left — Subscribe now`,
+        time: '',
+        read: false,
+      });
+    }
+
+    if (userStatus === 'expired') {
+      items.push({
+        id: 'trial-expired',
+        type: 'trial',
+        title: language === 'ar' ? '❌ انتهت فترة التجربة' :
+               language === 'fr' ? '❌ Essai terminé' :
+               '❌ Trial expired',
+        message: language === 'ar'
+          ? 'اشترك في Pro للوصول لجميع المميزات'
+          : language === 'fr'
+          ? 'Abonnez-vous à Pro pour accéder à toutes les fonctionnalités'
+          : 'Subscribe to Pro to access all features',
+        time: '',
+        read: false,
+      });
+    }
+
+    items.push({
+      id: 'welcome',
+      type: 'info',
+      title: language === 'ar' ? '👋 مرحباً بك في TradeSmartDz' :
+             language === 'fr' ? '👋 Bienvenue sur TradeSmartDz' :
+             '👋 Welcome to TradeSmartDz',
+      message: language === 'ar'
+        ? 'سجّل صفقاتك يومياً لتحسين أدائك'
+        : language === 'fr'
+        ? 'Enregistrez vos trades quotidiennement'
+        : 'Log your trades daily to improve performance',
+      time: '',
+      read: true,
+    });
+
+    return items;
+  }, [userStatus, trialDaysRemaining, language]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   const lang = language as 'ar' | 'fr' | 'en';
   const isRtl = language === 'ar';
@@ -106,11 +171,11 @@ export default function AppLayout() {
             {/* Right: bell + avatar */}
             <div className="flex items-center gap-2">
               <button
+                onPointerDown={() => { setShowNotifications(!showNotifications); setMobileMenuOpen(false); }}
                 className="relative w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center active:bg-gray-100 transition-colors"
-                onClick={() => navigate('/settings?tab=subscription')}
               >
                 <Bell className="w-4 h-4 text-gray-600" />
-                {(daysLeft <= 2 || userStatus === 'expired') && (
+                {unreadCount > 0 && (
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
                 )}
               </button>
@@ -127,6 +192,55 @@ export default function AppLayout() {
           </div>
         </div>
       </header>
+
+      {/* ── Notification panel (mobile) ── */}
+      {showNotifications && (
+        <div
+          className="fixed inset-0 z-40 md:hidden"
+          onPointerDown={() => setShowNotifications(false)}
+        >
+          <div
+            className="absolute top-16 left-0 right-0 bg-white border-b border-gray-100 shadow-lg animate-in slide-in-from-top duration-200"
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50">
+              <p className="font-bold text-gray-900 text-sm">
+                {language === 'ar' ? 'الإشعارات' : language === 'fr' ? 'Notifications' : 'Notifications'}
+              </p>
+              {unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+            <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+              {notifications.map(notif => (
+                <div
+                  key={notif.id}
+                  className={`px-4 py-3 flex items-start gap-3 ${!notif.read ? 'bg-teal-50/50' : 'bg-white'}`}
+                  onPointerDown={() => {
+                    if (notif.type === 'trial') {
+                      setShowNotifications(false);
+                      navigate('/settings?tab=subscription');
+                    }
+                  }}
+                >
+                  <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${!notif.read ? 'bg-teal-500' : 'bg-transparent'}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 leading-snug">{notif.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">{notif.message}</p>
+                  </div>
+                  {notif.type === 'trial' && (
+                    <span className="text-xs text-teal-500 font-bold flex-shrink-0">
+                      {language === 'ar' ? 'ترقية ←' : 'Upgrade →'}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════════════
           MOBILE FULLSCREEN MENU
@@ -333,6 +447,27 @@ export default function AppLayout() {
               </span>
             </div>
           </div>
+
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            title={!sidebarExpanded ? 'Notifications' : undefined}
+            className="relative flex items-center gap-3 px-3 py-2.5 w-full rounded-xl text-gray-400 hover:bg-gray-50 hover:text-gray-700 transition-all duration-200 mt-1"
+          >
+            <Bell className="w-4 h-4 flex-shrink-0" />
+            {unreadCount > 0 && (
+              <span className="absolute top-2 left-6 w-2 h-2 bg-red-500 rounded-full" />
+            )}
+            <span className={`text-sm font-semibold whitespace-nowrap transition-all duration-200 overflow-hidden ${
+              sidebarExpanded ? 'opacity-100 max-w-full' : 'opacity-0 max-w-0'
+            }`}>
+              {language === 'ar' ? 'الإشعارات' : language === 'fr' ? 'Notifications' : 'Notifications'}
+              {unreadCount > 0 && (
+                <span className="ms-2 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </span>
+          </button>
 
           <button
             onClick={handleLogout}
