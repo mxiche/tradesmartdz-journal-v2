@@ -554,22 +554,39 @@ const AnalyticsPage = () => {
 
       console.log('Certificate dimensions:', img.width, img.height);
 
-      const drawText = (
+      const drawTextFit = (
         text: string,
         x: number,
         y: number,
+        maxWidth: number,
         fontSize: number,
         color: string,
         align: CanvasTextAlign = 'center',
         fontWeight = 'bold',
       ) => {
-        ctx.font = `${fontWeight} ${fontSize}px Arial, sans-serif`;
+        let size = fontSize;
+        ctx.font = `${fontWeight} ${size}px Arial, sans-serif`;
+        while (ctx.measureText(text).width > maxWidth && size > 16) {
+          size -= 2;
+          ctx.font = `${fontWeight} ${size}px Arial, sans-serif`;
+        }
         ctx.fillStyle = color;
         ctx.textAlign = align;
         ctx.fillText(text, x, y);
       };
 
-      const name = fullName || user?.email?.split('@')[0] || 'Trader';
+      // FIX 1: fetch full name from profiles table
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user?.id)
+        .maybeSingle();
+
+      const name = (profileData?.full_name as string)?.trim() ||
+        (user?.user_metadata?.full_name as string)?.trim() ||
+        user?.email?.split('@')[0] ||
+        'Trader';
+
       const tradesStr = String(certStats.totalTrades);
       const winRateStr = `${certStats.winRate}%`;
       const pnl = `${certStats.totalPnl >= 0 ? '+' : ''}$${Number(certStats.totalPnl).toFixed(2)}`;
@@ -590,22 +607,24 @@ const AnalyticsPage = () => {
       const H = canvas.height;
       const scaleY = H / 892;
 
-      // Trader name — centered, upper middle
-      drawText(name.toUpperCase(), W * 0.5, H * 0.42, Math.round(52 * scaleY), '#0f172a', 'center', '900');
+      // Trader name — between the two teal lines
+      drawTextFit(name.toUpperCase(), W * 0.5, H * 0.385, W * 0.55,
+        Math.round(48 * scaleY), '#0f172a', 'center', '900');
 
-      // Row 1: Total Trades | Win Rate | Total P&L
-      drawText(tradesStr,  W * 0.183, H * 0.595, Math.round(36 * scaleY), '#0f172a',  'center', 'bold');
-      drawText(winRateStr, W * 0.5,   H * 0.595, Math.round(36 * scaleY), '#14b8a6',  'center', 'bold');
-      drawText(pnl, W * 0.817, H * 0.595, Math.round(36 * scaleY),
-        certStats.totalPnl >= 0 ? '#0d9488' : '#dc2626', 'center', 'bold');
+      // Row 1: Total Trades | Win Rate | Total P&L (lower half of each box)
+      drawTextFit(tradesStr,  W * 0.183, H * 0.625, W * 0.22, Math.round(40 * scaleY), '#0f172a',  'center', 'bold');
+      drawTextFit(winRateStr, W * 0.5,   H * 0.625, W * 0.22, Math.round(40 * scaleY), '#14b8a6',  'center', 'bold');
+      drawTextFit(pnl, W * 0.817, H * 0.625, W * 0.25,
+        Math.round(40 * scaleY), certStats.totalPnl >= 0 ? '#0d9488' : '#dc2626', 'center', 'bold');
 
-      // Row 2: Best Trade | Profit Factor | Trading Days
-      drawText(best,        W * 0.183, H * 0.73, Math.round(36 * scaleY), '#0d9488', 'center', 'bold');
-      drawText(pf,          W * 0.5,   H * 0.73, Math.round(36 * scaleY), '#0f172a', 'center', 'bold');
-      drawText(tradingDays, W * 0.817, H * 0.73, Math.round(36 * scaleY), '#0f172a', 'center', 'bold');
+      // Row 2: Best Trade | Profit Factor | Trading Days (lower half of each box)
+      drawTextFit(best,        W * 0.183, H * 0.775, W * 0.22, Math.round(40 * scaleY), '#0d9488', 'center', 'bold');
+      drawTextFit(pf,          W * 0.5,   H * 0.775, W * 0.22, Math.round(40 * scaleY), '#0f172a', 'center', 'bold');
+      drawTextFit(tradingDays, W * 0.817, H * 0.775, W * 0.22, Math.round(40 * scaleY), '#0f172a', 'center', 'bold');
 
-      // Issued date — bottom
-      drawText(dateStr, W * 0.88, H * 0.895, Math.round(14 * scaleY), '#64748b', 'left', 'normal');
+      // Issued date — bottom right after "Issued: " text on template
+      drawTextFit(dateStr, W * 0.83, H * 0.915, W * 0.35,
+        Math.round(13 * scaleY), '#64748b', 'left', 'normal');
 
       console.log('Certificate generated successfully', {
         width: W, height: H,
