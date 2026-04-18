@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check, CheckCircle, Lock } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check, CheckCircle, Lock, BookOpen } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
@@ -162,6 +162,19 @@ type Trade = Tables<'trades'>;
 type Account = Tables<'mt5_accounts'>;
 
 const DEFAULT_TAGS = ['FVG', 'IFVG', 'Liquidity Sweep', 'Order Block', 'BOS/CHoCH', 'MSS', 'Fair Value Gap + Sweep'];
+
+export const EMOTIONS = [
+  { key: 'calm',        emoji: '😌', color: '#22c55e' },
+  { key: 'confident',   emoji: '💪', color: '#3b82f6' },
+  { key: 'fearful',     emoji: '😨', color: '#f97316' },
+  { key: 'greedy',      emoji: '🤑', color: '#eab308' },
+  { key: 'frustrated',  emoji: '😤', color: '#ef4444' },
+  { key: 'excited',     emoji: '🚀', color: '#a855f7' },
+  { key: 'bored',       emoji: '😐', color: '#6b7280' },
+  { key: 'neutral',     emoji: '😶', color: '#94a3b8' },
+] as const;
+
+export type EmotionKey = typeof EMOTIONS[number]['key'];
 
 // ── MT5 HTML parser ─────────────────────────────────────────────────────────
 
@@ -1238,6 +1251,19 @@ const TradesPage = () => {
   const [shareOpen, setShareOpen] = useState(false);
   const shareCardRef = useRef<HTMLDivElement>(null);
 
+  // Strategy Playbook
+  const [strategies, setStrategies] = useState<any[]>([]);
+  const [showPlaybookModal, setShowPlaybookModal] = useState(false);
+  const [showStrategyModal, setShowStrategyModal] = useState(false);
+  const [editingStrategy, setEditingStrategy] = useState<any | null>(null);
+  const [strategyForm, setStrategyForm] = useState({ name: '', description: '', rules: '', sessions: '', symbols: '', color: '#3b82f6' });
+  const [savingStrategy, setSavingStrategy] = useState(false);
+
+  // Edit panel emotion/plan fields
+  const [editEmotion, setEditEmotion] = useState<string | null>(null);
+  const [editFollowedRules, setEditFollowedRules] = useState<boolean | null>(null);
+  const [editStrategyId, setEditStrategyId] = useState<string | null>(null);
+
   // Derived values for the detail panel — computed from edit state
   const pnlNum  = useMemo(() => parseFloat(editProfit) || 0, [editProfit]);
   const riskNum = useMemo(() => parseFloat(editRisk) || 0, [editRisk]);
@@ -1394,6 +1420,9 @@ const TradesPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [addScreenshotFile, setAddScreenshotFile] = useState<File | null>(null);
   const addFileRef = useRef<HTMLInputElement>(null);
+  const [addEmotion, setAddEmotion] = useState<string | null>(null);
+  const [addFollowedRules, setAddFollowedRules] = useState<boolean | null>(null);
+  const [addStrategyId, setAddStrategyId] = useState<string | null>(null);
   const [form, setForm] = useState({
     symbol: '',
     direction: '' as 'BUY' | 'SELL' | '',
@@ -1430,6 +1459,9 @@ const TradesPage = () => {
       notes: '', account_id: '',
     });
     setAddScreenshotFile(null);
+    setAddEmotion(null);
+    setAddFollowedRules(null);
+    setAddStrategyId(null);
   };
 
   const { sheetRef: addSheetRef, onTouchStart: addTouchStart, onTouchMove: addTouchMove, onTouchEnd: addTouchEnd } = useSwipeToDismiss(() => { setAddOpen(false); resetForm(); });
@@ -1485,6 +1517,9 @@ const TradesPage = () => {
       notes: notesValue,
       account_id: form.account_id || null,
       volume: 0,
+      emotion_tag: addEmotion || null,
+      followed_rules: addFollowedRules,
+      strategy_id: addStrategyId || null,
     };
 
     const { data: inserted, error } = await supabase.from('trades').insert(insertPayload).select().single();
@@ -1576,18 +1611,20 @@ const TradesPage = () => {
       .upsert({ user_id: user.id, custom_tags: tags }, { onConflict: 'user_id' });
   };
 
-  // Load trades, accounts, and tag list from Supabase
+  // Load trades, accounts, tag list, and strategies from Supabase
   useEffect(() => {
     if (!user) return;
     const fetchAll = async () => {
       setLoading(true);
-      const [{ data: tradesData }, { data: prefsData }, { data: accountsData }] = await Promise.all([
+      const [{ data: tradesData }, { data: prefsData }, { data: accountsData }, { data: strategiesData }] = await Promise.all([
         supabase.from('trades').select('*').eq('user_id', user.id).order('close_time', { ascending: false }),
         supabase.from('user_preferences').select('custom_tags').eq('user_id', user.id).maybeSingle(),
         supabase.from('mt5_accounts').select('id, firm, login, account_name').eq('user_id', user.id),
+        (supabase.from('strategies') as any).select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       ]);
       setTrades(tradesData ?? []);
       setAccounts((accountsData ?? []) as Account[]);
+      setStrategies(strategiesData ?? []);
 
       // custom_tags is jsonb — Supabase returns it as a JS array directly
       const stored = prefsData?.custom_tags;
@@ -1628,6 +1665,9 @@ const TradesPage = () => {
     setIsDragging(false);
     setCompressedSize(null);
     setShareOpen(false);
+    setEditEmotion((trade as any).emotion_tag ?? null);
+    setEditFollowedRules((trade as any).followed_rules ?? null);
+    setEditStrategyId((trade as any).strategy_id ?? null);
   };
 
   const toggleTag = (tag: string) => {
@@ -1690,18 +1730,21 @@ const TradesPage = () => {
     const duration = (editOpenTime && editCloseTime) ? computeDuration(editOpenTime, editCloseTime) || null : selectedTrade.duration;
 
     const updatePayload: Record<string, unknown> = {
-      symbol:     editSymbol.trim().toUpperCase() || selectedTrade.symbol,
-      direction:  editDirection,
-      profit:     finalProfit,
-      commission: parseFloat(editCommission) || null,
-      setup_tag:  setupTag,
-      notes:      finalNotes,
-      session:    (editSession && editSession !== 'none') ? editSession : null,
-      rating:     editRating || null,
-      reviewed:   editReviewed,
-      open_time:  editOpenTime ? new Date(editOpenTime).toISOString() : selectedTrade.open_time,
-      close_time: editCloseTime ? new Date(editCloseTime).toISOString() : selectedTrade.close_time,
+      symbol:        editSymbol.trim().toUpperCase() || selectedTrade.symbol,
+      direction:     editDirection,
+      profit:        finalProfit,
+      commission:    parseFloat(editCommission) || null,
+      setup_tag:     setupTag,
+      notes:         finalNotes,
+      session:       (editSession && editSession !== 'none') ? editSession : null,
+      rating:        editRating || null,
+      reviewed:      editReviewed,
+      open_time:     editOpenTime ? new Date(editOpenTime).toISOString() : selectedTrade.open_time,
+      close_time:    editCloseTime ? new Date(editCloseTime).toISOString() : selectedTrade.close_time,
       duration,
+      emotion_tag:   editEmotion || null,
+      followed_rules: editFollowedRules,
+      strategy_id:   editStrategyId || null,
     };
 
     const { error } = await supabase.from('trades').update(updatePayload as any).eq('id', selectedTrade.id);
@@ -1714,6 +1757,36 @@ const TradesPage = () => {
       toast.success(lang === 'ar' ? 'تم الحفظ' : lang === 'fr' ? 'Enregistré' : 'Saved!');
       setSelectedTrade(null);
     }
+  };
+
+  const handleSaveStrategy = async () => {
+    if (!user || !strategyForm.name.trim()) return;
+    setSavingStrategy(true);
+    const payload = {
+      user_id: user.id,
+      name: strategyForm.name.trim(),
+      description: strategyForm.description.trim() || null,
+      rules: strategyForm.rules.trim() ? strategyForm.rules.split('\n').map(r => r.trim()).filter(Boolean) : [],
+      sessions: strategyForm.sessions.trim() ? strategyForm.sessions.split(',').map(s => s.trim()).filter(Boolean) : [],
+      symbols: strategyForm.symbols.trim() ? strategyForm.symbols.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : [],
+      color: strategyForm.color,
+    };
+    if (editingStrategy) {
+      const { data } = await (supabase.from('strategies') as any).update(payload).eq('id', editingStrategy.id).select().single();
+      setStrategies(prev => prev.map(s => s.id === editingStrategy.id ? data : s));
+    } else {
+      const { data } = await (supabase.from('strategies') as any).insert(payload).select().single();
+      if (data) setStrategies(prev => [data, ...prev]);
+    }
+    setSavingStrategy(false);
+    setShowStrategyModal(false);
+    setEditingStrategy(null);
+    setStrategyForm({ name: '', description: '', rules: '', sessions: '', symbols: '', color: '#3b82f6' });
+  };
+
+  const handleDeleteStrategy = async (id: string) => {
+    await (supabase.from('strategies') as any).delete().eq('id', id);
+    setStrategies(prev => prev.filter(s => s.id !== id));
   };
 
   // Quick rating/reviewed save (from table row or panel toggle)
@@ -1873,6 +1946,9 @@ const TradesPage = () => {
           <Button size="sm" className="gradient-primary text-primary-foreground gap-1" onClick={() => { if (checkMonthlyLimit()) setAddOpen(true); }}>
             <Plus className="h-4 w-4" />
             {lang === 'ar' ? 'إضافة صفقة' : lang === 'fr' ? 'Ajouter' : 'Add Trade'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowPlaybookModal(true)}>
+            <BookOpen className="me-2 h-4 w-4" /> {t('strategy_playbook')}
           </Button>
           <Button variant="outline" size="sm" onClick={() => { if (checkMonthlyLimit()) setImportOpen(true); }}>
             <Upload className="me-2 h-4 w-4" /> {t('importMt5')}
@@ -2076,13 +2152,19 @@ const TradesPage = () => {
 
                         {/* Setup */}
                         <TableCell>
-                          {setup ? (
-                            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-                              {setup.length > 14 ? setup.slice(0, 14) + '…' : setup}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {setup ? (
+                              <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                                {setup.length > 14 ? setup.slice(0, 14) + '…' : setup}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                            {(trade as any).emotion_tag && (() => {
+                              const em = EMOTIONS.find(e => e.key === (trade as any).emotion_tag);
+                              return em ? <span title={em.key} className="text-sm leading-none">{em.emoji}</span> : null;
+                            })()}
+                          </div>
                         </TableCell>
 
                         {/* Notes preview */}
@@ -2415,6 +2497,73 @@ const TradesPage = () => {
               />
             </div>
 
+            {/* Emotion */}
+            <div className="space-y-1.5">
+              <Label>{t('emotion_tag')}</Label>
+              <div className="flex flex-wrap gap-2">
+                {EMOTIONS.map(em => (
+                  <button
+                    key={em.key}
+                    type="button"
+                    onClick={() => setAddEmotion(addEmotion === em.key ? null : em.key)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      addEmotion === em.key
+                        ? 'border-transparent text-white'
+                        : 'border-border bg-secondary text-muted-foreground hover:border-primary/40'
+                    }`}
+                    style={addEmotion === em.key ? { backgroundColor: em.color } : {}}
+                  >
+                    <span>{em.emoji}</span>
+                    <span>{t(`emotion_${em.key}` as any)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Followed Rules */}
+            <div className="space-y-1.5">
+              <Label>{t('followed_rules')}</Label>
+              <div className="flex gap-2">
+                {([true, false] as const).map(val => (
+                  <button
+                    key={String(val)}
+                    type="button"
+                    onClick={() => setAddFollowedRules(addFollowedRules === val ? null : val)}
+                    className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition-colors ${
+                      addFollowedRules === val
+                        ? val ? 'border-profit bg-profit/20 text-profit' : 'border-loss bg-loss/20 text-loss'
+                        : 'border-border bg-card text-muted-foreground hover:border-primary/40'
+                    }`}
+                  >
+                    {val ? t('yes_followed') : t('no_followed')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Strategy */}
+            {strategies.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>{t('strategy_label')}</Label>
+                <Select value={addStrategyId ?? 'none'} onValueChange={v => setAddStrategyId(v === 'none' ? null : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={lang === 'ar' ? 'اختر الاستراتيجية' : lang === 'fr' ? 'Choisir' : 'Select strategy'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">—</SelectItem>
+                    {strategies.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: s.color ?? '#3b82f6' }} />
+                          {s.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Screenshot upload */}
             <div className="space-y-1.5">
               <Label>
@@ -2479,6 +2628,122 @@ const TradesPage = () => {
           </div>
           </div>
           </div>{/* end addSheetRef */}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Strategy Playbook Modal ── */}
+      <Dialog open={showPlaybookModal} onOpenChange={setShowPlaybookModal}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              {t('strategy_playbook')}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {strategies.length === 0 ? (
+              <p className="text-center text-muted-foreground py-6 text-sm">
+                {lang === 'ar' ? 'لا توجد استراتيجيات بعد' : lang === 'fr' ? 'Aucune stratégie' : 'No strategies yet'}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {strategies.map(s => {
+                  const tradeCnt = trades.filter(tr => (tr as any).strategy_id === s.id).length;
+                  const wins = trades.filter(tr => (tr as any).strategy_id === s.id && tr.profit != null && tr.profit > 0).length;
+                  const wr = tradeCnt > 0 ? Math.round((wins / tradeCnt) * 100) : null;
+                  return (
+                    <div key={s.id} className="flex items-center justify-between rounded-xl border border-border bg-secondary/20 p-3">
+                      <div className="flex items-center gap-3">
+                        <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: s.color ?? '#3b82f6' }} />
+                        <div>
+                          <p className="font-semibold text-sm">{s.name}</p>
+                          {s.description && <p className="text-xs text-muted-foreground">{s.description}</p>}
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {tradeCnt} {t('strategy_no_trades')}
+                            {wr !== null && <span className="ms-2 text-profit">{wr}% WR</span>}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button type="button" onClick={() => {
+                          setEditingStrategy(s);
+                          setStrategyForm({
+                            name: s.name, description: s.description ?? '',
+                            rules: (s.rules ?? []).join('\n'),
+                            sessions: (s.sessions ?? []).join(', '),
+                            symbols: (s.symbols ?? []).join(', '),
+                            color: s.color ?? '#3b82f6',
+                          });
+                          setShowStrategyModal(true);
+                        }} className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground transition-colors">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button type="button" onClick={() => handleDeleteStrategy(s.id)} className="flex h-7 w-7 items-center justify-center rounded-lg border border-destructive/30 text-destructive/60 hover:bg-destructive/10 hover:text-destructive transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <Button className="w-full gap-2" onClick={() => {
+              setEditingStrategy(null);
+              setStrategyForm({ name: '', description: '', rules: '', sessions: '', symbols: '', color: '#3b82f6' });
+              setShowStrategyModal(true);
+            }}>
+              <Plus className="h-4 w-4" /> {t('strategy_new')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Strategy Create/Edit Modal ── */}
+      <Dialog open={showStrategyModal} onOpenChange={v => { setShowStrategyModal(v); if (!v) setEditingStrategy(null); }}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingStrategy ? t('strategy_edit') : t('strategy_new')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>{t('strategy_name')} <span className="text-destructive">*</span></Label>
+              <Input placeholder="e.g. FVG Reversal" value={strategyForm.name} onChange={e => setStrategyForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('strategy_description')}</Label>
+              <Textarea rows={2} value={strategyForm.description} onChange={e => setStrategyForm(f => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('strategy_rules')} <span className="text-xs text-muted-foreground">({lang === 'ar' ? 'سطر لكل قاعدة' : 'one per line'})</span></Label>
+              <Textarea rows={4} placeholder="Wait for liquidity sweep&#10;Enter on FVG retest&#10;RR ≥ 2" value={strategyForm.rules} onChange={e => setStrategyForm(f => ({ ...f, rules: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>{t('strategy_sessions')} <span className="text-xs text-muted-foreground">(,)</span></Label>
+                <Input placeholder="London, New York" value={strategyForm.sessions} onChange={e => setStrategyForm(f => ({ ...f, sessions: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t('strategy_symbols')} <span className="text-xs text-muted-foreground">(,)</span></Label>
+                <Input placeholder="EURUSD, GBPUSD" value={strategyForm.symbols} onChange={e => setStrategyForm(f => ({ ...f, symbols: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t('strategy_color')}</Label>
+              <div className="flex items-center gap-3">
+                <input type="color" value={strategyForm.color} onChange={e => setStrategyForm(f => ({ ...f, color: e.target.value }))} className="h-9 w-14 cursor-pointer rounded border border-border bg-transparent p-0.5" />
+                <span className="text-xs text-muted-foreground">{strategyForm.color}</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="pt-4">
+            <Button variant="outline" onClick={() => { setShowStrategyModal(false); setEditingStrategy(null); }}>
+              {lang === 'ar' ? 'إلغاء' : lang === 'fr' ? 'Annuler' : 'Cancel'}
+            </Button>
+            <Button onClick={handleSaveStrategy} disabled={savingStrategy || !strategyForm.name.trim()}>
+              {savingStrategy && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+              {t('strategy_save')}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -2663,6 +2928,93 @@ const TradesPage = () => {
                         {addingTag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                       </Button>
                     </div>
+                  </div>
+
+                  {/* ── Section: Psychology ── */}
+                  <div className="rounded-xl border border-border bg-secondary/20 p-4 space-y-3">
+                    <Label className="text-sm font-semibold">{t('psychology_title')}</Label>
+
+                    {/* Emotion */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">{t('emotion_tag')}</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {EMOTIONS.map(em => (
+                          <button
+                            key={em.key}
+                            type="button"
+                            onClick={() => setEditEmotion(editEmotion === em.key ? null : em.key)}
+                            className={`flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                              editEmotion === em.key
+                                ? 'border-transparent text-white'
+                                : 'border-border bg-secondary text-muted-foreground hover:border-primary/40'
+                            }`}
+                            style={editEmotion === em.key ? { backgroundColor: em.color } : {}}
+                          >
+                            <span>{em.emoji}</span>
+                            <span>{t(`emotion_${em.key}` as any)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Followed Rules */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">{t('followed_rules')}</Label>
+                      <div className="flex gap-2">
+                        {([true, false] as const).map(val => (
+                          <button
+                            key={String(val)}
+                            type="button"
+                            onClick={() => setEditFollowedRules(editFollowedRules === val ? null : val)}
+                            className={`flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-colors ${
+                              editFollowedRules === val
+                                ? val ? 'border-profit bg-profit/20 text-profit' : 'border-loss bg-loss/20 text-loss'
+                                : 'border-border bg-card text-muted-foreground hover:border-primary/40'
+                            }`}
+                          >
+                            {val ? t('yes_followed') : t('no_followed')}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Strategy */}
+                    {strategies.length > 0 && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">{t('strategy_label')}</Label>
+                        <Select value={editStrategyId ?? 'none'} onValueChange={v => setEditStrategyId(v === 'none' ? null : v)}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">—</SelectItem>
+                            {strategies.map(s => (
+                              <SelectItem key={s.id} value={s.id}>
+                                <span className="flex items-center gap-2">
+                                  <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: s.color ?? '#3b82f6' }} />
+                                  {s.name}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {editStrategyId && (() => {
+                          const strat = strategies.find(s => s.id === editStrategyId);
+                          return strat ? (
+                            <div className="rounded-lg border border-border bg-card p-2 text-xs space-y-1">
+                              <div className="flex items-center gap-2 font-semibold">
+                                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: strat.color }} />
+                                {strat.name}
+                              </div>
+                              {strat.description && <p className="text-muted-foreground">{strat.description}</p>}
+                              {strat.rules?.length > 0 && (
+                                <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
+                                  {strat.rules.map((r: string, i: number) => <li key={i}>{r}</li>)}
+                                </ul>
+                              )}
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                    )}
                   </div>
 
                   {/* ── Section: Rating & Review ── */}

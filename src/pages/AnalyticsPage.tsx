@@ -15,6 +15,7 @@ import { Tables } from '@/integrations/supabase/types';
 import { Loader2, FileDown, Calendar, Zap, Target, X as XIcon } from 'lucide-react';
 import { t } from '@/lib/i18n';
 import { toast } from 'sonner';
+import { EMOTIONS } from '@/pages/TradesPage';
 
 type Trade = Tables<'trades'>;
 type Account = Tables<'mt5_accounts'>;
@@ -646,6 +647,91 @@ const AnalyticsPage = () => {
     }
   };
 
+  // ── Psychology calculations ───────────────────────────────────
+  const psychologyStats = useMemo(() => {
+    const withEmotion = trades.filter(tr => (tr as any).emotion_tag);
+    const withPlan    = trades.filter(tr => (tr as any).followed_rules !== null && (tr as any).followed_rules !== undefined);
+    const followed    = withPlan.filter(tr => (tr as any).followed_rules === true);
+    const notFollowed = withPlan.filter(tr => (tr as any).followed_rules === false);
+
+    const sumPnl = (arr: Trade[]) => arr.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
+    const followedPnl    = sumPnl(followed);
+    const notFollowedPnl = sumPnl(notFollowed);
+    const adherenceRate  = withPlan.length > 0 ? Math.round((followed.length / withPlan.length) * 100) : null;
+
+    const emotionStats = EMOTIONS.map(em => {
+      const emTrades = trades.filter(tr => (tr as any).emotion_tag === em.key);
+      if (emTrades.length === 0) return null;
+      const wins = emTrades.filter(tr => (tr.profit ?? 0) > 0).length;
+      const wr   = Math.round((wins / emTrades.length) * 100);
+      const pnl  = sumPnl(emTrades);
+      return { key: em.key, emoji: em.emoji, color: em.color, count: emTrades.length, wr, pnl };
+    }).filter(Boolean) as { key: string; emoji: string; color: string; count: number; wr: number; pnl: number }[];
+
+    const sortedByWr = [...emotionStats].sort((a, b) => b.wr - a.wr);
+    const bestEmotion  = sortedByWr[0] ?? null;
+    const worstEmotion = sortedByWr[sortedByWr.length - 1] ?? null;
+
+    // Consistency Score (0–100), 4 factors × 25 pts each
+    // 1. Plan adherence rate (25 pts)
+    const planScore = adherenceRate !== null ? Math.round((adherenceRate / 100) * 25) : 0;
+
+    // 2. Emotion quality — % of trades with "positive" emotions (calm, confident)
+    const positiveKeys = ['calm', 'confident'];
+    const emotionQuality = withEmotion.length > 0
+      ? Math.round((withEmotion.filter(tr => positiveKeys.includes((tr as any).emotion_tag)).length / withEmotion.length) * 100)
+      : null;
+    const emotionScore = emotionQuality !== null ? Math.round((emotionQuality / 100) * 25) : 0;
+
+    // 3. Win rate stability — day-to-day variance (lower variance = higher score)
+    const dayWr: Record<string, { w: number; t: number }> = {};
+    trades.forEach(tr => {
+      if (!tr.close_time) return;
+      const d = new Date(tr.close_time).toDateString();
+      if (!dayWr[d]) dayWr[d] = { w: 0, t: 0 };
+      dayWr[d].t++;
+      if ((tr.profit ?? 0) > 0) dayWr[d].w++;
+    });
+    const dayWrVals = Object.values(dayWr).filter(v => v.t >= 1).map(v => v.w / v.t);
+    let wrStabilityScore = 0;
+    if (dayWrVals.length >= 2) {
+      const mean = dayWrVals.reduce((a, b) => a + b, 0) / dayWrVals.length;
+      const variance = dayWrVals.reduce((s, v) => s + (v - mean) ** 2, 0) / dayWrVals.length;
+      const std = Math.sqrt(variance);
+      wrStabilityScore = Math.round(Math.max(0, (1 - std) * 25));
+    } else if (dayWrVals.length === 1) {
+      wrStabilityScore = 25;
+    }
+
+    // 4. Trade consistency — trades per day variance
+    const tradesPerDay = Object.values(dayWr).map(v => v.t);
+    let tradeConsistencyScore = 0;
+    if (tradesPerDay.length >= 2) {
+      const mean = tradesPerDay.reduce((a, b) => a + b, 0) / tradesPerDay.length;
+      const variance = tradesPerDay.reduce((s, v) => s + (v - mean) ** 2, 0) / tradesPerDay.length;
+      const std = Math.sqrt(variance);
+      const cv = mean > 0 ? std / mean : 1;
+      tradeConsistencyScore = Math.round(Math.max(0, (1 - Math.min(cv, 1)) * 25));
+    } else if (tradesPerDay.length === 1) {
+      tradeConsistencyScore = 25;
+    }
+
+    const consistencyScore = planScore + emotionScore + wrStabilityScore + tradeConsistencyScore;
+    const factors = [
+      { label: t('consistency_plan'),   score: planScore,              max: 25 },
+      { label: t('consistency_emotion'), score: emotionScore,          max: 25 },
+      { label: t('consistency_wr'),     score: wrStabilityScore,       max: 25 },
+      { label: t('consistency_trades'), score: tradeConsistencyScore,  max: 25 },
+    ];
+
+    return {
+      adherenceRate, followedPnl, notFollowedPnl,
+      followedCount: followed.length, notFollowedCount: notFollowed.length,
+      emotionStats, bestEmotion, worstEmotion,
+      consistencyScore, factors,
+    };
+  }, [trades]);
+
   if (loading) {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
@@ -1016,6 +1102,124 @@ const AnalyticsPage = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </Section>
+      </div>
+
+      {/* ── SECTION 4.5: PSYCHOLOGY & CONSISTENCY ── */}
+      <div className="relative">
+      {!isPro && <ProLockOverlay feature={t('psychology_title')} />}
+      <Section title={t('psychology_title')}>
+        {trades.length === 0 ? <EmptyState msg={noDataMsg} /> : (
+          <div className="space-y-6">
+
+            {/* Consistency Score */}
+            <div className="rounded-xl border border-border bg-secondary/10 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold">{t('consistency_score')}</p>
+                <span className={`text-3xl font-black tabular-nums ${
+                  psychologyStats.consistencyScore >= 70 ? 'text-profit' :
+                  psychologyStats.consistencyScore >= 40 ? 'text-yellow-400' : 'text-loss'
+                }`}>{psychologyStats.consistencyScore}<span className="text-base font-normal text-muted-foreground">/100</span></span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-secondary overflow-hidden mb-4">
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ${
+                    psychologyStats.consistencyScore >= 70 ? 'bg-profit' :
+                    psychologyStats.consistencyScore >= 40 ? 'bg-yellow-400' : 'bg-loss'
+                  }`}
+                  style={{ width: `${psychologyStats.consistencyScore}%` }}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {psychologyStats.factors.map(f => (
+                  <div key={f.label} className="flex items-center justify-between rounded-lg bg-secondary/30 px-3 py-2">
+                    <span className="text-xs text-muted-foreground truncate">{f.label}</span>
+                    <span className="text-xs font-bold ms-2 shrink-0">{f.score}<span className="text-muted-foreground font-normal">/{f.max}</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Plan Adherence */}
+            {psychologyStats.adherenceRate !== null && (
+              <div className="rounded-xl border border-border bg-secondary/10 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">{t('plan_adherence')}</p>
+                  <span className={`text-xl font-bold ${psychologyStats.adherenceRate >= 60 ? 'text-profit' : 'text-loss'}`}>
+                    {psychologyStats.adherenceRate}%
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-profit/30 bg-profit/10 p-3 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">{t('yes_followed')} ({psychologyStats.followedCount})</p>
+                    <p className={`text-sm font-bold ${psychologyStats.followedPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      {psychologyStats.followedPnl >= 0 ? '+' : ''}${psychologyStats.followedPnl.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-loss/30 bg-loss/10 p-3 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">{t('no_followed')} ({psychologyStats.notFollowedCount})</p>
+                    <p className={`text-sm font-bold ${psychologyStats.notFollowedPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
+                      {psychologyStats.notFollowedPnl >= 0 ? '+' : ''}${psychologyStats.notFollowedPnl.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Emotion Performance Table */}
+            {psychologyStats.emotionStats.length > 0 && (
+              <div className="rounded-xl border border-border bg-secondary/10 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">{t('emotion_tag')}</p>
+                  <div className="flex gap-3 text-xs text-muted-foreground">
+                    {psychologyStats.bestEmotion && (
+                      <span className="flex items-center gap-1">
+                        <span>↑</span>
+                        <span>{psychologyStats.bestEmotion.emoji}</span>
+                        <span>{t(`emotion_${psychologyStats.bestEmotion.key}` as any)}</span>
+                      </span>
+                    )}
+                    {psychologyStats.worstEmotion && psychologyStats.worstEmotion.key !== psychologyStats.bestEmotion?.key && (
+                      <span className="flex items-center gap-1 text-loss">
+                        <span>↓</span>
+                        <span>{psychologyStats.worstEmotion.emoji}</span>
+                        <span>{t(`emotion_${psychologyStats.worstEmotion.key}` as any)}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        {[t('emotion_tag'), l.trades, l.winRate, l.totalPnl].map(h => (
+                          <th key={h} className="pb-2 text-start text-xs font-medium text-muted-foreground first:ps-0 px-2 first:px-0">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {psychologyStats.emotionStats.sort((a, b) => b.wr - a.wr).map(em => (
+                        <tr key={em.key} className="border-b border-border/40 hover:bg-secondary/20 transition-colors">
+                          <td className="py-2 flex items-center gap-1.5">
+                            <span>{em.emoji}</span>
+                            <span className="text-xs font-medium" style={{ color: em.color }}>{t(`emotion_${em.key}` as any)}</span>
+                          </td>
+                          <td className="py-2 px-2 text-xs text-muted-foreground">{em.count}</td>
+                          <td className="py-2 px-2">
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${em.wr >= 60 ? 'bg-[rgba(34,197,94,0.15)] text-[#22c55e]' : em.wr >= 40 ? 'bg-[rgba(234,179,8,0.15)] text-yellow-400' : 'bg-[rgba(239,68,68,0.15)] text-[#ef4444]'}`}>
+                              {em.wr}%
+                            </span>
+                          </td>
+                          <td className={`py-2 px-2 text-xs font-semibold ${em.pnl >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{fmtPnl(em.pnl)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Section>

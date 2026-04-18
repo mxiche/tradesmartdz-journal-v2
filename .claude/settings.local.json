@@ -5,7 +5,10 @@
       "Bash(cat \"c:\\\\Users\\\\pc\\\\Downloads\\\\tradesmartdz-journal-main \\(1\\)\\\\tradesmartdz-journal-main\\\\.gitignore\")",
       "Bash(git config:*)",
       "Bash(npx tsc:*)",
-      "Bash(ls \"c:\\\\Users\\\\pc\\\\Downloads\\\\tradesmartdz-journal-main \\(1\\)\\\\tradesmartdz-journal-main\\\\supabase\\\\migrations\"\")"
+      "Bash(ls \"c:\\\\Users\\\\pc\\\\Downloads\\\\tradesmartdz-journal-main \\(1\\)\\\\tradesmartdz-journal-main\\\\supabase\\\\migrations\"\")",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(curl -s \"https://vikqwycjqqoobteslbxp.supabase.co/functions/v1/forex-calendar\")"
     ]
   }
 }
