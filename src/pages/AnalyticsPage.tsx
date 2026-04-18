@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, ReferenceLine, LabelList,
+  PieChart, Pie, ReferenceLine,
+  AreaChart, Area,
 } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
 import { Loader2, FileDown, Calendar, Zap, Target, X as XIcon } from 'lucide-react';
@@ -738,26 +739,6 @@ const AnalyticsPage = () => {
 
   const noDataMsg = l.noData;
 
-  const renderBarLabel = (props: any) => {
-    const { x, y, width, height, value } = props;
-    if (value === null || value === undefined) return null;
-    const isNegative = value < 0;
-    const absVal = Math.abs(value);
-    const label = `${value >= 0 ? '+' : '-'}$${absVal}`;
-    return (
-      <text
-        x={isNegative ? x - 6 : x + Math.abs(width) + 6}
-        y={y + height / 2}
-        dy={5}
-        textAnchor={isNegative ? 'end' : 'start'}
-        fontSize={12}
-        fontWeight={700}
-        fill={isNegative ? '#ef4444' : '#0d9488'}
-      >
-        {label}
-      </text>
-    );
-  };
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -797,6 +778,88 @@ const AnalyticsPage = () => {
           </Button>
         </div>
       </div>
+
+      {/* ── SUMMARY BANNER ── */}
+      {trades.length >= 3 && (
+        <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-3xl p-5 text-white shadow-sm shadow-teal-100">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="text-teal-100 text-xs font-semibold uppercase tracking-wider mb-1">
+                {lang === 'ar' ? 'ملخص الفترة' : lang === 'fr' ? 'Résumé de la période' : 'Period Summary'}
+              </p>
+              <p className="text-2xl font-black">
+                {stats.totalPnl >= 0 ? '+' : ''}${stats.totalPnl.toFixed(2)}
+              </p>
+              <p className="text-teal-200 text-sm mt-0.5">
+                {trades.length} {lang === 'ar' ? 'صفقة' : lang === 'fr' ? 'trades' : 'trades'} · {stats.winRate.toFixed(1)}% {lang === 'ar' ? 'نسبة الفوز' : lang === 'fr' ? 'réussite' : 'win rate'}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-teal-100 text-xs font-semibold mb-1">
+                {lang === 'ar' ? 'معامل الربح' : lang === 'fr' ? 'Profit Factor' : 'Profit Factor'}
+              </p>
+              <p className="text-2xl font-black">
+                {stats.profitFactor === null ? '∞' : stats.profitFactor}
+              </p>
+            </div>
+          </div>
+
+          {/* Smart insights */}
+          {(() => {
+            const insights: string[] = [];
+
+            const bestSession = [...byTimeData].filter(s => s.count > 0).sort((a, b) => b.pnl - a.pnl)[0];
+            if (bestSession) {
+              insights.push(
+                lang === 'ar'
+                  ? `⏰ أفضل جلسة: ${bestSession.name} (+$${bestSession.pnl.toFixed(0)})`
+                  : lang === 'fr'
+                  ? `⏰ Meilleure session: ${bestSession.name} (+$${bestSession.pnl.toFixed(0)})`
+                  : `⏰ Best session: ${bestSession.name} (+$${bestSession.pnl.toFixed(0)})`
+              );
+            }
+
+            const bestDay = [...byDayData].filter(d => d.pnl > 0).sort((a, b) => b.pnl - a.pnl)[0];
+            if (bestDay) {
+              insights.push(
+                lang === 'ar'
+                  ? `📅 أفضل يوم: ${bestDay.name}`
+                  : lang === 'fr'
+                  ? `📅 Meilleur jour: ${bestDay.name}`
+                  : `📅 Best day: ${bestDay.name}`
+              );
+            }
+
+            if (stats.winRate >= 70) {
+              insights.push(
+                lang === 'ar'
+                  ? `🎯 أداء استثنائي! نسبة فوز ${stats.winRate.toFixed(0)}%`
+                  : lang === 'fr'
+                  ? `🎯 Performance exceptionnelle! ${stats.winRate.toFixed(0)}% de réussite`
+                  : `🎯 Outstanding performance! ${stats.winRate.toFixed(0)}% win rate`
+              );
+            } else if (stats.winRate < 45) {
+              insights.push(
+                lang === 'ar'
+                  ? `💡 ركز على الإعداد الجيد لتحسين نسبة الفوز`
+                  : lang === 'fr'
+                  ? `💡 Concentrez-vous sur la qualité des setups`
+                  : `💡 Focus on setup quality to improve win rate`
+              );
+            }
+
+            if (insights.length === 0) return null;
+
+            return (
+              <div className="space-y-1.5 pt-3 border-t border-teal-400/40">
+                {insights.slice(0, 2).map((insight, i) => (
+                  <p key={i} className="text-sm text-teal-100 leading-snug">{insight}</p>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* ── SECTION 1: INSIGHT CARDS ── */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -1230,42 +1293,82 @@ const AnalyticsPage = () => {
       {!isPro && <ProLockOverlay feature={l.symbolChart} />}
       <Section title={l.symbolChart}>
         {symbolData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
-          <div className="w-full overflow-hidden">
-            <ResponsiveContainer width="100%" height={Math.max(150, symbolData.length * 64)}>
-              <BarChart
-                layout="vertical"
-                data={symbolData}
-                margin={{ top: 8, right: 100, left: 80, bottom: 8 }}
-                cursor={false}
-              >
-                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} horizontal={false} />
-                <XAxis
-                  type="number"
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={11}
-                  tickFormatter={(v) => `$${v}`}
-                />
-                <YAxis
-                  dataKey="name"
-                  type="category"
-                  width={55}
-                  tick={{ fontSize: 12, fontWeight: 600 }}
-                  tickFormatter={(value) => value.length > 7 ? value.substring(0, 7) + '…' : value}
-                />
-                <Tooltip content={<CustomTooltip />} cursor={false} />
-                <ReferenceLine x={0} stroke="#6b7280" strokeOpacity={0.4} strokeDasharray="3 3" />
-                <Bar dataKey="pnl" name="PnL" radius={[0, 6, 6, 0]} cursor={false}>
-                  {symbolData.map((entry, index) => (
-                    <Cell
-                      key={index}
-                      fill={entry.pnl >= 0 ? '#10b981' : '#ef4444'}
-                      fillOpacity={0.9}
-                    />
-                  ))}
-                  <LabelList content={renderBarLabel} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="space-y-2 py-2">
+            {(() => {
+              const maxAbs = Math.max(...symbolData.map(d => Math.abs(d.pnl)), 1);
+              const positiveMax = Math.max(...symbolData.map(d => d.pnl > 0 ? d.pnl : 0), 1);
+              const negativeMax = Math.max(...symbolData.map(d => d.pnl < 0 ? Math.abs(d.pnl) : 0), 1);
+
+              return symbolData.map((item, i) => {
+                const isPositive = item.pnl >= 0;
+                const label = `${item.pnl >= 0 ? '+' : '-'}$${Math.abs(item.pnl).toLocaleString()}`;
+
+                return (
+                  <div key={i} className="flex items-center gap-3 group hover:bg-gray-50/80 rounded-xl px-2 py-1.5 transition-colors cursor-default">
+                    {/* Symbol name */}
+                    <div className="w-16 text-right flex-shrink-0">
+                      <span className="text-sm font-black text-gray-800 group-hover:text-gray-900">
+                        {item.name}
+                      </span>
+                    </div>
+
+                    {/* Bar container — split at center */}
+                    <div className="flex-1 flex items-center gap-0">
+                      {/* Negative side (left) */}
+                      <div className="flex-1 flex justify-end">
+                        {!isPositive && (
+                          <div
+                            className="h-8 rounded-l-xl transition-all duration-700"
+                            style={{
+                              width: `${(Math.abs(item.pnl) / negativeMax) * 100}%`,
+                              background: 'linear-gradient(90deg, #fca5a5, #ef4444)',
+                              minWidth: '4px',
+                            }}
+                          />
+                        )}
+                      </div>
+                      {/* Center line */}
+                      <div className="w-px h-10 bg-gray-300 flex-shrink-0 mx-1" />
+                      {/* Positive side (right) */}
+                      <div className="flex-1 flex justify-start">
+                        {isPositive && (
+                          <div
+                            className="h-8 rounded-r-xl transition-all duration-700"
+                            style={{
+                              width: `${(item.pnl / positiveMax) * 100}%`,
+                              background: 'linear-gradient(90deg, #34d399, #0d9488)',
+                              minWidth: '4px',
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Label — always outside right */}
+                    <div className="w-24 flex-shrink-0">
+                      <span className={`text-sm font-black ${isPositive ? 'text-teal-600' : 'text-red-500'}`}>
+                        {label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+
+            {/* X-axis labels */}
+            <div className="flex items-center gap-3 px-2 pt-1 border-t border-gray-100">
+              <div className="w-16" />
+              <div className="flex-1 flex items-center gap-0">
+                <div className="flex-1 text-right">
+                  <span className="text-xs text-gray-400">Loss</span>
+                </div>
+                <div className="w-px mx-1" />
+                <div className="flex-1 text-left">
+                  <span className="text-xs text-gray-400">Profit</span>
+                </div>
+              </div>
+              <div className="w-24" />
+            </div>
           </div>
         )}
       </Section>
@@ -1276,38 +1379,143 @@ const AnalyticsPage = () => {
         {/* By Day */}
         <Section title={l.byDayTitle}>
           {byDayData.every(d => d.pnl === 0) ? <EmptyState msg={noDataMsg} /> : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={byDayData} cursor={false}>
-                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickFormatter={v => `$${v}`} />
-                <Tooltip content={<CustomTooltip />} cursor={false} />
-                <Bar dataKey="pnl" name="PnL" radius={[4,4,0,0]} cursor={false}>
-                  {byDayData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#10b981' : '#ef4444'} fillOpacity={0.9} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="space-y-1">
+              {/* Best/Worst summary */}
+              {(() => {
+                const nonZero = byDayData.filter(d => d.pnl !== 0);
+                if (nonZero.length === 0) return null;
+                const best = [...nonZero].sort((a, b) => b.pnl - a.pnl)[0];
+                const worst = [...nonZero].sort((a, b) => a.pnl - b.pnl)[0];
+                return (
+                  <div className="flex gap-2 mb-3">
+                    <div className="flex-1 bg-teal-50 border border-teal-100 rounded-2xl px-3 py-2 flex items-center gap-2">
+                      <span className="text-base">🏆</span>
+                      <div>
+                        <p className="text-xs text-teal-600 font-bold">
+                          {lang === 'ar' ? 'أفضل يوم' : lang === 'fr' ? 'Meilleur jour' : 'Best Day'}
+                        </p>
+                        <p className="text-sm font-black text-teal-700">
+                          {best.name} · +${best.pnl.toFixed(0)}
+                        </p>
+                      </div>
+                    </div>
+                    {worst.pnl < 0 && (
+                      <div className="flex-1 bg-red-50 border border-red-100 rounded-2xl px-3 py-2 flex items-center gap-2">
+                        <span className="text-base">📉</span>
+                        <div>
+                          <p className="text-xs text-red-500 font-bold">
+                            {lang === 'ar' ? 'أسوأ يوم' : lang === 'fr' ? 'Pire jour' : 'Worst Day'}
+                          </p>
+                          <p className="text-sm font-black text-red-600">
+                            {worst.name} · ${worst.pnl.toFixed(0)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Chart with average line */}
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={byDayData} cursor={false} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="4 4" stroke="#f1f5f9" strokeOpacity={1} />
+                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#94a3b8" fontSize={10} tickFormatter={v => `$${v}`} tickLine={false} axisLine={false} />
+                  <Tooltip content={<CustomTooltip />} cursor={false} />
+                  {(() => {
+                    const nonZero = byDayData.filter(d => d.pnl !== 0);
+                    if (nonZero.length < 2) return null;
+                    const avg = nonZero.reduce((s, d) => s + d.pnl, 0) / nonZero.length;
+                    return (
+                      <ReferenceLine
+                        y={avg}
+                        stroke="#14b8a6"
+                        strokeDasharray="6 3"
+                        strokeWidth={1.5}
+                        label={{ value: `avg $${avg.toFixed(0)}`, position: 'right', fontSize: 10, fill: '#14b8a6', fontWeight: 700 }}
+                      />
+                    );
+                  })()}
+                  <Bar dataKey="pnl" name="PnL" radius={[6, 6, 0, 0]} cursor={false} maxBarSize={48}>
+                    {byDayData.map((d, i) => {
+                      const nonZero = byDayData.filter(x => x.pnl !== 0);
+                      const isBest = nonZero.length > 0 && d.pnl === Math.max(...nonZero.map(x => x.pnl)) && d.pnl > 0;
+                      const isWorst = nonZero.length > 0 && d.pnl === Math.min(...nonZero.map(x => x.pnl)) && d.pnl < 0;
+                      return (
+                        <Cell key={i}
+                          fill={d.pnl >= 0 ? (isBest ? '#0d9488' : '#34d399') : (isWorst ? '#dc2626' : '#f87171')}
+                          fillOpacity={d.pnl === 0 ? 0.2 : 1}
+                        />
+                      );
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </Section>
 
-        {/* By Time Group — single teal P&L bars */}
+        {/* By Time Group — session cards */}
         <div className="relative">
         {!isPro && <ProLockOverlay feature={l.byHourTitle} />}
         <Section title={l.byHourTitle}>
-          {byTimeData.every(d => d.pnl === 0) ? <EmptyState msg={noDataMsg} /> : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={byTimeData} cursor={false}>
-                <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickFormatter={v => `$${v}`} />
-                <Tooltip content={<CustomTooltip />} cursor={false} />
-                <Bar dataKey="pnl" name="PnL" radius={[6,6,0,0]} cursor={false}>
-                  {byTimeData.map((d, i) => (
-                    <Cell key={i} fill={d.pnl >= 0 ? '#14b8a6' : '#ef4444'} fillOpacity={0.9} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          {byTimeData.every(d => d.pnl === 0 && d.count === 0) ? <EmptyState msg={noDataMsg} /> : (
+            <div className="space-y-2">
+              {byTimeData.map((session, i) => {
+                const hasData = session.count > 0;
+                const sessionEmoji = ['🌅', '🕙', '🌆', '🌙'][i];
+                const sessionColor = hasData
+                  ? session.pnl >= 0 ? '#0d9488' : '#ef4444'
+                  : '#e2e8f0';
+                const barWidth = hasData
+                  ? Math.min((Math.abs(session.pnl) / Math.max(...byTimeData.map(s => Math.abs(s.pnl)), 1)) * 100, 100)
+                  : 0;
+
+                return (
+                  <div key={i} className={`rounded-2xl border transition-all duration-200 overflow-hidden ${hasData ? 'border-gray-100 bg-white hover:shadow-sm' : 'border-gray-50 bg-gray-50/50'}`}>
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      {/* Session emoji + name */}
+                      <div className="flex items-center gap-2 w-28 flex-shrink-0">
+                        <span className="text-lg">{sessionEmoji}</span>
+                        <div>
+                          <p className={`text-xs font-black ${hasData ? 'text-gray-800' : 'text-gray-400'}`}>
+                            {session.name}
+                          </p>
+                          {hasData && (
+                            <p className="text-xs text-gray-400">{session.count} trades</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-700"
+                          style={{ width: `${barWidth}%`, backgroundColor: sessionColor, opacity: hasData ? 1 : 0 }}
+                        />
+                      </div>
+
+                      {/* Stats */}
+                      <div className="text-right w-28 flex-shrink-0">
+                        {hasData ? (
+                          <>
+                            <p className={`text-sm font-black ${session.pnl >= 0 ? 'text-teal-600' : 'text-red-500'}`}>
+                              {session.pnl >= 0 ? '+' : ''}${session.pnl.toFixed(0)}
+                            </p>
+                            <p className="text-xs text-gray-400">{session.winRate}% WR</p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-gray-400 italic">
+                            {lang === 'ar' ? 'لا بيانات' : lang === 'fr' ? 'Aucune donnée' : 'No data'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </Section>
         </div>
@@ -1316,17 +1524,77 @@ const AnalyticsPage = () => {
       {/* ── SECTION 7: WEEKLY CONSISTENCY ── */}
       <Section title={l.weeklyConsistency}>
         {weeklyData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={weeklyData} cursor={false}>
-              <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--border))" strokeOpacity={0.2} />
-              <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickFormatter={v => `$${v}`} />
-              <Tooltip content={<CustomTooltip />} cursor={false} />
-              <Bar dataKey="pnl" name="PnL" radius={[4,4,0,0]} cursor={false}>
-                {weeklyData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#10b981' : '#ef4444'} fillOpacity={0.9} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div>
+            {/* Summary row */}
+            {(() => {
+              const profitableWeeks = weeklyData.filter(w => w.pnl > 0).length;
+              const bestWeek = [...weeklyData].sort((a, b) => b.pnl - a.pnl)[0];
+              return (
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {[
+                    {
+                      label: lang === 'ar' ? 'إجمالي الأسابيع' : lang === 'fr' ? 'Semaines totales' : 'Total Weeks',
+                      value: weeklyData.length,
+                      color: 'text-gray-900',
+                    },
+                    {
+                      label: lang === 'ar' ? 'أسابيع رابحة' : lang === 'fr' ? 'Semaines profitables' : 'Profitable Weeks',
+                      value: `${profitableWeeks}/${weeklyData.length}`,
+                      color: 'text-teal-600',
+                    },
+                    {
+                      label: lang === 'ar' ? 'أفضل أسبوع' : lang === 'fr' ? 'Meilleure semaine' : 'Best Week',
+                      value: `+$${bestWeek?.pnl.toFixed(0) || 0}`,
+                      color: 'text-teal-600',
+                    },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-gray-50 rounded-2xl p-3 text-center">
+                      <p className="text-xs text-gray-400 mb-1">{stat.label}</p>
+                      <p className={`text-sm font-black ${stat.color}`}>{stat.value}</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Area chart */}
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={weeklyData} cursor={false} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="weeklyGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 4" stroke="#f1f5f9" strokeOpacity={1} />
+                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="#94a3b8" fontSize={10} tickFormatter={v => `$${v}`} tickLine={false} axisLine={false} />
+                <Tooltip content={<CustomTooltip />} cursor={false} />
+                <ReferenceLine y={0} stroke="#e2e8f0" strokeWidth={1.5} />
+                <Area
+                  type="monotone"
+                  dataKey="pnl"
+                  name="PnL"
+                  stroke="#14b8a6"
+                  strokeWidth={2.5}
+                  fill="url(#weeklyGradient)"
+                  dot={(props: any) => {
+                    const { cx, cy, payload } = props;
+                    return (
+                      <circle
+                        key={`dot-${cx}-${cy}`}
+                        cx={cx} cy={cy} r={4}
+                        fill={payload.pnl >= 0 ? '#0d9488' : '#ef4444'}
+                        stroke="white"
+                        strokeWidth={2}
+                      />
+                    );
+                  }}
+                  activeDot={{ r: 6, fill: '#0d9488', stroke: 'white', strokeWidth: 2 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </Section>
 

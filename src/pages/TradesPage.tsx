@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo, KeyboardEvent, DragEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSwipeToDismiss } from '@/hooks/useSwipeToDismiss';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -164,14 +165,14 @@ type Account = Tables<'mt5_accounts'>;
 const DEFAULT_TAGS = ['FVG', 'IFVG', 'Liquidity Sweep', 'Order Block', 'BOS/CHoCH', 'MSS', 'Fair Value Gap + Sweep'];
 
 export const EMOTIONS = [
-  { key: 'calm',        emoji: '😌', color: '#22c55e' },
+  { key: 'disciplined', emoji: '🎯', color: '#0d9488' },
   { key: 'confident',   emoji: '💪', color: '#3b82f6' },
-  { key: 'fearful',     emoji: '😨', color: '#f97316' },
-  { key: 'greedy',      emoji: '🤑', color: '#eab308' },
+  { key: 'neutral',     emoji: '😐', color: '#94a3b8' },
+  { key: 'fearful',     emoji: '😰', color: '#f59e0b' },
+  { key: 'fomo',        emoji: '⚡', color: '#f59e0b' },
+  { key: 'bored',       emoji: '😴', color: '#6b7280' },
+  { key: 'revenge',     emoji: '🔥', color: '#ef4444' },
   { key: 'frustrated',  emoji: '😤', color: '#ef4444' },
-  { key: 'excited',     emoji: '🚀', color: '#a855f7' },
-  { key: 'bored',       emoji: '😐', color: '#6b7280' },
-  { key: 'neutral',     emoji: '😶', color: '#94a3b8' },
 ] as const;
 
 export type EmotionKey = typeof EMOTIONS[number]['key'];
@@ -1218,6 +1219,7 @@ const TradesPage = () => {
   const lang = language as 'ar' | 'fr' | 'en';
   const { user, userPlan, userStatus } = useAuth();
   const isPro = userPlan === 'pro' || userStatus === 'trial';
+  const navigate = useNavigate();
   const shareUserName = (user?.user_metadata?.full_name as string | undefined)?.trim() || user?.email?.split('@')[0] || 'Trader';
   const [trades, setTrades] = useState<Trade[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -1947,9 +1949,22 @@ const TradesPage = () => {
             <Plus className="h-4 w-4" />
             {lang === 'ar' ? 'إضافة صفقة' : lang === 'fr' ? 'Ajouter' : 'Add Trade'}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowPlaybookModal(true)}>
-            <BookOpen className="me-2 h-4 w-4" /> {t('strategy_playbook')}
-          </Button>
+          <button
+            type="button"
+            onClick={() => isPro
+              ? setShowPlaybookModal(true)
+              : navigate('/settings?tab=subscription')
+            }
+            className="relative flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-2xl text-sm font-bold transition-all shadow-sm group hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50/50"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span className="hidden sm:inline">{t('strategy_playbook')}</span>
+            {!isPro && (
+              <span className="absolute -top-1.5 -right-1.5 bg-teal-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
+                PRO
+              </span>
+            )}
+          </button>
           <Button variant="outline" size="sm" onClick={() => { if (checkMonthlyLimit()) setImportOpen(true); }}>
             <Upload className="me-2 h-4 w-4" /> {t('importMt5')}
           </Button>
@@ -2542,7 +2557,30 @@ const TradesPage = () => {
             </div>
 
             {/* Strategy */}
-            {strategies.length > 0 && (
+            {!isPro ? (
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-2">
+                  {t('strategy_label')}
+                  <span className="text-[10px] bg-teal-500 text-white px-1.5 py-0.5 rounded-full font-black">PRO</span>
+                </Label>
+                <div className="relative">
+                  <div className="pointer-events-none opacity-40">
+                    <Select disabled>
+                      <SelectTrigger>
+                        <SelectValue placeholder={lang === 'ar' ? 'اختر الاستراتيجية' : lang === 'fr' ? 'Choisir' : 'Select strategy'} />
+                      </SelectTrigger>
+                    </Select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/settings?tab=subscription')}
+                    className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-xl text-xs font-bold text-teal-600 hover:bg-white/80 transition-colors"
+                  >
+                    🔒 {lang === 'ar' ? 'ترقية للاستخدام' : lang === 'fr' ? 'Passer à Pro' : 'Upgrade to use'}
+                  </button>
+                </div>
+              </div>
+            ) : strategies.length > 0 ? (
               <div className="space-y-1.5">
                 <Label>{t('strategy_label')}</Label>
                 <Select value={addStrategyId ?? 'none'} onValueChange={v => setAddStrategyId(v === 'none' ? null : v)}>
@@ -2562,7 +2600,7 @@ const TradesPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-            )}
+            ) : null}
 
             {/* Screenshot upload */}
             <div className="space-y-1.5">

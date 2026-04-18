@@ -1529,7 +1529,25 @@ const DashboardPage = () => {
 
   // ---- weekly goal ----
   const weeklyGoal = useMemo(() => {
-    const raw = localStorage.getItem(`weekly_goal_${user?.id}`);
+    if (!user?.id) return 0;
+
+    // Get current week number (Sunday-based)
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const currentWeek = Math.ceil(
+      ((now.getTime() - startOfYear.getTime()) / 86400000
+        + startOfYear.getDay() + 1) / 7
+    );
+    const storedWeek = localStorage.getItem(`weekly_goal_week_${user.id}`);
+
+    // If stored week differs from current week it's a new week — reset
+    if (storedWeek && parseInt(storedWeek) !== currentWeek) {
+      localStorage.removeItem(`weekly_goal_${user.id}`);
+      localStorage.removeItem(`weekly_goal_week_${user.id}`);
+      return 0;
+    }
+
+    const raw = localStorage.getItem(`weekly_goal_${user.id}`);
     return raw ? parseFloat(raw) : 0;
   }, [user]);
 
@@ -2252,7 +2270,11 @@ const DashboardPage = () => {
                   if (e.key === 'Enter') {
                     const val = parseFloat(goalInput);
                     if (!isNaN(val) && val > 0 && user) {
+                      const now = new Date();
+                      const startOfYear = new Date(now.getFullYear(), 0, 1);
+                      const currentWeek = Math.ceil(((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
                       localStorage.setItem(`weekly_goal_${user.id}`, String(val));
+                      localStorage.setItem(`weekly_goal_week_${user.id}`, String(currentWeek));
                       setShowGoalModal(false);
                       setGoalInput('');
                       window.location.reload();
@@ -2278,7 +2300,11 @@ const DashboardPage = () => {
               onClick={() => {
                 const val = parseFloat(goalInput);
                 if (!isNaN(val) && val > 0 && user) {
+                  const now = new Date();
+                  const startOfYear = new Date(now.getFullYear(), 0, 1);
+                  const currentWeek = Math.ceil(((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
                   localStorage.setItem(`weekly_goal_${user.id}`, String(val));
+                  localStorage.setItem(`weekly_goal_week_${user.id}`, String(currentWeek));
                   setShowGoalModal(false);
                   setGoalInput('');
                   window.location.reload();
