@@ -38,7 +38,7 @@ const L = {
     chatPlaceholder: 'اسأل سؤالاً عن صفقاتك...',
     send: 'إرسال',
     chatEmpty: 'ابدأ المحادثة مع مدربك الذكي',
-    suggestions: ['ما هو أفضل إعداد لديّ؟', 'لماذا خسارتي أكثر في يوم الإثنين؟', 'ما هي جلسة التداول الأفضل لي؟'],
+    suggestions: ['ما هي أكبر نقطة ضعف في تداولي؟', 'كيف تؤثر مشاعري على أدائي؟', 'متى يجب أن أتوقف عن التداول اليوم؟'],
     errorApi: 'خطأ في الاتصال بالذكاء الاصطناعي. حاول مجدداً.',
     thinking: 'يفكر...',
     you: 'أنت',
@@ -57,7 +57,7 @@ const L = {
     chatPlaceholder: 'Posez une question sur vos trades...',
     send: 'Envoyer',
     chatEmpty: 'Commencez la conversation avec votre coach IA',
-    suggestions: ['Quel est mon meilleur setup?', 'Pourquoi je perds plus le lundi?', 'Quelle session est la plus profitable pour moi?'],
+    suggestions: ['Quelle est ma plus grande faiblesse?', 'Comment mes émotions affectent mes trades?', "Quand dois-je arrêter de trader aujourd'hui?"],
     errorApi: 'Erreur de connexion à l\'IA. Réessayez.',
     thinking: 'Réflexion...',
     you: 'Vous',
@@ -76,7 +76,7 @@ const L = {
     chatPlaceholder: 'Ask a question about your trades...',
     send: 'Send',
     chatEmpty: 'Start chatting with your AI trading coach',
-    suggestions: ['What is my best setup?', 'Why do I lose more on Mondays?', 'Which session is most profitable for me?'],
+    suggestions: ['What is my biggest trading weakness?', 'How do my emotions affect my trading?', 'When should I stop trading today?'],
     errorApi: 'Error connecting to AI. Please try again.',
     thinking: 'Thinking...',
     you: 'You',
@@ -267,14 +267,66 @@ export default function AICoachPage() {
     setAnalysisError('');
     try {
       const last20Trades = trades.slice(-20);
-      const tradesContext = last20Trades.map(tr =>
-        `${tr.symbol} ${tr.direction} ${tr.result} P&L:${tr.profit} RR:${tr.rr_ratio} Session:${tr.session} Setup:${tr.setup_tag}`
-      ).join('\n');
+      const tradesContext = last20Trades.map(tr => {
+        const emotion = (tr as any).emotion_tag
+          ? `Emotion:${(tr as any).emotion_tag}` : '';
+        const rules = (tr as any).followed_rules !== null
+          && (tr as any).followed_rules !== undefined
+          ? `Plan:${(tr as any).followed_rules ? 'YES' : 'NO'}`
+          : '';
+        const strategy = (tr as any).strategy_id
+          ? `Strategy:tagged` : '';
+        return [
+          tr.symbol,
+          tr.direction,
+          tr.result,
+          `P&L:${tr.profit}`,
+          `RR:${tr.rr_ratio}`,
+          `Session:${tr.session}`,
+          `Setup:${tr.setup_tag}`,
+          emotion,
+          rules,
+          strategy,
+        ].filter(Boolean).join(' ');
+      }).join('\n');
 
-      const analysisSystemPrompt = `You are an elite professional trading coach for prop firm traders. The user trades NQ/Nasdaq futures using ICT concepts.
+      const emotionTagged = last20Trades.filter(t => (t as any).emotion_tag);
+      const rulesTagged = last20Trades.filter(
+        t => (t as any).followed_rules !== null && (t as any).followed_rules !== undefined,
+      );
+      const followedCount = rulesTagged.filter(t => (t as any).followed_rules === true).length;
+      const adherenceRate = rulesTagged.length > 0
+        ? Math.round((followedCount / rulesTagged.length) * 100)
+        : null;
+
+      const emotionPnl: Record<string, number> = {};
+      emotionTagged.forEach(t => {
+        const em = (t as any).emotion_tag;
+        emotionPnl[em] = (emotionPnl[em] || 0) + (t.profit || 0);
+      });
+      const bestEmotionEntry = Object.entries(emotionPnl).sort((a, b) => b[1] - a[1])[0];
+      const worstEmotionEntry = Object.entries(emotionPnl).sort((a, b) => a[1] - b[1])[0];
+
+      const pnlWithPlan = last20Trades
+        .filter(t => (t as any).followed_rules === true)
+        .reduce((s, t) => s + (t.profit || 0), 0);
+      const pnlNoPlan = last20Trades
+        .filter(t => (t as any).followed_rules === false)
+        .reduce((s, t) => s + (t.profit || 0), 0);
+
+      const langLabel = lang === 'ar' ? 'Arabic' : lang === 'fr' ? 'French' : 'English';
+
+      const analysisSystemPrompt = `You are an elite professional trading coach for prop firm traders. The user trades using ICT concepts.
 Be extremely concise, direct, and specific. Use their actual numbers.
-Respond in ${lang === 'ar' ? 'Arabic' : lang === 'fr' ? 'French' : 'English'}.
+Respond in ${langLabel}.
 
+${adherenceRate !== null ? `PSYCHOLOGY DATA:
+- Plan adherence rate: ${adherenceRate}% (${followedCount}/${rulesTagged.length} trades followed the plan)
+- P&L when following plan: $${pnlWithPlan.toFixed(2)}
+- P&L when breaking plan: $${pnlNoPlan.toFixed(2)}
+${bestEmotionEntry ? `- Best emotion state: ${bestEmotionEntry[0]} ($${bestEmotionEntry[1].toFixed(2)} P&L)` : ''}
+${worstEmotionEntry && worstEmotionEntry[1] < 0 ? `- Worst emotion state: ${worstEmotionEntry[0]} ($${worstEmotionEntry[1].toFixed(2)} P&L)` : ''}
+` : ''}
 Format your response EXACTLY like this structure, nothing more:
 
 📊 SNAPSHOT
@@ -286,13 +338,18 @@ Format your response EXACTLY like this structure, nothing more:
 ✅ MAIN STRENGTH
 [One specific pattern from their winning trades - be specific with numbers]
 
+🧠 PSYCHOLOGY INSIGHT
+${adherenceRate !== null
+  ? `[Specific insight about their plan adherence and emotion patterns - use the actual numbers]`
+  : `[Note that they should start tagging emotions and plan adherence for deeper psychology analysis]`}
+
 🎯 THIS WEEK'S FOCUS
 [One single actionable improvement - concrete and specific]
 
 💡 QUICK TIP
 [One ICT-specific tip based on their data]
 
-Maximum 180 words total. Never write essays. Be a coach not a reporter.`;
+Maximum 200 words total. Never write essays. Be a coach not a reporter.`;
 
       const analysisUserMessage = `My last ${last20Trades.length} trades:\n${tradesContext}\n\nAnalyze my trading.`;
 
@@ -336,12 +393,57 @@ Maximum 180 words total. Never write essays. Be a coach not a reporter.`;
 
     try {
       const last20Trades = trades.slice(-20);
-      const tradesContext = last20Trades.map(tr =>
-        `${tr.symbol} ${tr.direction} ${tr.result} P&L:${tr.profit} RR:${tr.rr_ratio} Session:${tr.session} Setup:${tr.setup_tag}`
-      ).join('\n');
+      const tradesContext = last20Trades.map(tr => {
+        const emotion = (tr as any).emotion_tag
+          ? `Emotion:${(tr as any).emotion_tag}` : '';
+        const rules = (tr as any).followed_rules !== null
+          && (tr as any).followed_rules !== undefined
+          ? `Plan:${(tr as any).followed_rules ? 'YES' : 'NO'}`
+          : '';
+        const strategy = (tr as any).strategy_id
+          ? `Strategy:tagged` : '';
+        return [
+          tr.symbol,
+          tr.direction,
+          tr.result,
+          `P&L:${tr.profit}`,
+          `RR:${tr.rr_ratio}`,
+          `Session:${tr.session}`,
+          `Setup:${tr.setup_tag}`,
+          emotion,
+          rules,
+          strategy,
+        ].filter(Boolean).join(' ');
+      }).join('\n');
 
-      const chatSystemPrompt = `You are an elite trading coach for prop firm traders specializing in ICT concepts and NQ/Nasdaq futures.
-Respond in ${lang === 'ar' ? 'Arabic' : lang === 'fr' ? 'French' : 'English'}.
+      const emotionTaggedChat = last20Trades.filter(t => (t as any).emotion_tag);
+      const rulesTaggedChat = last20Trades.filter(
+        t => (t as any).followed_rules !== null && (t as any).followed_rules !== undefined,
+      );
+      const followedCountChat = rulesTaggedChat.filter(t => (t as any).followed_rules === true).length;
+      const adherenceRateChat = rulesTaggedChat.length > 0
+        ? Math.round((followedCountChat / rulesTaggedChat.length) * 100)
+        : null;
+
+      const emotionPnlChat: Record<string, number> = {};
+      emotionTaggedChat.forEach(t => {
+        const em = (t as any).emotion_tag;
+        emotionPnlChat[em] = (emotionPnlChat[em] || 0) + (t.profit || 0);
+      });
+      const bestEmotionChat = Object.entries(emotionPnlChat).sort((a, b) => b[1] - a[1])[0];
+      const worstEmotionChat = Object.entries(emotionPnlChat).sort((a, b) => a[1] - b[1])[0];
+
+      const pnlWithPlanChat = last20Trades
+        .filter(t => (t as any).followed_rules === true)
+        .reduce((s, t) => s + (t.profit || 0), 0);
+      const pnlNoPlanChat = last20Trades
+        .filter(t => (t as any).followed_rules === false)
+        .reduce((s, t) => s + (t.profit || 0), 0);
+
+      const langLabel = lang === 'ar' ? 'Arabic' : lang === 'fr' ? 'French' : 'English';
+
+      const chatSystemPrompt = `You are an elite trading coach for prop firm traders specializing in ICT concepts.
+Respond in ${langLabel}.
 
 Rules:
 - Maximum 120 words per response
@@ -351,11 +453,15 @@ Rules:
 - No long introductions or conclusions
 - Talk like a coach, not a professor
 
-The trader's recent context:
+The trader's performance context:
 - Last 20 trades win rate: ${winRate}%
-- Total P&L: ${totalPnl}
+- Total P&L: $${totalPnl}
 - Most used session: ${topSession}
 - Most used setup: ${topSetup}
+${adherenceRateChat !== null ? `- Plan adherence rate: ${adherenceRateChat}% (follows plan ${followedCountChat}/${rulesTaggedChat.length} trades)
+- P&L following plan: $${pnlWithPlanChat.toFixed(2)} vs breaking plan: $${pnlNoPlanChat.toFixed(2)}` : '- Plan adherence: not yet tracked (encourage user to tag trades)'}
+${bestEmotionChat ? `- Best emotion state: ${bestEmotionChat[0]} (P&L: $${bestEmotionChat[1].toFixed(2)})` : ''}
+${worstEmotionChat && worstEmotionChat[1] < 0 ? `- Worst emotion state: ${worstEmotionChat[0]} (P&L: $${worstEmotionChat[1].toFixed(2)})` : ''}
 
 Last 20 trades for reference:
 ${tradesContext}`;

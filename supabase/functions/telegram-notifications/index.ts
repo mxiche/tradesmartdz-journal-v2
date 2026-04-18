@@ -92,7 +92,11 @@ async function getUserTrades(
 ) {
   const { data } = await supabase
     .from('trades')
-    .select('profit, commission, symbol, close_time, setup_tag')
+    .select(
+      'profit, commission, symbol, close_time, ' +
+      'setup_tag, session, emotion_tag, ' +
+      'followed_rules, strategy_id'
+    )
     .eq('user_id', userId)
     .gte('close_time', startDate.toISOString())
     .lt('close_time', endDate.toISOString());
@@ -140,7 +144,7 @@ async function runMorningMotivation(supabase: any, botToken: string, users: any[
 
       const { data: recentTrades } = await supabase
         .from('trades')
-        .select('profit, commission, close_time')
+        .select('profit, commission, close_time, emotion_tag, followed_rules')
         .eq('user_id', user.user_id)
         .not('profit', 'is', null)
         .order('close_time', { ascending: false })
@@ -159,28 +163,57 @@ async function runMorningMotivation(supabase: any, botToken: string, users: any[
         }
       }
 
-      const greetings = [
-        '💪 أنت قادر على تحقيق أهدافك اليوم!',
-        '🎯 ركز على الإعداد الجيد وليس فقط الربح',
-        '🧠 التريدر الناجح يتحكم في عواطفه أولاً',
-        '📈 كل صفقة هي فرصة للتعلم والتطور',
-        '⚡ انضباطك اليوم هو ربحك غداً',
-      ];
-      const tip = greetings[Math.floor(Math.random() * greetings.length)];
-
       const streakEmoji = streakType === 'win' ? '🔥' : '❄️';
       const streakText = streak > 0
         ? `${streakEmoji} ${streak} ${streakType === 'win' ? 'أيام رابحة متتالية' : 'أيام خاسرة متتالية'}`
         : '📊 ابدأ سلسلتك اليوم';
 
+      // Yesterday psychology summary
+      const yesterdayRuled = yesterdayTrades.filter(
+        (t: any) => t.followed_rules !== null,
+      );
+      const yesterdayFollowed = yesterdayRuled.filter(
+        (t: any) => t.followed_rules === true,
+      ).length;
+      const yesterdayAdherence = yesterdayRuled.length > 0
+        ? Math.round((yesterdayFollowed / yesterdayRuled.length) * 100)
+        : null;
+
+      const dangerEmotions = ['revenge', 'fomo', 'frustrated'];
+      const yesterdayHadDanger = yesterdayTrades.some(
+        (t: any) => dangerEmotions.includes(t.emotion_tag),
+      );
+
+      let morningTip = '';
+      if (yesterdayHadDanger && yesterdayPnl < 0) {
+        morningTip = '🧠 أمس تداولت بمشاعر عاطفية وخسرت. اليوم ركز على الانضباط أولاً.';
+      } else if (yesterdayAdherence !== null && yesterdayAdherence < 50) {
+        morningTip = '📋 اليوم التزم بخطتك 100%. الانضباط يبني الربح.';
+      } else if (yesterdayAdherence !== null && yesterdayAdherence >= 80) {
+        morningTip = '🏆 أمس التزمت بخطتك بشكل ممتاز! استمر على هذا النهج.';
+      } else {
+        const tips = [
+          '💪 أنت قادر على تحقيق أهدافك اليوم!',
+          '🎯 ركز على الإعداد الجيد وليس فقط الربح',
+          '🧠 التريدر الناجح يتحكم في عواطفه أولاً',
+          '📈 كل صفقة هي فرصة للتعلم والتطور',
+          '⚡ انضباطك اليوم هو ربحك غداً',
+        ];
+        morningTip = tips[Math.floor(Math.random() * tips.length)];
+      }
+
       const msg =
-        `🌅 <b>صباح الخير!</b>\n\n` +
+        `🌅 <b>صباح الخير!</b>\n` +
+        `━━━━━━━━━━━━━━━\n\n` +
         `${yesterdayTrades.length > 0
-          ? `📊 الأمس: ${yesterdayPnl >= 0 ? '+' : ''}$${yesterdayPnl.toFixed(2)}`
+          ? `📊 الأمس: <b>${yesterdayPnl >= 0 ? '+' : ''}$${yesterdayPnl.toFixed(2)}</b>`
           : '📊 لم تسجل صفقات أمس'}\n` +
         `📅 هذا الأسبوع: ${weekPnl >= 0 ? '+' : ''}$${weekPnl.toFixed(2)}\n` +
-        `${streakText}\n\n` +
-        `${tip}\n\n` +
+        `${streakText}\n` +
+        (yesterdayAdherence !== null
+          ? `${yesterdayAdherence >= 70 ? '✅' : '⚠️'} الالتزام بالخطة أمس: ${yesterdayAdherence}%\n`
+          : '') +
+        `\n${morningTip}\n\n` +
         `<i>سجّل صفقاتك اليوم على TradeSmartDz 📱</i>`;
 
       await sendMessage(botToken, user.telegram_chat_id, msg);
@@ -253,7 +286,7 @@ async function runDailyReport(supabase: any, botToken: string, users: any[]) {
 
       const { data: recentTrades } = await supabase
         .from('trades')
-        .select('profit, commission, close_time')
+        .select('profit, commission, close_time, emotion_tag, followed_rules')
         .eq('user_id', user.user_id)
         .not('profit', 'is', null)
         .order('close_time', { ascending: false })
@@ -287,6 +320,50 @@ async function runDailyReport(supabase: any, botToken: string, users: any[]) {
         }
       }
 
+      // === EMOTION ANALYSIS ===
+      const emotionMap: Record<string, string> = {
+        disciplined: '🎯', confident: '💪', neutral: '😐',
+        fearful: '😰', fomo: '⚡', bored: '😴',
+        revenge: '🔥', frustrated: '😤',
+      };
+
+      const emotionCounts: Record<string, number> = {};
+      todayTrades.forEach((t: any) => {
+        if (t.emotion_tag) {
+          emotionCounts[t.emotion_tag] = (emotionCounts[t.emotion_tag] || 0) + 1;
+        }
+      });
+      const topEmotion = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0];
+
+      const rulesTagged = todayTrades.filter(
+        (t: any) => t.followed_rules !== null && t.followed_rules !== undefined,
+      );
+      const rulesFollowed = rulesTagged.filter((t: any) => t.followed_rules === true).length;
+      const adherenceRate = rulesTagged.length > 0
+        ? Math.round((rulesFollowed / rulesTagged.length) * 100)
+        : null;
+
+      const pnlFollowed = todayTrades
+        .filter((t: any) => t.followed_rules === true)
+        .reduce((s: number, t: any) => s + netPnl(t), 0);
+      const pnlBroken = todayTrades
+        .filter((t: any) => t.followed_rules === false)
+        .reduce((s: number, t: any) => s + netPnl(t), 0);
+
+      const dangerEmotions = ['revenge', 'fomo', 'frustrated'];
+      const hasDangerEmotion = todayTrades.some(
+        (t: any) => dangerEmotions.includes(t.emotion_tag),
+      );
+      const dangerTradesPnl = todayTrades
+        .filter((t: any) => dangerEmotions.includes(t.emotion_tag))
+        .reduce((s: number, t: any) => s + netPnl(t), 0);
+
+      const symbolPnl: Record<string, number> = {};
+      todayTrades.forEach((t: any) => {
+        symbolPnl[t.symbol] = (symbolPnl[t.symbol] || 0) + netPnl(t);
+      });
+      const bestSymbol = Object.entries(symbolPnl).sort((a, b) => b[1] - a[1])[0];
+
       if (todayTrades.length === 0) {
         const msg =
           `📊 <b>ملخصك اليومي</b>\n\n` +
@@ -304,16 +381,43 @@ async function runDailyReport(supabase: any, botToken: string, users: any[]) {
           : `❄️ ${streak} أيام خاسرة متتالية`)
         : '';
 
+      let psychologyLine = '';
+      if (topEmotion) {
+        const emoji = emotionMap[topEmotion[0]] || '😐';
+        psychologyLine = `\n${emoji} المشاعر السائدة: ${topEmotion[0]}`;
+      }
+      if (adherenceRate !== null) {
+        psychologyLine += `\n${adherenceRate >= 70 ? '✅' : '⚠️'} الالتزام بالخطة: ${adherenceRate}%`;
+      }
+      if (hasDangerEmotion && dangerTradesPnl < 0) {
+        psychologyLine += `\n🚨 الصفقات العاطفية كلّفتك $${Math.abs(dangerTradesPnl).toFixed(0)}`;
+      } else if (hasDangerEmotion) {
+        psychologyLine += `\n⚠️ انتبه: تداول بمشاعر عاطفية اليوم`;
+      }
+
+      let planLine = '';
+      if (rulesTagged.length >= 2 && rulesFollowed > 0 && rulesTagged.length - rulesFollowed > 0) {
+        planLine = `\n\n📋 <b>اتباع الخطة:</b>\n` +
+          `✅ مع الخطة: ${pnlFollowed >= 0 ? '+' : ''}$${pnlFollowed.toFixed(0)}\n` +
+          `❌ بدون الخطة: ${pnlBroken >= 0 ? '+' : ''}$${pnlBroken.toFixed(0)}`;
+      }
+
       const msg =
-        `📊 <b>ملخصك اليومي</b>\n\n` +
+        `📊 <b>ملخصك اليومي</b>\n` +
+        `━━━━━━━━━━━━━━━\n\n` +
         `💰 الربح اليوم: <b>${todayPnl >= 0 ? '+' : ''}$${todayPnl.toFixed(2)}</b>\n` +
         `📈 الصفقات: ${todayTrades.length} (${todayWins} ربح / ${todayLosses} خسارة)\n` +
         `🎯 نسبة الفوز: ${todayWinRate}%\n` +
         (bestTrade
           ? `⭐ أفضل صفقة: ${bestTrade.symbol} ${netPnl(bestTrade) >= 0 ? '+' : ''}$${netPnl(bestTrade).toFixed(2)}\n`
           : '') +
+        (bestSymbol && symbolPnl[bestSymbol[0]] > 0
+          ? `📊 أفضل رمز: ${bestSymbol[0]}\n`
+          : '') +
         (streakText ? `${streakText}\n` : '') +
-        `\n📅 <b>هذا الشهر حتى الآن:</b>\n` +
+        psychologyLine +
+        planLine +
+        `\n\n📅 <b>هذا الشهر حتى الآن:</b>\n` +
         `💵 ${monthPnl >= 0 ? '+' : ''}$${monthPnl.toFixed(2)} | ${monthTradingDays} أيام تداول` +
         propFirmWarning +
         `\n\n<i>TradeSmartDz 🎯</i>`;
