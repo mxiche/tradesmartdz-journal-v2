@@ -17,29 +17,34 @@ const PROP_FIRMS_FOREX = ['FTMO', 'FundingPips', 'Alpha Capital', 'FundedNext', 
 const ACCOUNT_TYPES_FOREX = ['Challenge Phase 1', 'Challenge Phase 2', 'Instant Funded', 'Funded', 'Live', 'Demo'];
 const ACCOUNT_SIZES_FOREX = ['2500', '5000', '6000', '10000', '15000', '25000', '50000', '100000', '200000'];
 
-// --- Futures ---
-const PROP_FIRMS_FUTURES = ['Apex Trader Funding', 'Topstep', 'Earn2Trade', 'BluSky Trading', 'Other'];
-const ACCOUNT_TYPES_FUTURES = ['Evaluation', 'PA', 'Live', 'Demo'];
+// --- Futures (FIX 3 + FIX 4) ---
+const PROP_FIRMS_FUTURES = [
+  'Topstep', 'Alpha Futures', 'Apex Trader Funding',
+  'MyFundedFutures', 'Tradeify', 'TakeProfitTrader',
+  'FundedNext Futures', 'Other',
+];
+const ACCOUNT_TYPES_FUTURES = ['Evaluation', 'Express Funded', 'Live Funded'];
 const ACCOUNT_SIZES_FUTURES = ['25000', '50000', '100000', '150000', '200000', '300000'];
 
 // --- Shared ---
 const DRAWDOWN_TYPES = ['static', 'eod_trailing', 'intraday_trailing'];
-const CONSISTENCY_OPTIONS = ['0', '25', '30', '40', '50'];
 
 const PROFIT_TARGET_REQUIRED_TYPES = ['Challenge Phase 1', 'Challenge Phase 2', 'Evaluation'];
-const SHOWS_PROFIT_PROGRESS = ['Challenge Phase 1', 'Challenge Phase 2', 'Evaluation'];
+const SHOWS_PROFIT_PROGRESS = ['Challenge Phase 1', 'Challenge Phase 2', 'Evaluation', 'Express Funded'];
 
 export function typeBadgeClass(type: string | null): string {
   switch (type) {
-    case 'Challenge Phase 1': return 'bg-orange-500/20 text-orange-400 border border-orange-500/30';
-    case 'Challenge Phase 2': return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30';
-    case 'Instant Funded':    return 'bg-purple-500/20 text-purple-400 border border-purple-500/30';
-    case 'Funded':            return 'bg-teal-500/20 text-teal-600 border border-teal-500/30';
-    case 'Live':              return 'bg-blue-500/20 text-blue-500 border border-blue-500/30';
-    case 'Demo':              return 'bg-gray-100 text-gray-500 border border-gray-200';
-    case 'Evaluation':        return 'bg-orange-500/20 text-orange-400 border border-orange-500/30';
-    case 'PA':                return 'bg-teal-500/20 text-teal-600 border border-teal-500/30';
-    default:                  return 'bg-gray-100 text-gray-500 border border-gray-200';
+    case 'Challenge Phase 1':  return 'bg-orange-500/20 text-orange-400 border border-orange-500/30';
+    case 'Challenge Phase 2':  return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30';
+    case 'Instant Funded':     return 'bg-purple-500/20 text-purple-400 border border-purple-500/30';
+    case 'Funded':             return 'bg-teal-500/20 text-teal-600 border border-teal-500/30';
+    case 'Express Funded':     return 'bg-teal-500/20 text-teal-600 border border-teal-500/30';
+    case 'Live Funded':        return 'bg-blue-500/20 text-blue-500 border border-blue-500/30';
+    case 'Live':               return 'bg-blue-500/20 text-blue-500 border border-blue-500/30';
+    case 'Demo':               return 'bg-gray-100 text-gray-500 border border-gray-200';
+    case 'Evaluation':         return 'bg-orange-500/20 text-orange-400 border border-orange-500/30';
+    case 'PA':                 return 'bg-teal-500/20 text-teal-600 border border-teal-500/30';
+    default:                   return 'bg-gray-100 text-gray-500 border border-gray-200';
   }
 }
 
@@ -65,6 +70,7 @@ export function ddBarColor(pct: number): string {
   return 'bg-teal-500';
 }
 
+// FIX 2: renamed consistency_rule_pct → consistency_rule, added customConsistency
 const DEFAULT_FORM = {
   account_category: '',
   account_name: '',
@@ -82,7 +88,8 @@ const DEFAULT_FORM = {
   daily_loss_limit: '5',
   drawdown_type: 'static',
   trailing_floor: '',
-  consistency_rule_pct: '0',
+  consistency_rule: '0',
+  customConsistency: '',
   profit_split_pct: '80',
   min_trading_days: '10',
   // Futures rules ($)
@@ -155,6 +162,8 @@ const ConnectPage = () => {
     const firmKnown = firms.slice(0, -1).includes(acc.firm);
     const accSizeStr = String(Math.round(acc.account_size ?? 0));
     const sizeKnown = sizes.includes(accSizeStr);
+    const existingRule = String(a.consistency_rule ?? 0);
+    const isKnownRule = ['0', '30', '35', '40', '45', '50'].includes(existingRule);
     setForm({
       account_category: category,
       account_name: acc.account_name ?? '',
@@ -171,7 +180,8 @@ const ConnectPage = () => {
       daily_loss_limit: String(acc.daily_loss_limit ?? 5),
       drawdown_type: a.drawdown_type ?? 'static',
       trailing_floor: String(a.trailing_floor ?? ''),
-      consistency_rule_pct: String(a.consistency_rule ?? 0),
+      consistency_rule: isKnownRule ? existingRule : 'custom',
+      customConsistency: isKnownRule ? '' : existingRule,
       profit_split_pct: String(a.profit_split ?? 80),
       min_trading_days: String(a.min_trading_days ?? 10),
       profit_target_dollars: String(a.profit_target_dollars ?? ''),
@@ -232,7 +242,10 @@ const ConnectPage = () => {
         position_close_time: form.position_close_time.trim() || null,
         min_winning_days: parseFloat(form.min_winning_days) || null,
         winning_day_threshold: parseFloat(form.winning_day_threshold) || null,
-        consistency_rule: parseFloat(form.consistency_rule_pct) || null,
+        // FIX 2: resolve custom consistency
+        consistency_rule: form.consistency_rule === 'custom'
+          ? parseFloat(form.customConsistency) || null
+          : parseFloat(form.consistency_rule) || null,
       };
 
       if (editingId) {
@@ -275,7 +288,6 @@ const ConnectPage = () => {
   const labelEdit = lang === 'ar' ? 'تعديل الحساب' : lang === 'fr' ? 'Modifier le compte' : 'Edit Account';
   const reviewLabel = lang === 'ar' ? 'مراجعة' : lang === 'fr' ? 'Révision' : 'Review';
 
-  // Step labels: 1=Category, 2=Firm+Details, 3=Rules, 4=Balance, 5=Review
   const stepLabels = [t('step_category'), t('step_firm'), t('step_rules'), t('step_balance'), reviewLabel];
 
   const isFutures = form.account_category === 'futures';
@@ -303,6 +315,75 @@ const ConnectPage = () => {
 
   const inputCls = 'w-full py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 font-semibold bg-white px-3';
 
+  // Resolved consistency value for display
+  const resolvedConsistency = form.consistency_rule === 'custom'
+    ? form.customConsistency
+    : form.consistency_rule;
+
+  // FIX 2: shared consistency chip renderer
+  const ConsistencySection = ({ forFutures }: { forFutures: boolean }) => {
+    const options = forFutures ? [0, 40, 50] : [0, 30, 35, 40, 45, 50];
+    return (
+      <div className="space-y-2">
+        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+          {lang === 'ar' ? 'قاعدة الاتساق' : lang === 'fr' ? 'Règle de cohérence' : 'Consistency Rule'}
+          <span className="text-gray-300 font-normal ms-1 normal-case tracking-normal">
+            ({lang === 'ar' ? 'اختياري' : lang === 'fr' ? 'optionnel' : 'optional'})
+          </span>
+        </Label>
+        <p className="text-xs text-gray-400">
+          {lang === 'ar'
+            ? 'أفضل يوم لا يتجاوز هذه النسبة من إجمالي الربح. اتركه 0 إذا لم يكن موجوداً.'
+            : lang === 'fr'
+            ? 'Meilleur jour ≤ ce % du profit total. Laisser 0 si aucune règle.'
+            : 'Best day cannot exceed this % of total profit. Leave 0 if no rule.'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {options.map(opt => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => setForm(p => ({ ...p, consistency_rule: String(opt), customConsistency: '' }))}
+              className={`px-3 py-2 rounded-xl text-sm font-bold transition-all border ${
+                form.consistency_rule === String(opt) && !form.customConsistency
+                  ? 'bg-teal-500 text-white border-teal-500'
+                  : 'bg-gray-50 text-gray-700 border-gray-100 hover:border-gray-200'
+              }`}
+            >
+              {opt === 0 ? (lang === 'ar' ? 'لا يوجد' : lang === 'fr' ? 'Aucune' : 'None') : `${opt}%`}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setForm(p => ({ ...p, consistency_rule: 'custom' }))}
+            className={`px-3 py-2 rounded-xl text-sm font-bold transition-all border ${
+              form.consistency_rule === 'custom'
+                ? 'bg-teal-500 text-white border-teal-500'
+                : 'bg-gray-50 text-gray-700 border-gray-100 hover:border-gray-200'
+            }`}
+          >
+            {lang === 'ar' ? 'مخصص' : lang === 'fr' ? 'Personnalisé' : 'Custom'}
+          </button>
+        </div>
+        {form.consistency_rule === 'custom' && (
+          <div className="relative">
+            <input
+              type="number"
+              min="1"
+              max="99"
+              value={form.customConsistency}
+              onChange={e => setForm(p => ({ ...p, customConsistency: e.target.value }))}
+              placeholder={lang === 'ar' ? 'أدخل النسبة...' : 'Enter percentage...'}
+              className="w-full px-4 py-2.5 border border-teal-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 pe-8"
+              autoFocus
+            />
+            <span className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">%</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -320,10 +401,7 @@ const ConnectPage = () => {
             </div>
           </div>
         ) : (
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-2 rounded-xl bg-teal-500 hover:bg-teal-600 px-4 py-2 text-sm font-bold text-white transition-colors"
-          >
+          <button onClick={openAdd} className="flex items-center gap-2 rounded-xl bg-teal-500 hover:bg-teal-600 px-4 py-2 text-sm font-bold text-white transition-colors">
             <Plus className="h-4 w-4" /> {labelAdd}
           </button>
         )}
@@ -334,26 +412,16 @@ const ConnectPage = () => {
         <div className="bg-white border border-gray-100 rounded-3xl p-4 shadow-sm">
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
-              <p className="text-xs text-gray-400 mb-1">
-                {lang === 'ar' ? 'إجمالي الحسابات' : lang === 'fr' ? 'Total comptes' : 'Total Accounts'}
-              </p>
+              <p className="text-xs text-gray-400 mb-1">{lang === 'ar' ? 'إجمالي الحسابات' : lang === 'fr' ? 'Total comptes' : 'Total Accounts'}</p>
               <p className="text-xl font-black text-gray-900">{accounts.length}</p>
             </div>
             <div className="text-center border-x border-gray-100">
-              <p className="text-xs text-gray-400 mb-1">
-                {lang === 'ar' ? 'إجمالي رأس المال' : lang === 'fr' ? 'Capital total' : 'Total Capital'}
-              </p>
-              <p className="text-xl font-black text-gray-900">
-                ${accounts.reduce((s, a) => s + (a.account_size || 0), 0).toLocaleString()}
-              </p>
+              <p className="text-xs text-gray-400 mb-1">{lang === 'ar' ? 'إجمالي رأس المال' : lang === 'fr' ? 'Capital total' : 'Total Capital'}</p>
+              <p className="text-xl font-black text-gray-900">${accounts.reduce((s, a) => s + (a.account_size || 0), 0).toLocaleString()}</p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-gray-400 mb-1">
-                {lang === 'ar' ? 'الحالة' : lang === 'fr' ? 'Statut' : 'Status'}
-              </p>
-              <p className="text-sm font-black text-teal-600">
-                ✅ {lang === 'ar' ? 'آمن' : lang === 'fr' ? 'Sûr' : 'Safe'}
-              </p>
+              <p className="text-xs text-gray-400 mb-1">{lang === 'ar' ? 'الحالة' : lang === 'fr' ? 'Statut' : 'Status'}</p>
+              <p className="text-sm font-black text-teal-600">✅ {lang === 'ar' ? 'آمن' : lang === 'fr' ? 'Sûr' : 'Safe'}</p>
             </div>
           </div>
         </div>
@@ -370,15 +438,10 @@ const ConnectPage = () => {
           <div className="space-y-1">
             <p className="font-bold text-gray-800">{t('noAccountsYet')}</p>
             <p className="text-sm text-gray-400">
-              {lang === 'ar' ? 'أضف حسابك الأول لتتبع أدائك' :
-               lang === 'fr' ? 'Ajoutez votre premier compte pour suivre vos performances' :
-               'Add your first account to track your performance'}
+              {lang === 'ar' ? 'أضف حسابك الأول لتتبع أدائك' : lang === 'fr' ? 'Ajoutez votre premier compte pour suivre vos performances' : 'Add your first account to track your performance'}
             </p>
           </div>
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-2 rounded-xl bg-teal-500 hover:bg-teal-600 px-4 py-2 text-sm font-bold text-white transition-colors"
-          >
+          <button onClick={openAdd} className="flex items-center gap-2 rounded-xl bg-teal-500 hover:bg-teal-600 px-4 py-2 text-sm font-bold text-white transition-colors">
             <Plus className="h-4 w-4" /> {labelAdd}
           </button>
         </div>
@@ -392,13 +455,8 @@ const ConnectPage = () => {
               {!isPro && index >= 1 && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-3xl bg-white/70 backdrop-blur-sm">
                   <Lock className="h-8 w-8 text-teal-500" />
-                  <p className="text-sm font-bold text-gray-800">
-                    {lang === 'ar' ? 'متاح في Pro' : lang === 'fr' ? 'Disponible en Pro' : 'Pro only'}
-                  </p>
-                  <a
-                    href="/settings?tab=subscription"
-                    className="rounded-xl bg-teal-500 px-4 py-1.5 text-xs font-bold text-white hover:bg-teal-600 transition-colors"
-                  >
+                  <p className="text-sm font-bold text-gray-800">{lang === 'ar' ? 'متاح في Pro' : lang === 'fr' ? 'Disponible en Pro' : 'Pro only'}</p>
+                  <a href="/settings?tab=subscription" className="rounded-xl bg-teal-500 px-4 py-1.5 text-xs font-bold text-white hover:bg-teal-600 transition-colors">
                     {lang === 'ar' ? 'ترقية' : lang === 'fr' ? 'Mettre à niveau' : 'Upgrade'}
                   </a>
                 </div>
@@ -415,7 +473,6 @@ const ConnectPage = () => {
             <DialogTitle className="text-lg font-black text-gray-900">{editingId ? labelEdit : labelAdd}</DialogTitle>
           </DialogHeader>
 
-          {/* Step progress */}
           <div className="flex items-start gap-1 px-6 pb-4">
             {[1, 2, 3, 4, 5].map(s => (
               <div key={s} className="flex-1 flex flex-col items-center gap-1">
@@ -440,9 +497,7 @@ const ConnectPage = () => {
                     { val: 'forex_cfd', label: 'Forex / CFD', icon: '💱', sub: lang === 'ar' ? 'أسواق العملات والعقود' : lang === 'fr' ? 'Devises & contrats' : 'Currency & CFD markets' },
                     { val: 'futures', label: 'Futures', icon: '📈', sub: lang === 'ar' ? 'العقود الآجلة' : lang === 'fr' ? 'Marchés à terme' : 'Futures markets' },
                   ].map(opt => (
-                    <button
-                      key={opt.val}
-                      type="button"
+                    <button key={opt.val} type="button"
                       onClick={() => setForm({ ...DEFAULT_FORM, account_category: opt.val })}
                       className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-center transition-all ${
                         form.account_category === opt.val ? 'border-teal-500 bg-teal-50' : 'border-gray-100 bg-gray-50 hover:border-teal-200'
@@ -460,7 +515,6 @@ const ConnectPage = () => {
             {/* ── STEP 2: Firm + Details ── */}
             {formStep === 2 && (
               <div className="space-y-4">
-                {/* Firm */}
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                     {lang === 'ar' ? 'شركة التمويل *' : lang === 'fr' ? 'Société *' : 'Prop Firm *'}
@@ -474,29 +528,23 @@ const ConnectPage = () => {
                     ))}
                   </div>
                   {form.firm === 'Other' && (
-                    <input
-                      className={inputCls}
+                    <input className={inputCls}
                       placeholder={lang === 'ar' ? 'اسم الشركة' : lang === 'fr' ? 'Nom de la société' : 'Firm name'}
                       value={form.customFirm}
                       onChange={e => setForm(f => ({ ...f, customFirm: e.target.value }))}
                     />
                   )}
                 </div>
-
-                {/* Account name */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                     {lang === 'ar' ? 'اسم الحساب *' : lang === 'fr' ? 'Surnom *' : 'Account Nickname *'}
                   </Label>
-                  <input
-                    className={inputCls}
+                  <input className={inputCls}
                     placeholder={lang === 'ar' ? 'FTMO تحدي #1' : 'FTMO Challenge #1'}
                     value={form.account_name}
                     onChange={e => setForm(f => ({ ...f, account_name: e.target.value }))}
                   />
                 </div>
-
-                {/* Account type */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                     {lang === 'ar' ? 'نوع الحساب *' : lang === 'fr' ? 'Type *' : 'Account Type *'}
@@ -510,8 +558,6 @@ const ConnectPage = () => {
                     ))}
                   </div>
                 </div>
-
-                {/* Account size */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                     {lang === 'ar' ? 'حجم الحساب *' : lang === 'fr' ? 'Taille *' : 'Account Size *'}
@@ -535,8 +581,6 @@ const ConnectPage = () => {
                     />
                   )}
                 </div>
-
-                {/* Currency */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                     {lang === 'ar' ? 'العملة' : lang === 'fr' ? 'Devise' : 'Currency'}
@@ -574,13 +618,14 @@ const ConnectPage = () => {
                       {lang === 'ar'
                         ? '⚠️ الحد الأدنى المتتبع يرتفع مع الرصيد ولا ينخفض أبدًا. ستُدخله في خطوة الرصيد.'
                         : lang === 'fr'
-                        ? '⚠️ Le plancher trailing monte avec le solde, ne descend jamais. Vous le saisirez à l\'étape solde.'
-                        : '⚠️ Trailing floor rises with balance, never falls. You\'ll enter it in the balance step.'}
+                        ? "⚠️ Le plancher trailing monte avec le solde, ne descend jamais. Vous le saisirez à l'étape solde."
+                        : "⚠️ Trailing floor rises with balance, never falls. You'll enter it in the balance step."}
                     </div>
                   )}
                 </div>
 
                 {!isFutures ? (
+                  // ── FOREX RULES ──
                   <>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
@@ -613,17 +658,8 @@ const ConnectPage = () => {
                         />
                       </div>
                     )}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('consistency_rule_pct')}</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {CONSISTENCY_OPTIONS.map(opt => (
-                          <button key={opt} type="button"
-                            onClick={() => setForm(f => ({ ...f, consistency_rule_pct: opt }))}
-                            className={`${chipBase} ${form.consistency_rule_pct === opt ? chipActive : chipInactive}`}
-                          >{opt === '0' ? t('no_consistency') : `${opt}%`}</button>
-                        ))}
-                      </div>
-                    </div>
+                    {/* FIX 2: Forex consistency with custom input */}
+                    <ConsistencySection forFutures={false} />
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('profit_split_pct')}</Label>
@@ -642,6 +678,7 @@ const ConnectPage = () => {
                     </div>
                   </>
                 ) : (
+                  // ── FUTURES RULES (FIX 5 + FIX 6) ──
                   <>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
@@ -652,21 +689,31 @@ const ConnectPage = () => {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('daily_loss_dollars')}</Label>
-                        <input type="number" step="1" placeholder="500" className={inputCls}
+                        {/* FIX 5: optional */}
+                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                          {t('daily_loss_dollars')}
+                          <span className="text-gray-300 font-normal ms-1 normal-case tracking-normal">
+                            ({lang === 'ar' ? 'اختياري' : 'optional'})
+                          </span>
+                        </Label>
+                        <input type="number" step="1"
+                          placeholder={lang === 'ar' ? '0 إذا لم يكن موجوداً' : '0 if none'}
+                          className={inputCls}
                           value={form.daily_loss_dollars}
                           onChange={e => setForm(f => ({ ...f, daily_loss_dollars: e.target.value }))}
                         />
                       </div>
                     </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('profit_target_dollars')}</Label>
+                      <input type="number" step="1" placeholder="3000" className={inputCls}
+                        value={form.profit_target_dollars}
+                        onChange={e => setForm(f => ({ ...f, profit_target_dollars: e.target.value }))}
+                      />
+                    </div>
+                    {/* FIX 6: Futures consistency */}
+                    <ConsistencySection forFutures={true} />
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('profit_target_dollars')}</Label>
-                        <input type="number" step="1" placeholder="3000" className={inputCls}
-                          value={form.profit_target_dollars}
-                          onChange={e => setForm(f => ({ ...f, profit_target_dollars: e.target.value }))}
-                        />
-                      </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('contract_limit')}</Label>
                         <input type="number" step="1" placeholder="10" className={inputCls}
@@ -674,29 +721,47 @@ const ConnectPage = () => {
                           onChange={e => setForm(f => ({ ...f, contract_limit: e.target.value }))}
                         />
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('min_winning_days')}</Label>
-                        <input type="number" step="1" placeholder="10" className={inputCls}
+                        {/* FIX 5: optional */}
+                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                          {t('min_winning_days')}
+                          <span className="text-gray-300 font-normal ms-1 normal-case tracking-normal">
+                            ({lang === 'ar' ? 'اختياري' : 'optional'})
+                          </span>
+                        </Label>
+                        <input type="number" step="1" placeholder="e.g. 5" className={inputCls}
                           value={form.min_winning_days}
                           onChange={e => setForm(f => ({ ...f, min_winning_days: e.target.value }))}
                         />
                       </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('winning_day_threshold')}</Label>
-                        <input type="number" step="1" placeholder="200" className={inputCls}
+                        {/* FIX 5: optional */}
+                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                          {t('winning_day_threshold')}
+                          <span className="text-gray-300 font-normal ms-1 normal-case tracking-normal">
+                            ({lang === 'ar' ? 'اختياري' : 'optional'})
+                          </span>
+                        </Label>
+                        <input type="number" step="1" placeholder="e.g. $150" className={inputCls}
                           value={form.winning_day_threshold}
                           onChange={e => setForm(f => ({ ...f, winning_day_threshold: e.target.value }))}
                         />
                       </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('position_close_time')}</Label>
-                      <input type="time" className={inputCls}
-                        value={form.position_close_time}
-                        onChange={e => setForm(f => ({ ...f, position_close_time: e.target.value }))}
-                      />
+                      <div className="space-y-1.5">
+                        {/* FIX 5: optional */}
+                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                          {t('position_close_time')}
+                          <span className="text-gray-300 font-normal ms-1 normal-case tracking-normal">
+                            ({lang === 'ar' ? 'اختياري' : 'optional'})
+                          </span>
+                        </Label>
+                        <input type="time" className={inputCls}
+                          value={form.position_close_time}
+                          onChange={e => setForm(f => ({ ...f, position_close_time: e.target.value }))}
+                        />
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('profit_split_pct')}</Label>
@@ -713,7 +778,6 @@ const ConnectPage = () => {
             {/* ── STEP 4: Balance ── */}
             {formStep === 4 && (
               <div className="space-y-4">
-                {/* Starting Balance */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                     {lang === 'ar' ? 'الرصيد الابتدائي *' : lang === 'fr' ? 'Solde de départ *' : 'Starting Balance *'}
@@ -730,8 +794,6 @@ const ConnectPage = () => {
                     {lang === 'ar' ? 'الرصيد عند بدء التحدي أو الحساب الممول' : lang === 'fr' ? 'Le solde au début du challenge ou du compte financé' : 'Balance when you started the challenge or funded account'}
                   </p>
                 </div>
-
-                {/* Current Balance */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
                     {lang === 'ar' ? 'الرصيد الحالي *' : lang === 'fr' ? 'Solde actuel *' : 'Current Balance *'}
@@ -745,8 +807,6 @@ const ConnectPage = () => {
                     />
                   </div>
                 </div>
-
-                {/* Trailing floor — only if trailing drawdown type selected */}
                 {isTrailing && (
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
@@ -771,22 +831,12 @@ const ConnectPage = () => {
                     </div>
                   </div>
                 )}
-
-                {/* P&L Summary */}
                 {form.starting_balance && form.balance && (
-                  <div className={`rounded-2xl p-4 border ${
-                    parseFloat(form.balance) >= parseFloat(form.starting_balance)
-                      ? 'bg-teal-50 border-teal-100'
-                      : 'bg-red-50 border-red-100'
-                  }`}>
-                    <p className="text-xs font-bold text-gray-500 mb-2 uppercase">
-                      {lang === 'ar' ? 'ملخص' : lang === 'fr' ? 'Résumé' : 'Summary'}
-                    </p>
+                  <div className={`rounded-2xl p-4 border ${parseFloat(form.balance) >= parseFloat(form.starting_balance) ? 'bg-teal-50 border-teal-100' : 'bg-red-50 border-red-100'}`}>
+                    <p className="text-xs font-bold text-gray-500 mb-2 uppercase">{lang === 'ar' ? 'ملخص' : lang === 'fr' ? 'Résumé' : 'Summary'}</p>
                     <div className="flex justify-between">
                       <p className="text-xs text-gray-600">{lang === 'ar' ? 'الربح/الخسارة' : 'P&L'}</p>
-                      <p className={`text-sm font-black ${
-                        parseFloat(form.balance) >= parseFloat(form.starting_balance) ? 'text-teal-700' : 'text-red-600'
-                      }`}>
+                      <p className={`text-sm font-black ${parseFloat(form.balance) >= parseFloat(form.starting_balance) ? 'text-teal-700' : 'text-red-600'}`}>
                         {parseFloat(form.balance) >= parseFloat(form.starting_balance) ? '+' : ''}
                         {currSymbol}{(parseFloat(form.balance) - parseFloat(form.starting_balance)).toFixed(2)}
                       </p>
@@ -833,10 +883,10 @@ const ConnectPage = () => {
                           <span className="font-bold text-red-500">{form.daily_loss_limit}%</span>
                         </div>
                       )}
-                      {parseFloat(form.consistency_rule_pct) > 0 && (
+                      {parseFloat(resolvedConsistency) > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-500">Consistency</span>
-                          <span className="font-bold text-amber-500">{form.consistency_rule_pct}%</span>
+                          <span className="font-bold text-amber-500">{resolvedConsistency}%</span>
                         </div>
                       )}
                     </>
@@ -860,6 +910,12 @@ const ConnectPage = () => {
                           <span className="font-bold">{form.position_close_time}</span>
                         </div>
                       )}
+                      {parseFloat(resolvedConsistency) > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Consistency</span>
+                          <span className="font-bold text-amber-500">{resolvedConsistency}%</span>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -880,27 +936,19 @@ const ConnectPage = () => {
             {/* Navigation */}
             <div className="flex gap-2 pt-2 border-t border-gray-50">
               {formStep > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setFormStep(s => s - 1)}
-                  className="flex-1 py-2.5 border border-gray-200 rounded-2xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1"
-                >
+                <button type="button" onClick={() => setFormStep(s => s - 1)}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-2xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1">
                   <ChevronLeft className="h-4 w-4" />
                   {lang === 'ar' ? 'رجوع' : lang === 'fr' ? 'Retour' : 'Back'}
                 </button>
               )}
               {formStep < 5 && (
-                <button
-                  type="button"
+                <button type="button"
                   onClick={() => {
                     if (formStep === 2) {
                       const firmVal = form.firm === 'Other' ? form.customFirm : form.firm;
                       if (!firmVal.trim() || !form.account_name.trim() || !form.account_type) {
-                        toast.error(
-                          lang === 'ar' ? 'يرجى إكمال جميع الحقول المطلوبة' :
-                          lang === 'fr' ? 'Veuillez remplir tous les champs obligatoires' :
-                          'Please complete all required fields'
-                        );
+                        toast.error(lang === 'ar' ? 'يرجى إكمال جميع الحقول المطلوبة' : lang === 'fr' ? 'Veuillez remplir tous les champs obligatoires' : 'Please complete all required fields');
                         return;
                       }
                     }
@@ -908,8 +956,7 @@ const ConnectPage = () => {
                     setFormStep(s => s + 1);
                   }}
                   disabled={!canAdvance(formStep)}
-                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-100 disabled:text-gray-400 rounded-2xl text-sm font-bold text-white transition-colors flex items-center justify-center gap-1"
-                >
+                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-100 disabled:text-gray-400 rounded-2xl text-sm font-bold text-white transition-colors flex items-center justify-center gap-1">
                   {lang === 'ar' ? 'التالي' : lang === 'fr' ? 'Suivant' : 'Next'}
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -949,7 +996,7 @@ const ConnectPage = () => {
   );
 };
 
-// ---- Account Card (exported for reuse in Dashboard) ----
+// ---- Account Card ----
 interface AccountCardProps {
   acc: Account;
   lang: 'ar' | 'fr' | 'en';
@@ -964,6 +1011,10 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const [tradePnl, setTradePnl] = useState<number | null>(null);
   const [todayPnl, setTodayPnl] = useState<number | null>(null);
   const [monthlyTrades, setMonthlyTrades] = useState<any[]>([]);
+  // FIX 1: modal state
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [newBalance, setNewBalance] = useState('');
+  const [newFloor, setNewFloor] = useState('');
 
   useEffect(() => {
     if (!userId || !acc.id) return;
@@ -1046,11 +1097,37 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   });
   const totalMonthPnl = Object.values(byDay).reduce((s, v) => s + v, 0);
   const bestDayPnl = Math.max(0, ...Object.values(byDay), 0);
-  const consistencyPct = totalMonthPnl > 0 ? (bestDayPnl / totalMonthPnl) * 100 : 0;
   const consistencyRule = a.consistency_rule ?? 0;
   const winningThreshold = a.winning_day_threshold ?? 0;
   const winningDays = Object.values(byDay).filter(pnl => pnl >= winningThreshold).length;
   const minWinningDays = a.min_winning_days ?? 0;
+
+  // FIX 7: differentiated consistency calculation
+  const isChallengeAccount = ['Challenge Phase 1', 'Challenge Phase 2', 'Evaluation'].includes(acc.account_type || '');
+  const isFundedAccount = ['Funded', 'Express Funded', 'Live Funded', 'Instant Funded'].includes(acc.account_type || '');
+
+  let consistencyPct = 0;
+  if (isChallengeAccount) {
+    const profitTargetAmount = isFuturesCard
+      ? (a.profit_target_dollars || 0)
+      : (start * ((acc.profit_target || 0) / 100));
+    consistencyPct = profitTargetAmount > 0 ? (bestDayPnl / profitTargetAmount) * 100 : 0;
+  } else {
+    consistencyPct = totalMonthPnl > 0 ? (bestDayPnl / totalMonthPnl) * 100 : 0;
+  }
+
+  const consistencyLimit = consistencyRule;
+  let maxDayAllowed = 0;
+  if (consistencyLimit > 0) {
+    if (isChallengeAccount) {
+      const profitTargetAmount = isFuturesCard
+        ? (a.profit_target_dollars || 0)
+        : (start * ((acc.profit_target || 0) / 100));
+      maxDayAllowed = Math.max(0, (profitTargetAmount * (consistencyLimit / 100)) - bestDayPnl);
+    } else {
+      maxDayAllowed = Math.max(0, totalMonthPnl > 0 ? (totalMonthPnl * (consistencyLimit / 100)) - bestDayPnl : 0);
+    }
+  }
 
   // Status
   const isDanger = ddPct >= 90 || dailyLossPct >= 90 || futuresDDPct >= 90 || futuresDailyPct >= 90 ||
@@ -1060,38 +1137,61 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const barColor = isDanger ? 'bg-red-500' : isWarning ? 'bg-amber-400' : 'bg-teal-500';
   const iconBg = isDanger ? 'bg-red-500' : isWarning ? 'bg-amber-400' : 'bg-teal-500';
 
-  const handleQuickBalance = async () => {
-    const newBalStr = window.prompt(
-      lang === 'ar' ? 'أدخل الرصيد الجديد:' : lang === 'fr' ? 'Entrez le nouveau solde:' : 'Enter new balance:',
-      String(curr)
-    );
-    if (!newBalStr) return;
-    const newBal = parseFloat(newBalStr);
-    if (isNaN(newBal)) return;
-
-    const update: any = { balance: newBal };
-
-    const hasTrailing = a.drawdown_type === 'eod_trailing' || a.drawdown_type === 'intraday_trailing';
-    if (isFuturesCard && hasTrailing) {
-      const newFloorStr = window.prompt(
-        lang === 'ar' ? 'أدخل الحد الأدنى المتتبع الحالي ($):' : lang === 'fr' ? 'Plancher trailing actuel ($):' : 'Current trailing floor ($):',
-        String(futuresTrailingFloor ?? '')
-      );
-      if (newFloorStr) {
-        const nf = parseFloat(newFloorStr);
-        if (!isNaN(nf)) update.trailing_floor = nf;
-      }
-    }
-
-    await supabase.from('mt5_accounts').update(update).eq('id', acc.id);
-    if (onRefresh) onRefresh(); else window.location.reload();
-  };
-
   const progressBar = (pct: number, danger = 90, warn = 70) => {
     const col = pct >= danger ? 'bg-red-500' : pct >= warn ? 'bg-amber-400' : 'bg-teal-500';
     return (
       <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
         <div className={`h-full rounded-full transition-all ${col}`} style={{ width: `${pct}%` }} />
+      </div>
+    );
+  };
+
+  // FIX 7: consistency panel
+  const ConsistencyPanel = () => {
+    if (consistencyRule <= 0) return null;
+    const hasData = isChallengeAccount
+      ? (isFuturesCard ? a.profit_target_dollars > 0 : (start * ((acc.profit_target || 0) / 100)) > 0)
+      : totalMonthPnl > 0;
+    if (!hasData) return null;
+    const barFill = Math.min((consistencyPct / consistencyLimit) * 100, 100);
+    return (
+      <div className={`rounded-xl p-2.5 border ${
+        consistencyPct >= consistencyLimit ? 'border-red-100 bg-red-50' : 'border-gray-100 bg-gray-50'
+      }`}>
+        <div className="flex justify-between items-center mb-1.5">
+          <div>
+            <p className="text-xs font-bold text-gray-700">
+              📊 {lang === 'ar' ? 'نقاط الاتساق' : 'Consistency'}
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {isChallengeAccount
+                ? (lang === 'ar' ? 'vs هدف الربح' : 'vs profit target')
+                : (lang === 'ar' ? 'vs إجمالي الربح' : 'vs total profit')}
+            </p>
+          </div>
+          <p className={`text-sm font-black ${consistencyPct >= consistencyLimit ? 'text-red-500' : 'text-teal-600'}`}>
+            {consistencyPct.toFixed(0)}% / {consistencyLimit}%
+          </p>
+        </div>
+        {progressBar(barFill, 100, 80)}
+        {maxDayAllowed > 0 && consistencyPct < consistencyLimit && (
+          <div className="mt-2 pt-2 border-t border-gray-100">
+            <p className="text-xs text-gray-500">
+              {lang === 'ar'
+                ? `✅ تستطيع كسب $${maxDayAllowed.toFixed(0)} اليوم بأمان`
+                : `✅ Safe to earn $${maxDayAllowed.toFixed(0)} today`}
+            </p>
+          </div>
+        )}
+        {consistencyPct >= consistencyLimit && (
+          <div className="mt-2 pt-2 border-t border-red-100">
+            <p className="text-xs text-red-600 font-semibold">
+              {lang === 'ar'
+                ? '⚠️ وصلت لحد الاتساق. تحتاج لتقليل نسبة أفضل يوم.'
+                : '⚠️ Consistency limit reached. Trade more days to dilute.'}
+            </p>
+          </div>
+        )}
       </div>
     );
   };
@@ -1115,17 +1215,15 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
               isDanger ? 'bg-red-50 text-red-500' : isWarning ? 'bg-amber-50 text-amber-600' : 'bg-teal-50 text-teal-600'
             }`}>
-              {isDanger ? `🔴 ${lang === 'ar' ? 'خطر' : 'Danger'}` : isWarning ? `⚠️ ${lang === 'ar' ? 'تحذير' : 'Avertissement'}` : `✅ ${lang === 'ar' ? 'آمن' : 'Safe'}`}
+              {isDanger ? `🔴 ${lang === 'ar' ? 'خطر' : 'Danger'}` : isWarning ? `⚠️ ${lang === 'ar' ? 'تحذير' : 'Warning'}` : `✅ ${lang === 'ar' ? 'آمن' : 'Safe'}`}
             </span>
             {onEdit && (
-              <button onClick={() => onEdit(acc)}
-                className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+              <button onClick={() => onEdit(acc)} className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
                 <Pencil className="w-3.5 h-3.5" />
               </button>
             )}
             {onDelete && (
-              <button onClick={() => onDelete(acc.id)}
-                className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+              <button onClick={() => onDelete(acc.id)} className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
@@ -1143,9 +1241,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-2xl bg-gray-50 p-3">
             <p className="text-xs text-gray-400">{lang === 'ar' ? 'الرصيد الحالي' : lang === 'fr' ? 'Solde actuel' : 'Current'}</p>
-            <p className="mt-0.5 font-black text-gray-900 text-sm">
-              {symbol}{(start + effectivePnl).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </p>
+            <p className="mt-0.5 font-black text-gray-900 text-sm">{symbol}{(start + effectivePnl).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
             <p className={`text-xs font-bold mt-0.5 ${effectivePnl >= 0 ? 'text-teal-600' : 'text-red-500'}`}>
               {effectivePnl >= 0 ? '+' : ''}{symbol}{effectivePnl.toFixed(2)}
             </p>
@@ -1163,7 +1259,6 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
         {/* Forex panels */}
         {!isFuturesCard && (
           <>
-            {/* Max Drawdown */}
             {ddLimitPct > 0 && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
@@ -1178,7 +1273,6 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 {progressBar(ddPct)}
               </div>
             )}
-            {/* Daily Loss */}
             {dailyLossPctLimit > 0 && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
@@ -1193,7 +1287,6 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 {progressBar(dailyLossPct)}
               </div>
             )}
-            {/* Profit target */}
             {SHOWS_PROFIT_PROGRESS.includes(acc.account_type ?? '') && profitTarget > 0 && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
@@ -1210,32 +1303,15 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 </div>
               </div>
             )}
-            {/* Consistency panel */}
-            {consistencyRule > 0 && totalMonthPnl > 0 && (
-              <div className="rounded-2xl bg-gray-50 p-3 space-y-1">
-                <p className="text-xs font-bold text-gray-500 uppercase">
-                  {lang === 'ar' ? 'الاتساق الشهري' : lang === 'fr' ? 'Cohérence mensuelle' : 'Monthly Consistency'}
-                </p>
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-400">{lang === 'ar' ? 'أفضل يوم' : 'Best day'}</span>
-                  <span className={`font-bold ${consistencyPct > consistencyRule ? 'text-amber-500' : 'text-teal-600'}`}>
-                    {consistencyPct.toFixed(1)}% / {consistencyRule}%
-                  </span>
-                </div>
-                {progressBar(Math.min((consistencyPct / consistencyRule) * 100, 100), 100, 80)}
-              </div>
-            )}
+            <ConsistencyPanel />
           </>
         )}
 
         {/* Futures panels */}
         {isFuturesCard && (
           <>
-            {/* Trailing buffer */}
             {futuresBuffer != null && (
-              <div className={`rounded-2xl p-3 border ${
-                futuresBuffer < 500 ? 'bg-red-50 border-red-100' : futuresBuffer < 1000 ? 'bg-amber-50 border-amber-100' : 'bg-teal-50 border-teal-100'
-              }`}>
+              <div className={`rounded-2xl p-3 border ${futuresBuffer < 500 ? 'bg-red-50 border-red-100' : futuresBuffer < 1000 ? 'bg-amber-50 border-amber-100' : 'bg-teal-50 border-teal-100'}`}>
                 <p className="text-xs font-bold text-gray-500 uppercase mb-1">
                   {lang === 'ar' ? 'المساحة المتبقية' : lang === 'fr' ? 'Marge restante' : 'Trailing Buffer'}
                 </p>
@@ -1244,7 +1320,6 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 </p>
               </div>
             )}
-            {/* Max Loss */}
             {futuresDDLimit > 0 && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
@@ -1256,7 +1331,6 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 {progressBar(futuresDDPct)}
               </div>
             )}
-            {/* Daily Loss */}
             {futuresDailyLimit > 0 && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
@@ -1268,7 +1342,6 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 {progressBar(futuresDailyPct)}
               </div>
             )}
-            {/* Profit Target */}
             {futuresProfitTarget > 0 && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
@@ -1285,7 +1358,6 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 </div>
               </div>
             )}
-            {/* Info chips */}
             <div className="flex flex-wrap gap-1.5">
               {a.contract_limit > 0 && (
                 <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full font-semibold">
@@ -1298,40 +1370,138 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 </span>
               )}
               {minWinningDays > 0 && (
-                <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
-                  winningDays >= minWinningDays ? 'bg-teal-50 text-teal-600' : 'bg-amber-50 text-amber-600'
-                }`}>
+                <span className={`text-xs px-2 py-1 rounded-full font-semibold ${winningDays >= minWinningDays ? 'bg-teal-50 text-teal-600' : 'bg-amber-50 text-amber-600'}`}>
                   {winningDays}/{minWinningDays} {lang === 'ar' ? 'أيام رابحة' : 'win days'}
                 </span>
               )}
             </div>
-            {/* Consistency panel for futures */}
-            {consistencyRule > 0 && totalMonthPnl > 0 && (
-              <div className="rounded-2xl bg-gray-50 p-3 space-y-1">
-                <p className="text-xs font-bold text-gray-500 uppercase">
-                  {lang === 'ar' ? 'الاتساق الشهري' : lang === 'fr' ? 'Cohérence mensuelle' : 'Monthly Consistency'}
-                </p>
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-400">{lang === 'ar' ? 'أفضل يوم' : 'Best day'}</span>
-                  <span className={`font-bold ${consistencyPct > consistencyRule ? 'text-amber-500' : 'text-teal-600'}`}>
-                    {consistencyPct.toFixed(1)}% / {consistencyRule}%
-                  </span>
-                </div>
-                {progressBar(Math.min((consistencyPct / consistencyRule) * 100, 100), 100, 80)}
-              </div>
-            )}
+            <ConsistencyPanel />
           </>
         )}
 
-        {/* Quick Update Balance */}
+        {/* FIX 1: Update Balance button */}
         <button
-          onClick={handleQuickBalance}
-          className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-colors"
+          onClick={() => {
+            setNewBalance(String(curr || ''));
+            setNewFloor(String(a.trailing_floor || ''));
+            setShowUpdateModal(true);
+          }}
+          className="w-full mt-3 py-2.5 border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 hover:bg-gray-50 hover:text-teal-600 hover:border-teal-200 transition-all flex items-center justify-center gap-1.5"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
+          <RefreshCw className="w-3.5 h-3.5" />
           {lang === 'ar' ? 'تحديث الرصيد' : lang === 'fr' ? 'Mettre à jour' : 'Update Balance'}
         </button>
       </div>
+
+      {/* FIX 1: Update Balance Modal */}
+      {showUpdateModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4"
+          onClick={() => setShowUpdateModal(false)}
+        >
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in slide-in-from-bottom duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4 border-b border-gray-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-black text-gray-900 text-base">
+                    {lang === 'ar' ? 'تحديث الرصيد' : lang === 'fr' ? 'Mettre à jour le solde' : 'Update Balance'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">{acc.account_name || acc.firm}</p>
+                </div>
+                <button
+                  onClick={() => setShowUpdateModal(false)}
+                  className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                >
+                  <span className="text-gray-500 text-sm">✕</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              {/* Current Balance input */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 block">
+                  {lang === 'ar' ? 'الرصيد الحالي' : lang === 'fr' ? 'Solde actuel' : 'Current Balance'}
+                </label>
+                <div className="relative">
+                  <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
+                    {acc.currency === 'EUR' ? '€' : '$'}
+                  </span>
+                  <input
+                    type="number"
+                    value={newBalance}
+                    onChange={e => setNewBalance(e.target.value)}
+                    autoFocus
+                    className="w-full ps-7 py-3 border-2 border-teal-200 rounded-2xl text-base font-black text-gray-900 focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+                {newBalance && (
+                  <p className={`text-xs font-bold mt-1.5 ${parseFloat(newBalance) >= (acc.starting_balance || 0) ? 'text-teal-600' : 'text-red-500'}`}>
+                    {parseFloat(newBalance) >= (acc.starting_balance || 0) ? '+' : ''}
+                    ${(parseFloat(newBalance) - (acc.starting_balance || 0)).toFixed(2)} P&L
+                  </p>
+                )}
+              </div>
+
+              {/* Trailing floor — only for trailing accounts */}
+              {(a.drawdown_type === 'eod_trailing' || a.drawdown_type === 'intraday_trailing') && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1 block">
+                    {lang === 'ar' ? 'الحد الأدنى المتتبع الحالي' : lang === 'fr' ? 'Plancher trailing actuel' : 'Current Trailing Floor'}
+                  </label>
+                  <p className="text-xs text-amber-600 mb-2">
+                    {lang === 'ar' ? '⚠️ تحقق من قيمته في لوحة تحكم شركتك' : "⚠️ Check exact value in your firm's dashboard"}
+                  </p>
+                  <div className="relative">
+                    <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
+                    <input
+                      type="number"
+                      value={newFloor}
+                      onChange={e => setNewFloor(e.target.value)}
+                      className="w-full ps-7 py-3 border-2 border-amber-200 rounded-2xl text-base font-semibold text-gray-900 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  {newBalance && newFloor && (
+                    <p className="text-xs text-gray-500 mt-1.5">
+                      {lang === 'ar' ? 'المساحة المتبقية:' : 'Buffer:'}{' '}
+                      <span className={`font-bold ${
+                        parseFloat(newBalance) - parseFloat(newFloor) < 500 ? 'text-red-500'
+                        : parseFloat(newBalance) - parseFloat(newFloor) < 1000 ? 'text-amber-500'
+                        : 'text-teal-600'
+                      }`}>
+                        ${(parseFloat(newBalance) - parseFloat(newFloor)).toFixed(0)}
+                      </span>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Save */}
+              <button
+                onClick={async () => {
+                  if (!newBalance || isNaN(parseFloat(newBalance))) return;
+                  const updateData: any = { balance: parseFloat(newBalance) };
+                  if (newFloor && !isNaN(parseFloat(newFloor))) {
+                    updateData.trailing_floor = parseFloat(newFloor);
+                  }
+                  await supabase.from('mt5_accounts').update(updateData).eq('id', acc.id);
+                  setShowUpdateModal(false);
+                  if (onRefresh) onRefresh(); else window.location.reload();
+                }}
+                disabled={!newBalance}
+                className="w-full py-3.5 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-100 disabled:text-gray-400 text-white font-black text-sm rounded-2xl transition-all"
+              >
+                {lang === 'ar' ? 'حفظ التحديث ✓' : lang === 'fr' ? 'Enregistrer ✓' : 'Save Update ✓'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
