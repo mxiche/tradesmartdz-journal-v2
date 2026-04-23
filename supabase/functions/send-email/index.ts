@@ -56,7 +56,7 @@
 import { Resend } from 'npm:resend';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
-const FROM_EMAIL = 'TradeSmartDz <noreply@neuroport.xyz>';
+const FROM_EMAIL = 'TradeSmartDz <noreply@tradesmartdz.com>';
 const resend = new Resend(RESEND_API_KEY);
 
 // ── HTML email builders ────────────────────────────────────────────────────
@@ -217,7 +217,7 @@ function buildProActivatedEmail(userEmail: string, paymentMethod: string, amount
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:0 0 24px;">
-                    <a href="https://neuroport.xyz"
+                    <a href="https://tradesmartdz.com"
                        style="display:inline-block;background:#14b8a6;color:#000;text-decoration:none;padding:14px 40px;border-radius:12px;font-weight:800;font-size:16px;">
                       🚀 افتح التطبيق
                     </a>
@@ -309,7 +309,7 @@ function buildRenewalReminderEmail(userEmail: string, expiresAt: string): string
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:0 0 16px;">
-                    <a href="https://neuroport.xyz/settings?tab=subscription"
+                    <a href="https://tradesmartdz.com/settings?tab=subscription"
                       style="display:inline-block;background:#14b8a6;color:#000;
                       text-decoration:none;padding:14px 40px;border-radius:12px;
                       font-weight:800;font-size:16px;">
@@ -408,7 +408,7 @@ function buildTrialReminderEmail(userEmail: string, daysLeft: number): string {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="center" style="padding:0 0 16px;">
-                    <a href="https://neuroport.xyz/settings?tab=subscription"
+                    <a href="https://tradesmartdz.com/settings?tab=subscription"
                       style="display:inline-block;background:#14b8a6;color:#000;
                       text-decoration:none;padding:14px 40px;border-radius:12px;
                       font-weight:800;font-size:16px;">
@@ -532,7 +532,7 @@ function buildTrialExpiredEmail(to: string): string {
                   <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                       <td align="center" style="padding-bottom:24px;">
-                        <a href="https://neuroport.xyz/settings?tab=subscription"
+                        <a href="https://tradesmartdz.com/settings?tab=subscription"
                           style="display:inline-block;background:#14b8a6;
                           color:#ffffff;text-decoration:none;
                           padding:16px 48px;border-radius:14px;

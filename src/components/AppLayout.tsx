@@ -362,7 +362,7 @@ export default function AppLayout() {
 
             {/* Footer */}
             <div className="px-4 pb-5 pt-2 text-center">
-              <p className="text-xs text-gray-300 font-medium">TradeSmartDz v1.0 · neuroport.xyz</p>
+              <p className="text-xs text-gray-300 font-medium">TradeSmartDz v1.0 · tradesmartdz.com</p>
             </div>
           </div>
         </div>

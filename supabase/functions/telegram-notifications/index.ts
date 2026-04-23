@@ -559,7 +559,7 @@ async function runMonthlyRecap(supabase: any, botToken: string, users: any[]) {
           ? `⭐ أفضل صفقة: ${bestTrade.symbol} +$${netPnl(bestTrade).toFixed(2)}\n`
           : '') +
         `\n🎓 شهادتك جاهزة للتحميل!\n` +
-        `افتح التطبيق على neuroport.xyz\n\n` +
+        `افتح التطبيق على tradesmartdz.com\n\n` +
         `<i>TradeSmartDz 🎯</i>`;
 
       await sendMessage(botToken, user.telegram_chat_id, msg);

@@ -101,7 +101,7 @@ async function callOpenRouter(messages: { role: string; content: string }[], mod
     headers: {
       'Authorization': `Bearer ${OPENROUTER_KEY}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://neuroport.xyz',
+      'HTTP-Referer': 'https://tradesmartdz.com',
       'X-Title': 'TradeSmartDz',
     },
     body: JSON.stringify({ model, messages, max_tokens: 400 }),

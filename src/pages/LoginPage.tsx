@@ -44,7 +44,7 @@ const LoginPage = () => {
     e.preventDefault();
     setResetLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-      redirectTo: 'https://neuroport.xyz/reset-password',
+      redirectTo: 'https://tradesmartdz.com/reset-password',
     });
     setResetLoading(false);
     if (error) {

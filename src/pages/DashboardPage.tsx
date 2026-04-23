@@ -768,7 +768,7 @@ function TradingCalendar({
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
           <span style="font-size:18px;font-weight:900;color:#0f172a;">TradeSmart<span style="color:#14b8a6;">Dz</span></span>
           <span style="font-size:16px;font-weight:700;color:#0f172a;">${calExportTitle} — ${monthName} ${year}</span>
-          <span style="font-size:12px;color:#94a3b8;">neuroport.xyz</span>
+          <span style="font-size:12px;color:#94a3b8;">tradesmartdz.com</span>
         </div>
         <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">${headerRow}</div>
         ${rows}
@@ -781,7 +781,7 @@ function TradingCalendar({
           </div>
           <div style="text-align:${dir === 'rtl' ? 'left' : 'right'};">
             <p style="margin:0 0 2px;font-size:13px;font-weight:700;color:#0f172a;">${userName}</p>
-            <p style="margin:0;font-size:11px;color:#64748b;">neuroport.xyz</p>
+            <p style="margin:0;font-size:11px;color:#64748b;">tradesmartdz.com</p>
           </div>
         </div>
       </div>`;

@@ -3153,7 +3153,7 @@ const TradesPage = () => {
                               {shareUserName}
                             </p>
                             <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 600 }}>
-                              TradeSmartDz • neuroport.xyz
+                              TradeSmartDz • tradesmartdz.com
                             </p>
                           </div>
                         </div>
@@ -3203,7 +3203,7 @@ const TradesPage = () => {
                         {/* Footer */}
                         <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{t('share_analyzed_with', lang)}</p>
-                          <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 700 }}>neuroport.xyz</p>
+                          <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 700 }}>tradesmartdz.com</p>
                         </div>
                       </div>
                       <Button className="w-full gradient-primary text-primary-foreground" onClick={async () => {
