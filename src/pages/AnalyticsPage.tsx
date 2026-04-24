@@ -143,6 +143,35 @@ const L = {
 const SESSIONS = ['London', 'New York', 'Asia', 'NY Lunch'] as const;
 const RESULT_VALUES = ['Win', 'Loss', 'Breakeven', 'Partial Win - TP1', 'Partial Win - TP2'];
 
+const RESULT_VALUES_SET = new Set([
+  'win', 'loss', 'breakeven',
+  'partial win - tp1', 'partial win - tp2', 'partial win',
+]);
+const SESSION_VALUES_SET = new Set([
+  'london', 'new york', 'asia', 'ny lunch',
+]);
+
+// Extract only the user-typed setup tags from a raw setup_tag CSV like "Win, New York, IFVG, Sweep"
+function extractSetupPart(setupTag: string | null): string {
+  if (!setupTag) return '';
+  const seen = new Set<string>();
+  const parts = setupTag.split(',').map(p => p.trim()).filter(p => {
+    const lower = p.toLowerCase();
+    if (!p || RESULT_VALUES_SET.has(lower) || SESSION_VALUES_SET.has(lower)) return false;
+    if (seen.has(lower)) return false;
+    seen.add(lower);
+    return true;
+  });
+  return parts.join(', ');
+}
+
+// Normalized key for grouping: lowercase + alphabetically sorted
+function normalizeSetupKey(setupTag: string | null): string {
+  const extracted = extractSetupPart(setupTag);
+  if (!extracted) return '';
+  return extracted.split(',').map(p => p.trim().toLowerCase()).sort().join(',');
+}
+
 function parseSetupTag(setupTag: string | null) {
   if (!setupTag) return { result: null, session: null, setup: null };
   const parts = setupTag.split(',').map(s => s.trim()).filter(Boolean);
@@ -160,18 +189,6 @@ function parseSetupTag(setupTag: string | null) {
 function getTradeSession(tr: Trade): string | null {
   if (tr.session) return tr.session;
   return parseSetupTag(tr.setup_tag).session;
-}
-
-function getTradeSetup(tr: Trade): string {
-  return parseSetupTag(tr.setup_tag).setup || 'Other';
-}
-
-function normalizeSetup(setup: string): string {
-  return setup.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).sort().join(',');
-}
-
-function displaySetup(setup: string): string {
-  return setup.split(',').map(s => s.trim()).filter(Boolean).sort().join(', ');
 }
 
 function fmtPnl(v: number): string {
@@ -300,9 +317,12 @@ const AnalyticsPage = () => {
     const rr        = avgLoss > 0 ? (avgWin / avgLoss) : 0;
     const lossRate  = trades.length ? (losses.length / trades.length) : 0;
     const expectancy = (winRate / 100) * avgWin - lossRate * avgLoss;
-    const grossProfit = wins.reduce((s, tr) => s + (tr.profit ?? 0), 0);
-    const grossLoss   = Math.abs(losses.reduce((s, tr) => s + (tr.profit ?? 0), 0));
-    const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : '∞';
+    const netPnlPerTrade = trades.map(tr => (tr.profit ?? 0) - ((tr as any).commission ?? 0));
+    const grossProfit = netPnlPerTrade.filter(n => n > 0).reduce((s, n) => s + n, 0);
+    const grossLoss   = Math.abs(netPnlPerTrade.filter(n => n < 0).reduce((s, n) => s + n, 0));
+    const profitFactor: number | null = grossLoss < 1
+      ? (grossProfit > 0 ? null : 0)
+      : parseFloat((grossProfit / grossLoss).toFixed(2));
     const bestTradeVal = trades.length ? Math.max(...trades.map(tr => tr.profit ?? 0)) : 0;
     return { wins: wins.length, losses: losses.length, beEvens: beEvens.length, totalPnl, winRate, avgWin, avgLoss, rr, expectancy, profitFactor, bestTradeVal, count: trades.length };
   }, [trades]);
@@ -352,10 +372,9 @@ const AnalyticsPage = () => {
   const bestSetupInsight = useMemo(() => {
     const setupMap: Record<string, { wins: number; total: number; display: string }> = {};
     trades.forEach(tr => {
-      const raw = getTradeSetup(tr);
-      if (raw === 'Other') return;
-      const key = normalizeSetup(raw);
-      const display = displaySetup(raw);
+      const key = normalizeSetupKey(tr.setup_tag);
+      if (!key) return;
+      const display = extractSetupPart(tr.setup_tag);
       if (!setupMap[key]) setupMap[key] = { wins: 0, total: 0, display };
       setupMap[key].total++;
       if ((tr.profit ?? 0) > 0) setupMap[key].wins++;
@@ -446,22 +465,23 @@ const AnalyticsPage = () => {
   const setupTableData = useMemo(() => {
     const map: Record<string, { wins: number; total: number; pnls: number[]; display: string }> = {};
     trades.forEach(tr => {
-      const raw = getTradeSetup(tr);
-      const key = normalizeSetup(raw);
-      const display = raw === 'Other' ? 'Other' : displaySetup(raw);
+      const key = normalizeSetupKey(tr.setup_tag);
+      if (!key) return;
+      const display = extractSetupPart(tr.setup_tag);
+      const net = (tr.profit ?? 0) - ((tr as any).commission ?? 0);
       if (!map[key]) map[key] = { wins: 0, total: 0, pnls: [], display };
       map[key].total++;
-      map[key].pnls.push(tr.profit ?? 0);
-      if ((tr.profit ?? 0) > 0) map[key].wins++;
+      map[key].pnls.push(net);
+      if (net > 0) map[key].wins++;
     });
     return Object.entries(map).map(([, v]) => ({
       name: v.display,
       total: v.total,
       wr: Math.round((v.wins / v.total) * 100),
-      totalPnl: v.pnls.reduce((s, x) => s + x, 0),
-      avgPnl: v.pnls.reduce((s, x) => s + x, 0) / v.total,
-      bestTrade: Math.max(...v.pnls),
-    })).sort((a, b) => b.wr - a.wr);
+      totalPnl: parseFloat(v.pnls.reduce((s, x) => s + x, 0).toFixed(2)),
+      avgPnl: parseFloat((v.pnls.reduce((s, x) => s + x, 0) / v.total).toFixed(2)),
+      bestTrade: parseFloat(Math.max(...v.pnls).toFixed(2)),
+    })).sort((a, b) => b.totalPnl - a.totalPnl);
   }, [trades]);
 
   // ── Symbol bars ───────────────────────────────────────────────
@@ -645,7 +665,7 @@ const AnalyticsPage = () => {
       const winRateStr = `${certStats.winRate}%`;
       const pnl = `${certStats.totalPnl >= 0 ? '+' : ''}$${Number(certStats.totalPnl).toFixed(2)}`;
       const best = `+$${Number(certStats.bestTrade).toFixed(2)}`;
-      const pf = String(certStats.profitFactor);
+      const pf = certStats.profitFactor === null ? '∞' : String(certStats.profitFactor);
       const tradingDays = String(
         new Set(
           trades

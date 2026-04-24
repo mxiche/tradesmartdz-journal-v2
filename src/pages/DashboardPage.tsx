@@ -1509,7 +1509,9 @@ const DashboardPage = () => {
   const winRate       = closedTrades.length ? (wins.length / closedTrades.length) * 100 : 0;
   const grossProfit   = wins.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
   const grossLoss     = Math.abs(losses.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0));
-  const profitFactor  = grossLoss > 0 ? +(grossProfit / grossLoss).toFixed(2) : grossProfit > 0 ? null : 0;
+  const profitFactor: number | null = grossLoss < 1
+    ? (grossProfit > 0 ? null : 0)
+    : +(grossProfit / grossLoss).toFixed(2);
   const avgWin        = wins.length ? grossProfit / wins.length : 0;
   const avgLoss       = losses.length ? grossLoss / losses.length : 0;
 
@@ -1608,19 +1610,31 @@ const DashboardPage = () => {
     }
 
     // Best setup
-    const setupGroups: Record<string, number> = {};
+    const SETUP_RESULT_VALS = new Set(['win','loss','breakeven','partial win - tp1','partial win - tp2','partial win']);
+    const SETUP_SESSION_VALS = new Set(['london','new york','asia','ny lunch']);
+    const setupGroups: Record<string, { pnl: number; display: string }> = {};
     for (const tr of closedTrades) {
       if (!tr.setup_tag) continue;
-      const parts = tr.setup_tag.split(',').map(s => s.trim()).filter(s => !['Win','Loss','Breakeven','Partial Win - TP1','Partial Win - TP2'].includes(s));
-      for (const s of parts) {
-        if (s) setupGroups[s] = (setupGroups[s] ?? 0) + ((tr.profit ?? 0) - ((tr as any).commission ?? 0));
-      }
+      const seen = new Set<string>();
+      const setupParts = tr.setup_tag.split(',').map(s => s.trim()).filter(s => {
+        const lower = s.toLowerCase();
+        if (!s || SETUP_RESULT_VALS.has(lower) || SETUP_SESSION_VALS.has(lower)) return false;
+        if (seen.has(lower)) return false;
+        seen.add(lower);
+        return true;
+      });
+      if (setupParts.length === 0) continue;
+      const key = setupParts.map(s => s.toLowerCase()).sort().join(',');
+      const display = setupParts.join(', ');
+      if (!setupGroups[key]) setupGroups[key] = { pnl: 0, display };
+      setupGroups[key].pnl += (tr.profit ?? 0) - ((tr as any).commission ?? 0);
     }
-    const bestSetup = Object.entries(setupGroups).sort((a, b) => b[1] - a[1])[0];
-    if (bestSetup && bestSetup[1] > 0) {
+    const bestSetup = Object.entries(setupGroups).filter(([, v]) => v.pnl > 0).sort((a, b) => b[1].pnl - a[1].pnl)[0];
+    if (bestSetup) {
+      const setupName = bestSetup[1].display;
       result.push({
         icon: '🎯',
-        text: lang === 'ar' ? `أفضل استراتيجية: ${bestSetup[0]}` : lang === 'fr' ? `Meilleure stratégie: ${bestSetup[0]}` : `Best setup: ${bestSetup[0]}`,
+        text: lang === 'ar' ? `أفضل استراتيجية: ${setupName}` : lang === 'fr' ? `Meilleure stratégie: ${setupName}` : `Best setup: ${setupName}`,
       });
     }
 
