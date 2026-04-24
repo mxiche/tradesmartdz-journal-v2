@@ -2,6 +2,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import FloatingAIChat from '@/components/FloatingAIChat';
+import HelpWidget from '@/components/HelpWidget';
 import { Logo, LogoIcon } from '@/components/Logo';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -536,6 +537,7 @@ export default function AppLayout() {
           FLOATING AI CHAT
       ══════════════════════════════════════════════════════ */}
       <FloatingAIChat />
+      <HelpWidget />
 
       {/* ══════════════════════════════════════════════════════
           TRIAL WELCOME MODAL
