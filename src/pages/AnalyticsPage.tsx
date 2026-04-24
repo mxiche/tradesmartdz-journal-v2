@@ -309,22 +309,28 @@ const AnalyticsPage = () => {
 
   // ── Best Day insight ──────────────────────────────────────────
   const bestDayInsight = useMemo(() => {
-    const dayMap: Record<number, { wins: number; total: number }> = {};
+    const dayMap: Record<number, { wins: number; total: number; pnl: number }> = {};
     trades.forEach(tr => {
       if (!tr.close_time) return;
       const dow = new Date(tr.close_time).getDay();
-      if (!dayMap[dow]) dayMap[dow] = { wins: 0, total: 0 };
+      if (!dayMap[dow]) dayMap[dow] = { wins: 0, total: 0, pnl: 0 };
       dayMap[dow].total++;
+      dayMap[dow].pnl += tr.profit ?? 0;
       if ((tr.profit ?? 0) > 0) dayMap[dow].wins++;
     });
     const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    let best: { name: string; wr: number } | null = null;
+    let best: { name: string; wr: number; pnl: number; score: number } | null = null;
+    const allPnls = Object.values(dayMap).map(v => v.pnl);
+    const maxAbsPnl = Math.max(...allPnls.map(Math.abs), 1);
     Object.entries(dayMap).forEach(([dow, v]) => {
       if (v.total < 1) return;
       const wr = Math.round((v.wins / v.total) * 100);
-      if (!best || wr > best.wr) best = { name: l.days[dayNames[+dow] as keyof typeof l.days] || dayNames[+dow], wr };
+      // score = 60% win rate + 40% normalized PnL (only positive days contribute positively)
+      const score = 0.6 * wr + 0.4 * ((v.pnl / maxAbsPnl) * 100);
+      const name = l.days[dayNames[+dow] as keyof typeof l.days] || dayNames[+dow];
+      if (!best || score > best.score) best = { name, wr, pnl: v.pnl, score };
     });
-    return best;
+    return best ? { name: best.name, wr: best.wr, pnl: best.pnl } : null;
   }, [trades, l]);
 
   // ── Best Session insight ──────────────────────────────────────
@@ -920,7 +926,7 @@ const AnalyticsPage = () => {
               {bestDayInsight ? (
                 <>
                   <p className="text-lg font-bold text-foreground truncate">{bestDayInsight.name}</p>
-                  <p className="text-xs text-[#22c55e]">{bestDayInsight.wr}% {l.winRate}</p>
+                  <p className="text-xs text-[#22c55e]">{bestDayInsight.wr}% {l.winRate} · {bestDayInsight.pnl >= 0 ? '+' : ''}${bestDayInsight.pnl.toFixed(2)}</p>
                 </>
               ) : <p className="text-sm text-muted-foreground">—</p>}
             </div>
