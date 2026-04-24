@@ -528,7 +528,7 @@ function buildTrialExpiredEmail(to: string): string {
 
                   <h2 style="margin:0 0 12px;color:#0f172a;
                     font-size:20px;font-weight:800;text-align:center;">
-                    انتهت الـ 5 أيام المجانية 😔
+                    انتهت الـ 7 أيام المجانية 😔
                   </h2>
 
                   <p style="margin:0 0 24px;color:#64748b;

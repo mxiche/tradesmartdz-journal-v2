@@ -180,7 +180,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             status: 'trial',
             amount: '0',
             activated_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+            // REMINDER: Update Supabase email template
+            // Authentication → Email Templates → Confirm signup
+            // Change "5 أيام" to "7 أيام" in the template
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           });
           if (trialError) {
             console.error('Trial creation error:', trialError);

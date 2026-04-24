@@ -530,7 +530,7 @@ const LandingPage = () => {
                   to="/register"
                   className="block w-full text-center bg-teal-500 hover:bg-teal-600 text-white font-black py-3 rounded-2xl transition-all duration-200 hover:shadow-lg hover:shadow-teal-500/30"
                 >
-                  {isAr ? 'ابدأ 5 أيام مجاناً ←' : lang === 'fr' ? 'Commencer 5 jours gratuits ←' : 'Start 5 days free ←'}
+                  {isAr ? 'ابدأ 7 أيام مجاناً ←' : lang === 'fr' ? 'Commencer 7 jours gratuits ←' : 'Start 7 days free ←'}
                 </Link>
               </div>
 
@@ -647,7 +647,7 @@ const LandingPage = () => {
             {[
               {
                 q: isAr ? 'هل التجربة المجانية تتطلب بطاقة بنكية؟' : lang === 'fr' ? "L'essai gratuit nécessite-t-il une carte bancaire?" : 'Does the free trial require a credit card?',
-                a: isAr ? 'لا، التجربة المجانية لمدة 5 أيام لا تتطلب أي معلومات دفع. ابدأ مباشرة بإنشاء حساب.' : lang === 'fr' ? "Non, l'essai de 5 jours ne nécessite aucune information de paiement." : 'No, the 5-day trial requires no payment information. Start directly by creating an account.',
+                a: isAr ? 'لا، التجربة المجانية لمدة 7 أيام لا تتطلب أي معلومات دفع. ابدأ مباشرة بإنشاء حساب.' : lang === 'fr' ? "Non, l'essai de 7 jours ne nécessite aucune information de paiement." : 'No, the 7-day trial requires no payment information. Start directly by creating an account.',
               },
               {
                 q: isAr ? 'كيف يمكنني الدفع من دولتي؟' : lang === 'fr' ? 'Comment puis-je payer depuis mon pays?' : 'How can I pay from my country?',
