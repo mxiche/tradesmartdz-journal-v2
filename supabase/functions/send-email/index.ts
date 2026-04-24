@@ -621,6 +621,208 @@ function buildTrialExpiredEmail(to: string): string {
     `;
 }
 
+function buildGiftDaysEmail(
+  userEmail: string,
+  expiresAt: string
+): string {
+  return `
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>هدية من TradeSmartDz</title>
+</head>
+<body style="margin:0;padding:0;background:#f8fafc;
+  font-family:Arial,sans-serif;direction:rtl;">
+  <table width="100%" cellpadding="0" cellspacing="0"
+    style="background:#f8fafc;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0"
+          style="background:#ffffff;border-radius:24px;
+          overflow:hidden;max-width:520px;width:100%;
+          box-shadow:0 4px 24px rgba(0,0,0,0.06);
+          border:1px solid #e2e8f0;">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#14b8a6,#0d9488);
+              padding:40px 32px;text-align:center;">
+              <p style="margin:0 0 8px;font-size:52px;">🎁</p>
+              <h1 style="margin:0;color:#ffffff;font-size:26px;
+                font-weight:900;letter-spacing:-0.5px;">
+                هدية خاصة لك!
+              </h1>
+              <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);
+                font-size:14px;">من فريق TradeSmartDz</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px 32px;">
+
+              <h2 style="margin:0 0 16px;color:#0f172a;font-size:22px;
+                font-weight:900;text-align:center;">
+                أضفنا 7 أيام مجانية لحسابك 🎉
+              </h2>
+
+              <p style="margin:0 0 28px;color:#64748b;font-size:15px;
+                line-height:1.7;text-align:center;">
+                نقدّر ثقتك في TradeSmartDz ونريد أن نمنحك
+                المزيد من الوقت لاكتشاف كامل إمكانيات المنصة
+                وتطوير أدائك كتريدر.
+              </p>
+
+              <!-- Gift highlight box -->
+              <div style="background:linear-gradient(135deg,#f0fdf9,#e6fffa);
+                border:2px solid #99f6e4;border-radius:20px;
+                padding:24px;margin-bottom:28px;text-align:center;">
+                <p style="margin:0 0 6px;color:#0d9488;font-size:13px;
+                  font-weight:700;text-transform:uppercase;
+                  letter-spacing:1.5px;">
+                  هديتك
+                </p>
+                <p style="margin:0 0 4px;color:#0f172a;font-size:36px;
+                  font-weight:900;line-height:1;">
+                  +7 أيام Pro
+                </p>
+                <p style="margin:8px 0 0;color:#64748b;font-size:13px;">
+                  مجاناً — لا يلزم بطاقة ائتمانية
+                </p>
+              </div>
+
+              <!-- New expiry date -->
+              <div style="background:#f8fafc;border:1px solid #e2e8f0;
+                border-radius:16px;padding:18px 24px;margin-bottom:28px;">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="color:#64748b;font-size:14px;padding:6px 0;">
+                      📅 تنتهي تجربتك الجديدة في
+                    </td>
+                    <td style="color:#0d9488;font-size:15px;
+                      font-weight:900;text-align:left;">
+                      ${expiresAt}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="color:#64748b;font-size:14px;padding:6px 0;">
+                      ✅ الحالة
+                    </td>
+                    <td style="color:#0d9488;font-size:14px;
+                      font-weight:700;text-align:left;">
+                      Pro مفعّل
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- Features reminder -->
+              <p style="margin:0 0 16px;color:#94a3b8;font-size:12px;
+                text-align:center;text-transform:uppercase;
+                letter-spacing:1px;">
+                استمتع بجميع ميزات Pro
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0"
+                style="margin-bottom:28px;">
+                <tr>
+                  <td width="50%" style="padding:4px 4px 4px 0;">
+                    <div style="background:#f8fafc;border-radius:14px;
+                      padding:14px;text-align:center;">
+                      <p style="margin:0;font-size:22px;">🤖</p>
+                      <p style="margin:6px 0 0;font-size:12px;
+                        color:#475569;font-weight:700;">
+                        AI Coach
+                      </p>
+                    </div>
+                  </td>
+                  <td width="50%" style="padding:4px 0 4px 4px;">
+                    <div style="background:#f8fafc;border-radius:14px;
+                      padding:14px;text-align:center;">
+                      <p style="margin:0;font-size:22px;">📊</p>
+                      <p style="margin:6px 0 0;font-size:12px;
+                        color:#475569;font-weight:700;">
+                        تحليلات متقدمة
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td width="50%" style="padding:4px 4px 0 0;">
+                    <div style="background:#f8fafc;border-radius:14px;
+                      padding:14px;text-align:center;">
+                      <p style="margin:0;font-size:22px;">📱</p>
+                      <p style="margin:6px 0 0;font-size:12px;
+                        color:#475569;font-weight:700;">
+                        إشعارات Telegram
+                      </p>
+                    </div>
+                  </td>
+                  <td width="50%" style="padding:4px 0 0 4px;">
+                    <div style="background:#f8fafc;border-radius:14px;
+                      padding:14px;text-align:center;">
+                      <p style="margin:0;font-size:22px;">🏆</p>
+                      <p style="margin:6px 0 0;font-size:12px;
+                        color:#475569;font-weight:700;">
+                        شهادات الأداء
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding-bottom:24px;">
+                    <a href="https://tradesmartdz.com"
+                      style="display:inline-block;background:#14b8a6;
+                      color:#ffffff;text-decoration:none;
+                      padding:16px 48px;border-radius:14px;
+                      font-weight:900;font-size:16px;
+                      box-shadow:0 4px 12px rgba(20,184,166,0.3);">
+                      🚀 افتح التطبيق الآن
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0;color:#94a3b8;font-size:13px;
+                text-align:center;line-height:1.6;">
+                بياناتك وصفقاتك محفوظة بأمان.
+                استمر في التداول وتطوير أدائك! 💪
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f8fafc;padding:20px 32px;
+              border-top:1px solid #e2e8f0;text-align:center;">
+              <p style="margin:0 0 6px;color:#94a3b8;font-size:12px;">
+                هذه الهدية تلقائية من فريق TradeSmartDz
+                تقديراً لثقتك بنا.
+              </p>
+              <p style="margin:0;color:#cbd5e1;font-size:11px;">
+                © 2026 TradeSmartDz —
+                <a href="mailto:tradesmartdz2@gmail.com"
+                  style="color:#14b8a6;text-decoration:none;">
+                  tradesmartdz2@gmail.com
+                </a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 // ── CORS ───────────────────────────────────────────────────────────────────
 
 const corsHeaders = {
@@ -666,6 +868,9 @@ Deno.serve(async (req) => {
     } else if (type === 'trial_expired') {
       subject = 'انتهت فترة تجربتك المجانية — TradeSmartDz';
       html = buildTrialExpiredEmail(userEmail);
+    } else if (type === 'gift_days') {
+      subject = '🎁 TradeSmartDz — هدية خاصة لك!';
+      html = buildGiftDaysEmail(userEmail, body.expiresAt || '');
     } else {
       return new Response(JSON.stringify({ error: 'Unknown type' }), {
         status: 400,
