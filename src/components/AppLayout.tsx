@@ -1,6 +1,7 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import FloatingAIChat from '@/components/FloatingAIChat';
 import { Logo, LogoIcon } from '@/components/Logo';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -530,6 +531,11 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* ══════════════════════════════════════════════════════
+          FLOATING AI CHAT
+      ══════════════════════════════════════════════════════ */}
+      <FloatingAIChat />
 
       {/* ══════════════════════════════════════════════════════
           TRIAL WELCOME MODAL
