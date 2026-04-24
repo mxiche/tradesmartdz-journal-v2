@@ -32,6 +32,19 @@ export type Database = {
           profit_target: number | null
           server: string | null
           starting_balance: number | null
+          trailing_floor: number | null
+          drawdown_type: string | null
+          max_loss_limit_dollars: number | null
+          daily_loss_limit_dollars: number | null
+          profit_target_dollars: number | null
+          contract_limit: number | null
+          account_category: string | null
+          consistency_rule: number | null
+          profit_split: number | null
+          min_trading_days: number | null
+          min_winning_days: number | null
+          winning_day_threshold: number | null
+          position_close_time: string | null
           user_id: string
         }
         Insert: {
@@ -51,6 +64,19 @@ export type Database = {
           profit_target?: number | null
           server?: string | null
           starting_balance?: number | null
+          trailing_floor?: number | null
+          drawdown_type?: string | null
+          max_loss_limit_dollars?: number | null
+          daily_loss_limit_dollars?: number | null
+          profit_target_dollars?: number | null
+          contract_limit?: number | null
+          account_category?: string | null
+          consistency_rule?: number | null
+          profit_split?: number | null
+          min_trading_days?: number | null
+          min_winning_days?: number | null
+          winning_day_threshold?: number | null
+          position_close_time?: string | null
           user_id: string
         }
         Update: {
@@ -70,6 +96,19 @@ export type Database = {
           profit_target?: number | null
           server?: string | null
           starting_balance?: number | null
+          trailing_floor?: number | null
+          drawdown_type?: string | null
+          max_loss_limit_dollars?: number | null
+          daily_loss_limit_dollars?: number | null
+          profit_target_dollars?: number | null
+          contract_limit?: number | null
+          account_category?: string | null
+          consistency_rule?: number | null
+          profit_split?: number | null
+          min_trading_days?: number | null
+          min_winning_days?: number | null
+          winning_day_threshold?: number | null
+          position_close_time?: string | null
           user_id?: string
         }
         Relationships: []

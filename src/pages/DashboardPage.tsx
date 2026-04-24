@@ -1690,22 +1690,78 @@ const DashboardPage = () => {
     const dangerLevel    = accountSize > 0 && ddLimit > 0        ? +(startBalance - (accountSize * ddLimit / 100)).toFixed(2)        : null;
     const dailyLossLevel = accountSize > 0 && dailyLossLimit > 0 ? +(startBalance - (accountSize * dailyLossLimit / 100)).toFixed(2) : null;
 
+    const isFutures = selectedEquityAccount?.account_category === 'futures';
+    const drawdownType = selectedEquityAccount?.drawdown_type || 'static';
+    const isTrailing = drawdownType === 'eod_trailing' || drawdownType === 'intraday_trailing';
+
+    const trailingFloor = selectedEquityAccount?.trailing_floor ?? null;
+    const trailingFloorLevel = isTrailing && trailingFloor !== null ? trailingFloor : null;
+
+    const profitTargetLevel = (() => {
+      if (!selectedEquityAccount) return null;
+      if (isFutures) {
+        const target = selectedEquityAccount.profit_target_dollars;
+        return target ? startBalance + target : null;
+      }
+      const pct = selectedEquityAccount.profit_target;
+      return pct && accountSize > 0 ? startBalance + (accountSize * pct / 100) : null;
+    })();
+
+    const futuresMaxLossLevel = isFutures && selectedEquityAccount?.max_loss_limit_dollars
+      ? startBalance - selectedEquityAccount.max_loss_limit_dollars
+      : null;
+
+    const futuresDailyLossLevel = isFutures && selectedEquityAccount?.daily_loss_limit_dollars
+      ? startBalance - selectedEquityAccount.daily_loss_limit_dollars
+      : null;
+
+    // Build equity points
+    let pts: { date: string; balance: number }[];
     if (sorted.length === 0) {
-      return { points: [{ date: lang === 'ar' ? 'الآن' : 'Now', balance: +startBalance.toFixed(2) }], startBalance, dangerLevel, dailyLossLevel };
+      pts = [];
+    } else {
+      // Group by day — one data point per trading day (not per trade)
+      const byDay = new Map<string, number>();
+      for (const tr of sorted) {
+        const day = new Date(tr.close_time!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        byDay.set(day, (byDay.get(day) ?? 0) + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)));
+      }
+      let running = startBalance;
+      pts = Array.from(byDay.entries()).map(([date, dailyPnl]) => {
+        running += dailyPnl;
+        return { date, balance: +running.toFixed(2) };
+      });
     }
 
-    // Group by day — one data point per trading day (not per trade)
-    const byDay = new Map<string, number>();
-    for (const tr of sorted) {
-      const day = new Date(tr.close_time!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      byDay.set(day, (byDay.get(day) ?? 0) + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)));
-    }
-    let running = startBalance;
-    const pts = Array.from(byDay.entries()).map(([date, dailyPnl]) => {
-      running += dailyPnl;
-      return { date, balance: +running.toFixed(2) };
-    });
-    return { points: [{ date: '', balance: +startBalance.toFixed(2) }, ...pts], startBalance, dangerLevel, dailyLossLevel };
+    const currentBalance = pts.length > 0 ? pts[pts.length - 1].balance : startBalance;
+
+    const effectiveDangerLevel = isFutures
+      ? (futuresMaxLossLevel ?? dangerLevel ?? null)
+      : (isTrailing ? trailingFloorLevel : (dangerLevel ?? null));
+
+    const bufferAmount = effectiveDangerLevel !== null ? currentBalance - effectiveDangerLevel : null;
+    const totalAllowed = effectiveDangerLevel !== null ? startBalance - effectiveDangerLevel : null;
+    const bufferPct = bufferAmount !== null && totalAllowed !== null && totalAllowed > 0
+      ? Math.min(100, (bufferAmount / totalAllowed) * 100) : null;
+
+    const points = sorted.length === 0
+      ? [{ date: lang === 'ar' ? 'الآن' : 'Now', balance: +startBalance.toFixed(2) }]
+      : [{ date: '', balance: +startBalance.toFixed(2) }, ...pts];
+
+    return {
+      points,
+      startBalance,
+      dangerLevel,
+      dailyLossLevel,
+      trailingFloorLevel,
+      profitTargetLevel,
+      futuresMaxLossLevel,
+      futuresDailyLossLevel,
+      isTrailing,
+      bufferAmount,
+      bufferPct,
+      isFutures,
+    };
   }, [equityAccountId, selectedEquityAccount, accounts, trades, accountSize, ddLimit, dailyLossLimit, lang]);
 
   const equityCurrent = equityData.points[equityData.points.length - 1]?.balance ?? 0;
@@ -1977,7 +2033,48 @@ const DashboardPage = () => {
                   </span>
                 </div>
               </div>
-              {accounts.length > 1 && (
+              {accounts.length >= 1 && accounts.length <= 4 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {accounts.length > 1 && (
+                    <button
+                      onClick={() => setEquityAccountId('all')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                        equityAccountId === 'all'
+                          ? 'bg-teal-500 text-white border-teal-500'
+                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {lang === 'ar' ? 'الكل' : 'All'}
+                    </button>
+                  )}
+                  {accounts.map(acc => {
+                    const isSelected = equityAccountId === acc.id;
+                    const accBalance = acc.balance ?? acc.starting_balance ?? 0;
+                    const accStart = acc.starting_balance ?? accBalance;
+                    const accSize = acc.account_size ?? accStart;
+                    const ddPct = acc.max_drawdown_limit
+                      ? ((accStart - accBalance) / accSize) * 100 : 0;
+                    const statusDot = ddPct >= 90 ? 'bg-red-500' :
+                      ddPct >= 70 ? 'bg-amber-400' : 'bg-teal-500';
+                    return (
+                      <button
+                        key={acc.id}
+                        onClick={() => setEquityAccountId(acc.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                          isSelected
+                            ? 'bg-teal-500 text-white border-teal-500 shadow-sm'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          isSelected ? 'bg-white' : statusDot
+                        }`} />
+                        {acc.account_name || acc.firm}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : accounts.length > 4 ? (
                 <Select value={equityAccountId} onValueChange={setEquityAccountId}>
                   <SelectTrigger className="h-8 w-40 text-xs">
                     <SelectValue />
@@ -1991,19 +2088,72 @@ const DashboardPage = () => {
                     ))}
                   </SelectContent>
                 </Select>
-              )}
+              ) : null}
             </div>
           </CardHeader>
           <CardContent className="pb-4 pt-0">
+            {/* Stats bar */}
+            <div className="flex items-center gap-4 px-1 mb-3 flex-wrap">
+              <div>
+                <p className="text-xs text-gray-400">
+                  {lang === 'ar' ? 'الرصيد' : lang === 'fr' ? 'Solde' : 'Balance'}
+                </p>
+                <p className="text-sm font-black text-gray-900">
+                  ${equityData.points[equityData.points.length - 1]?.balance?.toFixed(0) ?? equityData.startBalance.toFixed(0)}
+                </p>
+              </div>
+              {equityData.bufferAmount !== null && (
+                <div>
+                  <p className="text-xs text-gray-400">
+                    {lang === 'ar' ? 'المساحة المتبقية' : lang === 'fr' ? 'Marge' : 'Buffer'}
+                  </p>
+                  <p className={`text-sm font-black ${
+                    equityData.bufferPct !== null && equityData.bufferPct < 20
+                      ? 'text-red-500'
+                      : equityData.bufferPct !== null && equityData.bufferPct < 50
+                      ? 'text-amber-500'
+                      : 'text-teal-600'
+                  }`}>
+                    ${equityData.bufferAmount.toFixed(0)}
+                  </p>
+                </div>
+              )}
+              {equityData.profitTargetLevel !== null && (
+                <div>
+                  <p className="text-xs text-gray-400">
+                    {lang === 'ar' ? 'هدف الربح' : 'Target'}
+                  </p>
+                  <p className="text-sm font-black text-teal-600">
+                    ${equityData.profitTargetLevel.toFixed(0)}
+                  </p>
+                </div>
+              )}
+              {equityData.isTrailing && equityData.trailingFloorLevel !== null && (
+                <div>
+                  <p className="text-xs text-gray-400">
+                    {lang === 'ar' ? 'الحد الأدنى' : 'Floor'}
+                  </p>
+                  <p className="text-sm font-black text-amber-500">
+                    ${equityData.trailingFloorLevel.toFixed(0)}
+                  </p>
+                </div>
+              )}
+            </div>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={equityData.points} margin={{ left: 0, right: 8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={lineColor} stopOpacity={0.25} />
+                    <stop offset="0%" stopColor={
+                      equityData.bufferPct !== null && equityData.bufferPct < 20
+                        ? '#ef4444'
+                        : equityData.bufferPct !== null && equityData.bufferPct < 50
+                        ? '#f59e0b'
+                        : lineColor
+                    } stopOpacity={0.2} />
                     <stop offset="100%" stopColor={lineColor} stopOpacity={0.01} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(225,15%,18%)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis dataKey="date" stroke="hsl(220,10%,50%)" fontSize={10} tickLine={false} axisLine={false} />
                 <YAxis
                   stroke="hsl(220,10%,50%)"
@@ -2013,31 +2163,79 @@ const DashboardPage = () => {
                   tickFormatter={v => `$${v}`}
                   width={68}
                   domain={(() => {
-                    const levels = [equityData.dangerLevel, equityData.dailyLossLevel].filter(l => l !== null) as number[];
-                    if (levels.length === 0) return ['auto', 'auto'] as ['auto','auto'];
+                    const levels = [
+                      equityData.dangerLevel,
+                      equityData.dailyLossLevel,
+                      equityData.trailingFloorLevel,
+                      equityData.futuresMaxLossLevel,
+                      equityData.futuresDailyLossLevel,
+                    ].filter(l => l !== null) as number[];
+                    if (levels.length === 0) return ['auto', 'auto'] as ['auto', 'auto'];
                     const minLvl = Math.min(...levels);
-                    return [Math.min(minLvl * 0.998, minLvl - 30), 'auto'] as [number, 'auto'];
+                    const upperLevels = [equityData.profitTargetLevel].filter(l => l !== null) as number[];
+                    const upperDomain = upperLevels.length > 0 ? Math.max(...upperLevels) * 1.002 : 'auto';
+                    return [Math.min(minLvl * 0.998, minLvl - 50), upperDomain] as [number, number | 'auto'];
                   })()}
                 />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1d27', border: '1px solid #2a2d3a', borderRadius: '8px', color: '#e2e8f0', fontSize: 12 }}
-                  labelStyle={{ color: '#e2e8f0' }}
+                  contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', color: '#0f172a', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                  labelStyle={{ color: '#64748b', fontWeight: 600 }}
                   formatter={(v: number) => [`$${v.toFixed(2)}`, lang === 'ar' ? 'الرصيد' : lang === 'fr' ? 'Solde' : 'Balance']}
                 />
                 {/* Start balance reference — shown when there are limit levels to compare against */}
-                {(equityData.dangerLevel !== null || equityData.dailyLossLevel !== null) && (
+                {(equityData.dangerLevel !== null || equityData.dailyLossLevel !== null || equityData.futuresMaxLossLevel !== null || equityData.futuresDailyLossLevel !== null) && (
                   <ReferenceLine y={equityData.startBalance} stroke="#f59e0b" strokeDasharray="5 4" strokeWidth={1.5}
                     label={{ value: lang === 'ar' ? 'البداية' : 'Start', position: 'insideTopRight', fill: '#f59e0b', fontSize: 9 }} />
                 )}
-                {/* Max drawdown — always RED */}
+                {/* Max drawdown — forex static accounts */}
                 {equityData.dangerLevel !== null && (
                   <ReferenceLine y={equityData.dangerLevel} stroke="#ef4444" strokeDasharray="5 4" strokeWidth={1.5}
                     label={{ value: lang === 'ar' ? 'حد السحب' : lang === 'fr' ? 'DD Max' : 'Max DD', position: 'insideBottomRight', fill: '#ef4444', fontSize: 9 }} />
                 )}
-                {/* Daily loss limit — always ORANGE */}
+                {/* Daily loss limit — forex static accounts */}
                 {equityData.dailyLossLevel !== null && (
                   <ReferenceLine y={equityData.dailyLossLevel} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1.5}
                     label={{ value: lang === 'ar' ? 'خسارة يومية' : lang === 'fr' ? 'Perte/jour' : 'Daily Loss', position: 'insideBottomLeft', fill: '#f97316', fontSize: 9 }} />
+                )}
+                {/* Trailing floor */}
+                {equityData.trailingFloorLevel !== null && (
+                  <ReferenceLine
+                    y={equityData.trailingFloorLevel}
+                    stroke="#f59e0b"
+                    strokeDasharray="6 3"
+                    strokeWidth={2}
+                    label={{ value: lang === 'ar' ? 'الحد المتتبع' : lang === 'fr' ? 'Plancher' : 'Floor', position: 'insideBottomRight', fill: '#f59e0b', fontSize: 9, fontWeight: 700 }}
+                  />
+                )}
+                {/* Profit target */}
+                {equityData.profitTargetLevel !== null && (
+                  <ReferenceLine
+                    y={equityData.profitTargetLevel}
+                    stroke="#0d9488"
+                    strokeDasharray="8 3"
+                    strokeWidth={1.5}
+                    label={{ value: lang === 'ar' ? 'هدف الربح' : lang === 'fr' ? 'Objectif' : 'Target', position: 'insideTopRight', fill: '#0d9488', fontSize: 9, fontWeight: 700 }}
+                  />
+                )}
+                {/* Futures max loss limit */}
+                {equityData.futuresMaxLossLevel !== null && (
+                  <ReferenceLine
+                    y={equityData.futuresMaxLossLevel}
+                    stroke="#ef4444"
+                    strokeDasharray="5 4"
+                    strokeWidth={1.5}
+                    label={{ value: 'Max Loss', position: 'insideBottomRight', fill: '#ef4444', fontSize: 9 }}
+                  />
+                )}
+                {/* Futures daily loss limit */}
+                {equityData.futuresDailyLossLevel !== null && (
+                  <ReferenceLine
+                    y={equityData.futuresDailyLossLevel}
+                    stroke="#f97316"
+                    strokeDasharray="4 3"
+                    strokeWidth={1.5}
+                    label={{ value: lang === 'ar' ? 'يومي' : 'Daily', position: 'insideBottomLeft', fill: '#f97316', fontSize: 9 }}
+                  />
                 )}
                 <Area type="monotone" dataKey="balance" stroke={lineColor} strokeWidth={2} fill="url(#equityFill)"
                   dot={false} activeDot={{ r: 4, fill: lineColor, strokeWidth: 0 }} />
