@@ -263,7 +263,7 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
           .update({
             payment_method: paymentMethod,
             payment_reference: reference || null,
-            amount: paymentMethod === 'baridimob' ? '3700 DA' : '15 USDT',
+            amount: paymentMethod === 'baridimob' ? '2200 DA' : '9 USDT',
             submitted_at: new Date().toISOString(),
           })
           .eq('id', existing.id);
@@ -278,7 +278,7 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
             status: 'pending',
             payment_method: paymentMethod,
             payment_reference: reference || null,
-            amount: paymentMethod === 'baridimob' ? '3700 DA' : '15 USDT',
+            amount: paymentMethod === 'baridimob' ? '2200 DA' : '9 USDT',
           });
         if (error) throw error;
       }
@@ -297,7 +297,7 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
             userEmail: user.email,
             userId: user.id,
             paymentMethod,
-            amount: paymentMethod === 'baridimob' ? '3,700 DA' : '15 USDT',
+            amount: paymentMethod === 'baridimob' ? '2,200 DA' : '9 USDT',
             reference: reference || 'Not provided',
             isTrial,
           }),
@@ -318,7 +318,7 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
             to: user.email,
             userEmail: user.email,
             paymentMethod,
-            amount: paymentMethod === 'baridimob' ? '3,700 DA' : '15 USDT',
+            amount: paymentMethod === 'baridimob' ? '2,200 DA' : '9 USDT',
           }),
         }
       ).catch(() => { /* non-blocking */ });
@@ -869,9 +869,9 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
                 </div>
                 <h3 className="font-bold text-lg mb-1">Pro ⭐</h3>
                 <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-2xl font-black">3,700 DA</span>
+                  <span className="text-2xl font-black">2,200 DA</span>
                   <span className="text-muted-foreground text-sm">/{lang === 'ar' ? 'شهر' : lang === 'fr' ? 'mois' : 'month'}</span>
-                  <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'أو 15 USDT' : 'or 15 USDT'}</span>
+                  <span className="text-xs text-muted-foreground">{lang === 'ar' ? 'أو 9 USDT' : 'or 9 USDT'}</span>
                 </div>
                 <ul className="space-y-2.5 text-sm">
                   {[
@@ -999,7 +999,7 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
                   >
                     <div className="text-3xl mb-3">💳</div>
                     <p className="font-bold text-base">BaridiMob</p>
-                    <p className="text-teal-500 font-black text-lg mt-1">3,700 DA</p>
+                    <p className="text-teal-500 font-black text-lg mt-1">2,200 DA</p>
                     <p className="text-xs text-muted-foreground mt-1">/{lang === 'ar' ? 'شهر' : lang === 'fr' ? 'mois' : 'month'}</p>
                     <span className="inline-block mt-3 text-xs bg-teal-500/20 text-teal-600 px-2 py-0.5 rounded-full font-semibold">
                       🇩🇿 {lang === 'ar' ? 'موصى به' : lang === 'fr' ? 'Recommandé' : 'Recommended'}
@@ -1012,7 +1012,7 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
                   >
                     <div className="text-3xl mb-3">₮</div>
                     <p className="font-bold text-base">USDT</p>
-                    <p className="text-teal-500 font-black text-lg mt-1">15 USDT</p>
+                    <p className="text-teal-500 font-black text-lg mt-1">9 USDT</p>
                     <p className="text-xs text-muted-foreground mt-1">/{lang === 'ar' ? 'شهر' : lang === 'fr' ? 'mois' : 'month'}</p>
                     <span className="inline-block mt-3 text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-semibold">
                       TRC20 Network
@@ -1038,12 +1038,12 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
                       {lang === 'ar' ? 'الدفع عبر BaridiMob' : lang === 'fr' ? 'Payer via BaridiMob' : 'Pay via BaridiMob'}
                     </h2>
                     <p className="text-muted-foreground text-sm mb-5">
-                      {lang === 'ar' ? 'أرسل 3,700 دج بالضبط إلى هذا الحساب' : lang === 'fr' ? 'Envoyez exactement 3 700 DA à ce compte' : 'Send exactly 3,700 DA to this account'}
+                      {lang === 'ar' ? 'أرسل 2,200 دج بالضبط إلى هذا الحساب' : lang === 'fr' ? 'Envoyez exactement 2 200 DA à ce compte' : 'Send exactly 2,200 DA to this account'}
                     </p>
 
                     <div className="bg-teal-500/10 border border-teal-500/30 rounded-xl p-4 mb-4 text-center">
                       <p className="text-sm text-muted-foreground">{lang === 'ar' ? 'المبلغ المطلوب' : lang === 'fr' ? 'Montant à envoyer' : 'Amount to send'}</p>
-                      <p className="text-3xl font-black text-teal-500">3,700 DA</p>
+                      <p className="text-3xl font-black text-teal-500">2,200 DA</p>
                     </div>
 
                     <div className="bg-card border border-border rounded-xl p-4 mb-4">
@@ -1064,10 +1064,10 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
                         {lang === 'ar' ? 'الخطوات' : lang === 'fr' ? 'Étapes' : 'Steps'}
                       </p>
                       {(lang === 'ar'
-                        ? ['افتح تطبيق بريدي موب', 'اضغط تحويل', 'أدخل RIP: 00799999002897521156', 'المبلغ: 3,700 دج', 'خذ لقطة شاشة للإيصال']
+                        ? ['افتح تطبيق بريدي موب', 'اضغط تحويل', 'أدخل RIP: 00799999002897521156', 'المبلغ: 2,200 دج', 'خذ لقطة شاشة للإيصال']
                         : lang === 'fr'
-                        ? ["Ouvrez l'app BaridiMob", 'Appuyez sur Virement', 'Entrez RIP: 00799999002897521156', 'Montant: 3 700 DA', 'Prenez une capture du reçu']
-                        : ['Open BaridiMob app', 'Tap Virement / Transfer', 'Enter RIP: 00799999002897521156', 'Amount: 3,700 DA', 'Take a screenshot of the reçu']
+                        ? ["Ouvrez l'app BaridiMob", 'Appuyez sur Virement', 'Entrez RIP: 00799999002897521156', 'Montant: 2 200 DA', 'Prenez une capture du reçu']
+                        : ['Open BaridiMob app', 'Tap Virement / Transfer', 'Enter RIP: 00799999002897521156', 'Amount: 2,200 DA', 'Take a screenshot of the reçu']
                       ).map((step, i) => (
                         <div key={i} className="flex items-start gap-3 mb-2">
                           <span className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-500 text-xs flex items-center justify-center font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
@@ -1088,12 +1088,12 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
                       {lang === 'ar' ? 'الدفع عبر USDT' : lang === 'fr' ? 'Payer via USDT' : 'Pay via USDT'}
                     </h2>
                     <p className="text-muted-foreground text-sm mb-5">
-                      {lang === 'ar' ? 'أرسل 15 USDT على شبكة TRC20' : lang === 'fr' ? 'Envoyez exactement 15 USDT sur le réseau TRC20' : 'Send exactly 15 USDT on TRC20 network'}
+                      {lang === 'ar' ? 'أرسل 9 USDT على شبكة TRC20' : lang === 'fr' ? 'Envoyez exactement 9 USDT sur le réseau TRC20' : 'Send exactly 9 USDT on TRC20 network'}
                     </p>
 
                     <div className="bg-teal-500/10 border border-teal-500/30 rounded-xl p-4 mb-4 text-center">
                       <p className="text-sm text-muted-foreground">{lang === 'ar' ? 'المبلغ المطلوب' : lang === 'fr' ? 'Montant à envoyer' : 'Amount to send'}</p>
-                      <p className="text-3xl font-black text-teal-500">15 USDT</p>
+                      <p className="text-3xl font-black text-teal-500">9 USDT</p>
                       <p className="text-xs text-red-500 font-semibold mt-1">⚠️ TRC20 {lang === 'ar' ? 'فقط' : lang === 'fr' ? 'uniquement' : 'only'}</p>
                     </div>
 
@@ -1115,7 +1115,7 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
                       <ul className="text-xs text-red-400 mt-1 space-y-1">
                         <li>• {lang === 'ar' ? 'أرسل على شبكة TRC20 فقط' : lang === 'fr' ? 'Envoyez sur TRC20 uniquement' : 'Only send on TRC20 network'}</li>
                         <li>• {lang === 'ar' ? 'الإرسال على شبكة خاطئة = خسارة دائمة' : lang === 'fr' ? 'Mauvais réseau = perte permanente' : 'Sending on wrong network = permanent loss of funds'}</li>
-                        <li>• {lang === 'ar' ? 'أرسل 15 USDT بالضبط' : lang === 'fr' ? 'Envoyez exactement 15 USDT' : 'Send exactly 15 USDT'}</li>
+                        <li>• {lang === 'ar' ? 'أرسل 9 USDT بالضبط' : lang === 'fr' ? 'Envoyez exactement 9 USDT' : 'Send exactly 9 USDT'}</li>
                       </ul>
                     </div>
 
@@ -1124,10 +1124,10 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
                         {lang === 'ar' ? 'الخطوات' : lang === 'fr' ? 'Étapes' : 'Steps'}
                       </p>
                       {(lang === 'ar'
-                        ? ['افتح منصة العملات الرقمية', 'اذهب إلى سحب / إرسال USDT', 'اختر شبكة TRC20', 'الصق العنوان أعلاه', 'المبلغ: 15 USDT', 'خذ لقطة شاشة لمعرف المعاملة']
+                        ? ['افتح منصة العملات الرقمية', 'اذهب إلى سحب / إرسال USDT', 'اختر شبكة TRC20', 'الصق العنوان أعلاه', 'المبلغ: 9 USDT', 'خذ لقطة شاشة لمعرف المعاملة']
                         : lang === 'fr'
-                        ? ['Ouvrez votre plateforme crypto', 'Allez dans Retirer / Envoyer USDT', 'Sélectionnez réseau TRC20', "Collez l'adresse ci-dessus", 'Montant: 15 USDT', 'Capturez le TXID']
-                        : ['Open your crypto platform', 'Go to Withdraw / Send USDT', 'Select TRC20 network', 'Paste the address above', 'Amount: 15 USDT', 'Screenshot the transaction hash (TXID)']
+                        ? ['Ouvrez votre plateforme crypto', 'Allez dans Retirer / Envoyer USDT', 'Sélectionnez réseau TRC20', "Collez l'adresse ci-dessus", 'Montant: 9 USDT', 'Capturez le TXID']
+                        : ['Open your crypto platform', 'Go to Withdraw / Send USDT', 'Select TRC20 network', 'Paste the address above', 'Amount: 9 USDT', 'Screenshot the transaction hash (TXID)']
                       ).map((step, i) => (
                         <div key={i} className="flex items-start gap-3 mb-2">
                           <span className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-500 text-xs flex items-center justify-center font-bold flex-shrink-0 mt-0.5">{i + 1}</span>
@@ -1278,7 +1278,7 @@ const { user, userPlan, userStatus, expiresAt, trialDaysRemaining } = useAuth();
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{lang === 'ar' ? 'المبلغ' : lang === 'fr' ? 'Montant' : 'Amount'}</span>
-                    <span className="font-bold">{paymentMethod === 'baridimob' ? '3,700 DA' : '15 USDT'}</span>
+                    <span className="font-bold">{paymentMethod === 'baridimob' ? '2,200 DA' : '9 USDT'}</span>
                   </div>
                 </div>
 

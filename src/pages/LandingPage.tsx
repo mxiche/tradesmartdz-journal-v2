@@ -511,10 +511,10 @@ const LandingPage = () => {
                 </div>
                 <h3 className="text-xl font-black text-gray-900 mb-1">Pro ⭐</h3>
                 <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-4xl font-black text-gray-900">3,700</span>
+                  <span className="text-4xl font-black text-gray-900">2,200</span>
                   <span className="text-gray-500">DA{t('landing_per_month')}</span>
                 </div>
-                <p className="text-sm text-gray-400 mb-6">{t('landing_or')} 15 USDT{t('landing_per_month')}</p>
+                <p className="text-sm text-gray-400 mb-6">{t('landing_or')} 9 USDT{t('landing_per_month')}</p>
                 <ul className="space-y-3 mb-8">
                   {[
                     t('landing_pro_f1'), t('landing_pro_f2'), t('landing_pro_f3'),

@@ -444,8 +444,8 @@ function buildTrialReminderEmail(userEmail: string, daysLeft: number): string {
               <!-- Price box -->
               <div style="background:#f0fdf9;border:1px solid #99f6e4;border-radius:16px;padding:16px 20px;margin-bottom:24px;text-align:center;">
                 <p style="margin:0 0 4px;color:#0d9488;font-size:13px;font-weight:700;">اشترك الآن</p>
-                <p style="margin:0;color:#0f172a;font-size:22px;font-weight:900;">3,700 دج / شهر</p>
-                <p style="margin:4px 0 0;color:#64748b;font-size:12px;">أو 15 USDT / شهر</p>
+                <p style="margin:0;color:#0f172a;font-size:22px;font-weight:900;">2,200 دج / شهر</p>
+                <p style="margin:4px 0 0;color:#64748b;font-size:12px;">أو 9 USDT / شهر</p>
               </div>
 
               <!-- CTA -->
@@ -567,10 +567,10 @@ function buildTrialExpiredEmail(to: string): string {
                     </p>
                     <p style="margin:0 0 16px;color:#0f172a;font-size:22px;
                       font-weight:900;">
-                      3,700 دج / شهر
+                      2,200 دج / شهر
                     </p>
                     <p style="margin:0 0 4px;color:#64748b;font-size:12px;">
-                      أو 15 USDT / شهر
+                      أو 9 USDT / شهر
                     </p>
                   </div>
 

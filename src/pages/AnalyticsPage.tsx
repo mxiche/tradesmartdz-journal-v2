@@ -166,6 +166,14 @@ function getTradeSetup(tr: Trade): string {
   return parseSetupTag(tr.setup_tag).setup || 'Other';
 }
 
+function normalizeSetup(setup: string): string {
+  return setup.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).sort().join(',');
+}
+
+function displaySetup(setup: string): string {
+  return setup.split(',').map(s => s.trim()).filter(Boolean).sort().join(', ');
+}
+
 function fmtPnl(v: number): string {
   const sign = v >= 0 ? '+' : '';
   return `${sign}$${v.toFixed(2)}`;
@@ -312,7 +320,7 @@ const AnalyticsPage = () => {
     const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     let best: { name: string; wr: number } | null = null;
     Object.entries(dayMap).forEach(([dow, v]) => {
-      if (v.total < 2) return;
+      if (v.total < 1) return;
       const wr = Math.round((v.wins / v.total) * 100);
       if (!best || wr > best.wr) best = { name: l.days[dayNames[+dow] as keyof typeof l.days] || dayNames[+dow], wr };
     });
@@ -336,19 +344,22 @@ const AnalyticsPage = () => {
 
   // ── Best Setup insight ────────────────────────────────────────
   const bestSetupInsight = useMemo(() => {
-    const setupMap: Record<string, { wins: number; total: number }> = {};
+    const setupMap: Record<string, { wins: number; total: number; display: string }> = {};
     trades.forEach(tr => {
-      const s = getTradeSetup(tr);
-      if (s === 'Other') return;
-      if (!setupMap[s]) setupMap[s] = { wins: 0, total: 0 };
-      setupMap[s].total++;
-      if ((tr.profit ?? 0) > 0) setupMap[s].wins++;
+      const raw = getTradeSetup(tr);
+      if (raw === 'Other') return;
+      const key = normalizeSetup(raw);
+      const display = displaySetup(raw);
+      if (!setupMap[key]) setupMap[key] = { wins: 0, total: 0, display };
+      setupMap[key].total++;
+      if ((tr.profit ?? 0) > 0) setupMap[key].wins++;
     });
     let best: { name: string; wr: number } | null = null;
-    Object.entries(setupMap).forEach(([name, v]) => {
-      if (v.total < 2) return;
+    Object.entries(setupMap).forEach(([, v]) => {
+      if (v.total < 1) return;
       const wr = Math.round((v.wins / v.total) * 100);
-      if (!best || wr > best.wr) best = { name: name.length > 16 ? name.slice(0,16)+'…' : name, wr };
+      const label = v.display.length > 16 ? v.display.slice(0, 16) + '…' : v.display;
+      if (!best || wr > best.wr) best = { name: label, wr };
     });
     return best;
   }, [trades]);
@@ -427,16 +438,18 @@ const AnalyticsPage = () => {
 
   // ── Setup table ───────────────────────────────────────────────
   const setupTableData = useMemo(() => {
-    const map: Record<string, { wins: number; total: number; pnls: number[] }> = {};
+    const map: Record<string, { wins: number; total: number; pnls: number[]; display: string }> = {};
     trades.forEach(tr => {
-      const s = getTradeSetup(tr);
-      if (!map[s]) map[s] = { wins: 0, total: 0, pnls: [] };
-      map[s].total++;
-      map[s].pnls.push(tr.profit ?? 0);
-      if ((tr.profit ?? 0) > 0) map[s].wins++;
+      const raw = getTradeSetup(tr);
+      const key = normalizeSetup(raw);
+      const display = raw === 'Other' ? 'Other' : displaySetup(raw);
+      if (!map[key]) map[key] = { wins: 0, total: 0, pnls: [], display };
+      map[key].total++;
+      map[key].pnls.push(tr.profit ?? 0);
+      if ((tr.profit ?? 0) > 0) map[key].wins++;
     });
-    return Object.entries(map).map(([name, v]) => ({
-      name,
+    return Object.entries(map).map(([, v]) => ({
+      name: v.display,
       total: v.total,
       wr: Math.round((v.wins / v.total) * 100),
       totalPnl: v.pnls.reduce((s, x) => s + x, 0),
