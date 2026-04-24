@@ -1464,6 +1464,7 @@ const TradesPage = () => {
     setAddEmotion(null);
     setAddFollowedRules(null);
     setAddStrategyId(null);
+    setSetupInput('');
   };
 
   const { sheetRef: addSheetRef, onTouchStart: addTouchStart, onTouchMove: addTouchMove, onTouchEnd: addTouchEnd } = useSwipeToDismiss(() => { setAddOpen(false); resetForm(); });
@@ -1600,6 +1601,9 @@ const TradesPage = () => {
     }
   };
 
+  // Add-form setup tag input (temp, not persisted globally)
+  const [setupInput, setSetupInput] = useState('');
+
   // Tag management — allTags is the single source of truth, persisted to user_preferences.custom_tags
   const [allTags, setAllTags] = useState<string[]>(DEFAULT_TAGS);
   const [newTagInput, setNewTagInput] = useState('');
@@ -1642,11 +1646,15 @@ const TradesPage = () => {
 
   const openTrade = (trade: Trade) => {
     setSelectedTrade(trade);
-    const { result, session, setup } = parseSetupTag(trade.setup_tag);
-    const tags = trade.setup_tag
-      ? trade.setup_tag.split(',').map(s => s.trim()).filter(Boolean)
+    const { result, session } = parseSetupTag(trade.setup_tag);
+    const setupTags = trade.setup_tag
+      ? trade.setup_tag.split(',').map(s => s.trim()).filter(s => {
+          const lower = s.toLowerCase();
+          return !RESULT_VALUES.map(v => v.toLowerCase()).includes(lower)
+              && !SESSION_VALUES.map(v => v.toLowerCase()).includes(lower);
+        })
       : [];
-    setEditTags(tags);
+    setEditTags(setupTags);
     setEditNotes(trade.notes ?? '');
     setEditRating((trade as any).rating ?? 0);
     setEditReviewed((trade as any).reviewed ?? false);
@@ -1658,7 +1666,7 @@ const TradesPage = () => {
     const riskMatch = (trade.notes ?? '').match(/Risk \$([0-9.]+)/);
     setEditRisk(riskMatch ? riskMatch[1] : '');
     setEditSession(session ?? 'none');
-    setEditSetupTag(setup ?? '');
+    setEditSetupTag('');
     setEditOpenTime(trade.open_time ? new Date(trade.open_time).toISOString().slice(0,16) : '');
     setEditCloseTime(trade.close_time ? new Date(trade.close_time).toISOString().slice(0,16) : '');
     setEditCommission((trade as any).commission != null ? String((trade as any).commission) : '');
@@ -1714,7 +1722,7 @@ const TradesPage = () => {
 
     // Rebuild setup_tag from result + session + custom tags
     const sessionVal = (editSession && editSession !== 'none') ? editSession : '';
-    const tagParts = [editResult, sessionVal, ...editTags.filter(t => !RESULT_VALUES.includes(t) && !SESSION_VALUES.includes(t)), editSetupTag.trim()].filter(Boolean);
+    const tagParts = [editResult, sessionVal, ...editTags].filter(Boolean);
     const setupTag = [...new Set(tagParts)].join(', ') || null;
 
     // Rebuild notes: meta line + user notes
@@ -2494,11 +2502,63 @@ const TradesPage = () => {
             {/* Setup tag */}
             <div className="space-y-1.5">
               <Label>{t('setup')}</Label>
-              <Input
-                placeholder={lang === 'ar' ? 'FVG، Order Block، BOS...' : 'FVG, Order Block, BOS...'}
-                value={form.setup_tag}
-                onChange={e => setForm(f => ({ ...f, setup_tag: e.target.value }))}
-              />
+              {/* Selected pills */}
+              {form.setup_tag && (
+                <div className="flex flex-wrap gap-1.5">
+                  {form.setup_tag.split(',').map(s => s.trim()).filter(Boolean).map(tag => (
+                    <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary/20 text-primary px-2.5 py-0.5 text-xs font-medium">
+                      {tag}
+                      <button type="button" onClick={() => {
+                        const updated = form.setup_tag.split(',').map(s => s.trim()).filter(s => s !== tag);
+                        setForm(f => ({ ...f, setup_tag: updated.join(', ') }));
+                      }}><X className="h-2.5 w-2.5" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* Preset tag buttons */}
+              <div className="flex flex-wrap gap-1.5">
+                {allTags.filter(tag => !form.setup_tag.split(',').map(s => s.trim()).includes(tag)).map(tag => (
+                  <button key={tag} type="button"
+                    onClick={() => {
+                      const current = form.setup_tag.split(',').map(s => s.trim()).filter(Boolean);
+                      setForm(f => ({ ...f, setup_tag: [...current, tag].join(', ') }));
+                    }}
+                    className="rounded-full border border-border bg-secondary text-muted-foreground hover:border-primary/40 px-2.5 py-0.5 text-xs font-medium transition-colors">
+                    {tag}
+                  </button>
+                ))}
+              </div>
+              {/* Custom input */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder={lang === 'ar' ? 'أضف وسم مخصص...' : 'Add custom tag...'}
+                  value={setupInput}
+                  className="h-8 text-sm"
+                  onChange={e => setSetupInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ',') {
+                      e.preventDefault();
+                      const tag = setupInput.replace(/,/g, '').trim();
+                      if (!tag) return;
+                      const current = form.setup_tag.split(',').map(s => s.trim()).filter(Boolean);
+                      if (!current.includes(tag)) setForm(f => ({ ...f, setup_tag: [...current, tag].join(', ') }));
+                      setSetupInput('');
+                    }
+                  }}
+                />
+                <Button size="sm" variant="outline" className="h-8 px-2" type="button"
+                  disabled={!setupInput.trim()}
+                  onClick={() => {
+                    const tag = setupInput.trim();
+                    if (!tag) return;
+                    const current = form.setup_tag.split(',').map(s => s.trim()).filter(Boolean);
+                    if (!current.includes(tag)) setForm(f => ({ ...f, setup_tag: [...current, tag].join(', ') }));
+                    setSetupInput('');
+                  }}>
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
 
             {/* Notes */}
@@ -2934,37 +2994,66 @@ const TradesPage = () => {
                       </Select>
                     </div>
 
-                    {/* Setup text */}
-                    <div className="space-y-1">
+                    {/* Setup pills */}
+                    <div className="space-y-1.5">
                       <Label className="text-xs">{t('setup')}</Label>
-                      <Input value={editSetupTag} onChange={e => setEditSetupTag(e.target.value)}
-                        placeholder="FVG, Order Block..." className="h-8 text-sm" />
-                    </div>
-
-                    {/* Tag pills */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {allTags.map(tag => {
-                        const active = editTags.includes(tag);
-                        return (
-                          <div key={tag} className="group relative flex items-center">
-                            <button type="button" onClick={() => toggleTag(tag)}
-                              className={`rounded-full border pe-5 ps-2.5 py-0.5 text-xs font-medium transition-colors ${
-                                active ? 'border-primary bg-primary/20 text-primary' : 'border-border bg-secondary text-muted-foreground hover:border-primary/40'
-                              }`}>{tag}</button>
-                            <button type="button" onClick={() => removeTag(tag)}
-                              className="absolute end-0.5 h-4 w-4 flex items-center justify-center rounded-full opacity-0 text-muted-foreground hover:text-destructive group-hover:opacity-100 transition-opacity">
-                              <X className="h-2.5 w-2.5" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex gap-2">
-                      <Input placeholder={lang === 'ar' ? 'إضافة وسم...' : 'Add tag...'} value={newTagInput}
-                        onChange={e => setNewTagInput(e.target.value)} onKeyDown={handleTagInputKeyDown} className="h-8 text-sm" />
-                      <Button size="sm" variant="outline" className="h-8 px-2" onClick={addCustomTag} disabled={addingTag || !newTagInput.trim()}>
-                        {addingTag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                      </Button>
+                      {/* Selected pills */}
+                      {editTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {editTags.map(tag => (
+                            <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary/20 text-primary px-2.5 py-0.5 text-xs font-medium">
+                              {tag}
+                              <button type="button" onClick={() => setEditTags(prev => prev.filter(t => t !== tag))}>
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Preset tag buttons */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {allTags.map(tag => {
+                          const active = editTags.includes(tag);
+                          return (
+                            <div key={tag} className="group relative flex items-center">
+                              <button type="button" onClick={() => toggleTag(tag)}
+                                className={`rounded-full border pe-5 ps-2.5 py-0.5 text-xs font-medium transition-colors ${
+                                  active ? 'border-primary bg-primary/20 text-primary' : 'border-border bg-secondary text-muted-foreground hover:border-primary/40'
+                                }`}>{tag}</button>
+                              <button type="button" onClick={() => removeTag(tag)}
+                                className="absolute end-0.5 h-4 w-4 flex items-center justify-center rounded-full opacity-0 text-muted-foreground hover:text-destructive group-hover:opacity-100 transition-opacity">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Custom tag input */}
+                      <div className="flex gap-2">
+                        <Input placeholder={lang === 'ar' ? 'أضف وسم مخصص...' : 'Add custom tag...'}
+                          value={editSetupTag} className="h-8 text-sm"
+                          onChange={e => setEditSetupTag(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ',') {
+                              e.preventDefault();
+                              const tag = editSetupTag.replace(/,/g, '').trim();
+                              if (!tag) return;
+                              if (!editTags.includes(tag)) setEditTags(prev => [...prev, tag]);
+                              setEditSetupTag('');
+                            }
+                          }}
+                        />
+                        <Button size="sm" variant="outline" className="h-8 px-2" type="button"
+                          disabled={!editSetupTag.trim()}
+                          onClick={() => {
+                            const tag = editSetupTag.trim();
+                            if (!tag) return;
+                            if (!editTags.includes(tag)) setEditTags(prev => [...prev, tag]);
+                            setEditSetupTag('');
+                          }}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
 

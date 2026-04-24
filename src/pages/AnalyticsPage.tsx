@@ -307,23 +307,32 @@ const AnalyticsPage = () => {
 
   // ── Core stats ────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const wins      = trades.filter(tr => (tr.profit ?? 0) > 0);
-    const losses    = trades.filter(tr => (tr.profit ?? 0) < 0);
-    const beEvens   = trades.filter(tr => (tr.profit ?? 0) === 0);
-    const totalPnl  = trades.reduce((s, tr) => s + (tr.profit ?? 0), 0);
+    const netPnlPerTrade = trades.map(tr => (tr.profit ?? 0) - ((tr as any).commission ?? 0));
+    const wins      = trades.filter((_, i) => netPnlPerTrade[i] > 0);
+    const losses    = trades.filter((_, i) => netPnlPerTrade[i] < 0);
+    const beEvens   = trades.filter((_, i) => netPnlPerTrade[i] === 0);
+    const totalPnl  = netPnlPerTrade.reduce((s, n) => s + n, 0);
     const winRate   = trades.length ? (wins.length / trades.length) * 100 : 0;
-    const avgWin    = wins.length   ? wins.reduce((s, tr) => s + (tr.profit ?? 0), 0) / wins.length   : 0;
-    const avgLoss   = losses.length ? Math.abs(losses.reduce((s, tr) => s + (tr.profit ?? 0), 0) / losses.length) : 0;
+    const grossProfit = netPnlPerTrade.filter(n => n > 0).reduce((s, n) => s + n, 0);
+    const grossLoss   = Math.abs(netPnlPerTrade.filter(n => n < 0).reduce((s, n) => s + n, 0));
+    const avgWin    = wins.length ? grossProfit / wins.length : 0;
+    const avgLoss   = losses.length ? grossLoss / losses.length : 0;
     const rr        = avgLoss > 0 ? (avgWin / avgLoss) : 0;
     const lossRate  = trades.length ? (losses.length / trades.length) : 0;
     const expectancy = (winRate / 100) * avgWin - lossRate * avgLoss;
-    const netPnlPerTrade = trades.map(tr => (tr.profit ?? 0) - ((tr as any).commission ?? 0));
-    const grossProfit = netPnlPerTrade.filter(n => n > 0).reduce((s, n) => s + n, 0);
-    const grossLoss   = Math.abs(netPnlPerTrade.filter(n => n < 0).reduce((s, n) => s + n, 0));
-    const profitFactor: number | null = grossLoss < 1
-      ? (grossProfit > 0 ? null : 0)
-      : parseFloat((grossProfit / grossLoss).toFixed(2));
-    const bestTradeVal = trades.length ? Math.max(...trades.map(tr => tr.profit ?? 0)) : 0;
+    const profitFactor: number | null = (() => {
+      if (wins.length === 0 && losses.length === 0) return 0;
+      if (losses.length === 0) return grossProfit > 0 ? null : 0;
+      if (wins.length === 0) return 0;
+      if (grossLoss === 0) return null;
+      const pf = grossProfit / grossLoss;
+      if (pf > 20 && losses.length <= 1) {
+        const avgLossAmount = grossLoss / losses.length;
+        if (avgLossAmount < 5) return null;
+      }
+      return parseFloat(pf.toFixed(2));
+    })();
+    const bestTradeVal = netPnlPerTrade.length ? Math.max(...netPnlPerTrade) : 0;
     return { wins: wins.length, losses: losses.length, beEvens: beEvens.length, totalPnl, winRate, avgWin, avgLoss, rr, expectancy, profitFactor, bestTradeVal, count: trades.length };
   }, [trades]);
 
