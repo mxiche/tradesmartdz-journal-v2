@@ -162,8 +162,9 @@ const ConnectPage = () => {
     const firmKnown = firms.slice(0, -1).includes(acc.firm);
     const accSizeStr = String(Math.round(acc.account_size ?? 0));
     const sizeKnown = sizes.includes(accSizeStr);
-    const existingRule = String(a.consistency_rule ?? 0);
-    const isKnownRule = ['0', '30', '35', '40', '45', '50'].includes(existingRule);
+    const existingConsistency = a.consistency_rule;
+    const presets = [30, 35, 40, 45, 50];
+    const isPreset = presets.includes(Number(existingConsistency));
     setForm({
       account_category: category,
       account_name: acc.account_name ?? '',
@@ -180,8 +181,12 @@ const ConnectPage = () => {
       daily_loss_limit: String(acc.daily_loss_limit ?? 5),
       drawdown_type: a.drawdown_type ?? 'static',
       trailing_floor: String(a.trailing_floor ?? ''),
-      consistency_rule: isKnownRule ? existingRule : 'custom',
-      customConsistency: isKnownRule ? '' : existingRule,
+      consistency_rule: existingConsistency === null || existingConsistency === 0 || existingConsistency === undefined
+        ? '0'
+        : isPreset
+        ? String(Math.round(existingConsistency))
+        : 'custom',
+      customConsistency: existingConsistency && !isPreset ? String(existingConsistency) : '',
       profit_split_pct: String(a.profit_split ?? 80),
       min_trading_days: String(a.min_trading_days ?? 10),
       profit_target_dollars: String(a.profit_target_dollars ?? ''),
@@ -242,10 +247,15 @@ const ConnectPage = () => {
         position_close_time: form.position_close_time.trim() || null,
         min_winning_days: parseFloat(form.min_winning_days) || null,
         winning_day_threshold: parseFloat(form.winning_day_threshold) || null,
-        // FIX 2: resolve custom consistency
-        consistency_rule: form.consistency_rule === 'custom'
-          ? parseFloat(form.customConsistency) || null
-          : parseFloat(form.consistency_rule) || null,
+        consistency_rule: (() => {
+          if (form.consistency_rule === 'custom') {
+            const val = parseFloat(form.customConsistency);
+            return isNaN(val) || val <= 0 ? null : val;
+          }
+          if (!form.consistency_rule || form.consistency_rule === '0' || form.consistency_rule === 'none') return null;
+          const val = parseFloat(form.consistency_rule);
+          return isNaN(val) || val === 0 ? null : val;
+        })(),
       };
 
       if (editingId) {
@@ -315,10 +325,12 @@ const ConnectPage = () => {
 
   const inputCls = 'w-full py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 font-semibold bg-white px-3';
 
-  // Resolved consistency value for display
-  const resolvedConsistency = form.consistency_rule === 'custom'
-    ? form.customConsistency
-    : form.consistency_rule;
+  // Resolved consistency value for display (returns '' when none/0)
+  const resolvedConsistency = (() => {
+    if (form.consistency_rule === 'custom') return form.customConsistency;
+    if (!form.consistency_rule || form.consistency_rule === '0' || form.consistency_rule === 'none') return '';
+    return form.consistency_rule;
+  })();
 
   // FIX 2: shared consistency chip renderer
   const ConsistencySection = ({ forFutures }: { forFutures: boolean }) => {
@@ -345,7 +357,11 @@ const ConnectPage = () => {
               type="button"
               onClick={() => setForm(p => ({ ...p, consistency_rule: String(opt), customConsistency: '' }))}
               className={`px-3 py-2 rounded-xl text-sm font-bold transition-all border ${
-                form.consistency_rule === String(opt) && !form.customConsistency
+                opt === 0
+                  ? (form.consistency_rule === '0' || form.consistency_rule === '' || form.consistency_rule === 'none') && !form.customConsistency
+                    ? 'bg-teal-500 text-white border-teal-500'
+                    : 'bg-gray-50 text-gray-700 border-gray-100 hover:border-gray-200'
+                  : form.consistency_rule === String(opt) && !form.customConsistency
                   ? 'bg-teal-500 text-white border-teal-500'
                   : 'bg-gray-50 text-gray-700 border-gray-100 hover:border-gray-200'
               }`}
@@ -659,7 +675,7 @@ const ConnectPage = () => {
                       </div>
                     )}
                     {/* FIX 2: Forex consistency with custom input */}
-                    <ConsistencySection forFutures={false} />
+                    {ConsistencySection({ forFutures: false })}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('profit_split_pct')}</Label>
@@ -712,7 +728,7 @@ const ConnectPage = () => {
                       />
                     </div>
                     {/* FIX 6: Futures consistency */}
-                    <ConsistencySection forFutures={true} />
+                    {ConsistencySection({ forFutures: true })}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('contract_limit')}</Label>
@@ -735,7 +751,7 @@ const ConnectPage = () => {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3 items-end">
                       <div className="space-y-1.5">
                         {/* FIX 5: optional */}
                         <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
@@ -757,9 +773,10 @@ const ConnectPage = () => {
                             ({lang === 'ar' ? 'اختياري' : 'optional'})
                           </span>
                         </Label>
-                        <input type="time" className={inputCls}
+                        <input type="text" className={inputCls}
                           value={form.position_close_time}
                           onChange={e => setForm(f => ({ ...f, position_close_time: e.target.value }))}
+                          placeholder="e.g. 3:10 PM CT"
                         />
                       </div>
                     </div>

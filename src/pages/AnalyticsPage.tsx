@@ -471,29 +471,62 @@ const AnalyticsPage = () => {
     return entries;
   }, [trades, l]);
 
-  // ── By time group ─────────────────────────────────────────────
+  // ── By session ────────────────────────────────────────────────
   const byTimeData = useMemo(() => {
-    const groups = [
-      { key: 'Morning', hours: [6,7,8,9,10], label: l.timeGroups.Morning },
-      { key: 'London',  hours: [10,11,12,13], label: l.timeGroups.London },
-      { key: 'NY',      hours: [14,15,16,17,18], label: l.timeGroups.NY },
-      { key: 'Evening', hours: [18,19,20,21,22], label: l.timeGroups.Evening },
+    const sessions = [
+      {
+        key: 'London',
+        name: lang === 'ar' ? 'لندن' : lang === 'fr' ? 'Londres' : 'London',
+        emoji: '🕙',
+      },
+      {
+        key: 'New York',
+        name: lang === 'ar' ? 'نيويورك' : lang === 'fr' ? 'New York' : 'New York',
+        emoji: '🌆',
+      },
+      {
+        key: 'Asia',
+        name: lang === 'ar' ? 'آسيا' : lang === 'fr' ? 'Asie' : 'Asia',
+        emoji: '🌅',
+      },
+      {
+        key: 'NY Lunch',
+        name: lang === 'ar' ? 'استراحة NY' : lang === 'fr' ? 'NY Lunch' : 'NY Lunch',
+        emoji: '🌙',
+      },
     ];
-    return groups.map(g => {
-      const ts = trades.filter(tr => {
-        if (!tr.open_time) return false;
-        const h = new Date(tr.open_time).getHours();
-        return g.hours.includes(h);
+
+    return sessions.map(session => {
+      const sessionTrades = trades.filter(tr => {
+        if (tr.session === session.key) return true;
+        if (tr.setup_tag) {
+          const parts = tr.setup_tag.split(',').map((s: string) => s.trim());
+          if (parts.includes(session.key)) return true;
+        }
+        return false;
       });
-      const wins = ts.filter(tr => (tr.profit ?? 0) > 0).length;
+
+      const pnl = sessionTrades.reduce(
+        (s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)),
+        0
+      );
+      const wins = sessionTrades.filter(
+        tr => ((tr.profit ?? 0) - ((tr as any).commission ?? 0)) > 0
+      ).length;
+      const winRate = sessionTrades.length > 0
+        ? Math.round((wins / sessionTrades.length) * 100)
+        : 0;
+
       return {
-        name: g.label,
-        count: ts.length,
-        winRate: ts.length ? Math.round((wins / ts.length) * 100) : 0,
-        pnl: +ts.reduce((s, tr) => s + (tr.profit ?? 0), 0).toFixed(2),
+        name: session.name,
+        emoji: session.emoji,
+        key: session.key,
+        count: sessionTrades.length,
+        winRate,
+        pnl: parseFloat(pnl.toFixed(2)),
       };
     });
-  }, [trades, l]);
+  }, [trades, lang]);
 
   // ── Weekly consistency ────────────────────────────────────────
   const weeklyData = useMemo(() => {
@@ -1464,7 +1497,7 @@ const AnalyticsPage = () => {
             <div className="space-y-2">
               {byTimeData.map((session, i) => {
                 const hasData = session.count > 0;
-                const sessionEmoji = ['🌅', '🕙', '🌆', '🌙'][i];
+                const sessionEmoji = session.emoji;
                 const sessionColor = hasData
                   ? session.pnl >= 0 ? '#0d9488' : '#ef4444'
                   : '#e2e8f0';

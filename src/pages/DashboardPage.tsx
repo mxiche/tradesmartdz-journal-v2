@@ -1444,6 +1444,7 @@ const DashboardPage = () => {
   const [insightIndex, setInsightIndex] = useState(0);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalInput, setGoalInput] = useState('');
+  const [goalRefreshKey, setGoalRefreshKey] = useState(0);
 
   // Filters
   const [dateRange, setDateRange] = useState<DateRange>('all');
@@ -1531,25 +1532,30 @@ const DashboardPage = () => {
   const weeklyGoal = useMemo(() => {
     if (!user?.id) return 0;
 
-    // Get current week number (Sunday-based)
-    const now = new Date();
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
-    const currentWeek = Math.ceil(
-      ((now.getTime() - startOfYear.getTime()) / 86400000
-        + startOfYear.getDay() + 1) / 7
-    );
-    const storedWeek = localStorage.getItem(`weekly_goal_week_${user.id}`);
+    const raw = localStorage.getItem(`weekly_goal_${user.id}`);
+    if (!raw) return 0;
 
-    // If stored week differs from current week it's a new week — reset
-    if (storedWeek && parseInt(storedWeek) !== currentWeek) {
-      localStorage.removeItem(`weekly_goal_${user.id}`);
-      localStorage.removeItem(`weekly_goal_week_${user.id}`);
-      return 0;
+    const storedWeek = localStorage.getItem(`weekly_goal_week_${user.id}`);
+    if (storedWeek) {
+      // Sunday-based week number: days from start-of-year to start-of-week / 7
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      const weekNum = Math.floor(
+        (startOfWeek.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000)
+      );
+      if (parseInt(storedWeek) !== weekNum) {
+        localStorage.removeItem(`weekly_goal_${user.id}`);
+        localStorage.removeItem(`weekly_goal_week_${user.id}`);
+        return 0;
+      }
     }
 
-    const raw = localStorage.getItem(`weekly_goal_${user.id}`);
-    return raw ? parseFloat(raw) : 0;
-  }, [user]);
+    const val = parseFloat(raw);
+    return isNaN(val) ? 0 : val;
+  }, [user?.id, goalRefreshKey]);
 
   const thisWeekPnl = useMemo(() => {
     const now = new Date();
@@ -2272,12 +2278,15 @@ const DashboardPage = () => {
                     if (!isNaN(val) && val > 0 && user) {
                       const now = new Date();
                       const startOfYear = new Date(now.getFullYear(), 0, 1);
-                      const currentWeek = Math.ceil(((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
+                      const startOfWeek = new Date(now);
+                      startOfWeek.setDate(now.getDate() - now.getDay());
+                      startOfWeek.setHours(0, 0, 0, 0);
+                      const weekNum = Math.floor((startOfWeek.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000));
                       localStorage.setItem(`weekly_goal_${user.id}`, String(val));
-                      localStorage.setItem(`weekly_goal_week_${user.id}`, String(currentWeek));
+                      localStorage.setItem(`weekly_goal_week_${user.id}`, String(weekNum));
                       setShowGoalModal(false);
                       setGoalInput('');
-                      window.location.reload();
+                      setGoalRefreshKey(prev => prev + 1);
                     }
                   }
                 }}
@@ -2302,12 +2311,15 @@ const DashboardPage = () => {
                 if (!isNaN(val) && val > 0 && user) {
                   const now = new Date();
                   const startOfYear = new Date(now.getFullYear(), 0, 1);
-                  const currentWeek = Math.ceil(((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
+                  const startOfWeek = new Date(now);
+                  startOfWeek.setDate(now.getDate() - now.getDay());
+                  startOfWeek.setHours(0, 0, 0, 0);
+                  const weekNum = Math.floor((startOfWeek.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000));
                   localStorage.setItem(`weekly_goal_${user.id}`, String(val));
-                  localStorage.setItem(`weekly_goal_week_${user.id}`, String(currentWeek));
+                  localStorage.setItem(`weekly_goal_week_${user.id}`, String(weekNum));
                   setShowGoalModal(false);
                   setGoalInput('');
-                  window.location.reload();
+                  setGoalRefreshKey(prev => prev + 1);
                 }
               }}
               className="flex-1 py-2.5 rounded-xl bg-teal-500 text-white font-bold text-sm hover:bg-teal-600 transition-colors"
