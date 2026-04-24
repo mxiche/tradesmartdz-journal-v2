@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import {
   TrendingUp, TrendingDown, Loader2, Plus, ChevronLeft, ChevronRight, Camera, X, Download,
   Lightbulb, Target, Shield, AlertTriangle, CalendarDays, BarChart2,
+  Send, CheckCircle2, Bell,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { t } from '@/lib/i18n';
@@ -1453,6 +1454,15 @@ const DashboardPage = () => {
   // Equity chart account selector
   const [equityAccountId, setEquityAccountId] = useState<string>('all');
 
+  // Telegram onboarding
+  const [telegramChatId, setTelegramChatId] = useState<string | null>(null);
+  const [showTelegramModal, setShowTelegramModal] = useState(false);
+  const [tgPolling, setTgPolling] = useState(false);
+  const [tgConnected, setTgConnected] = useState(false);
+  const [showTgBanner, setShowTgBanner] = useState(false);
+  const [tgBannerHidden, setTgBannerHidden] = useState(false);
+  const tgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const fetchData = async () => {
     if (!user) return;
     const [{ data: tradesData }, { data: accountsData }] = await Promise.all([
@@ -1461,6 +1471,31 @@ const DashboardPage = () => {
     ]);
     setTrades(tradesData ?? []);
     setAccounts(accountsData ?? []);
+  };
+
+  const stopTgPolling = () => {
+    if (tgPollRef.current) { clearInterval(tgPollRef.current); tgPollRef.current = null; }
+    setTgPolling(false);
+  };
+
+  const startTgPolling = () => {
+    if (!user || tgPollRef.current) return;
+    setTgPolling(true);
+    tgPollRef.current = setInterval(async () => {
+      const { data } = await supabase.from('user_preferences').select('telegram_chat_id').eq('user_id', user.id).maybeSingle();
+      const chatId = data?.telegram_chat_id;
+      if (chatId) {
+        setTelegramChatId(chatId);
+        setTgConnected(true);
+        stopTgPolling();
+        setTimeout(() => {
+          setShowTelegramModal(false);
+          setShowTgBanner(false);
+          localStorage.setItem('tg_onboard_dismissed', '1');
+        }, 2000);
+      }
+    }, 5000);
+    setTimeout(() => { if (tgPollRef.current) stopTgPolling(); }, 180000);
   };
 
   useEffect(() => {
@@ -1485,6 +1520,21 @@ const DashboardPage = () => {
       if ((tc ?? 0) === 0 && (ac ?? 0) === 0) setShowOnboarding(true);
     };
     checkOnboarding();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let timer: ReturnType<typeof setTimeout>;
+    (async () => {
+      const { data } = await supabase.from('user_preferences').select('telegram_chat_id').eq('user_id', user.id).maybeSingle();
+      if (data?.telegram_chat_id) { setTelegramChatId(data.telegram_chat_id); return; }
+      if (localStorage.getItem('tg_onboard_dismissed')) { setShowTgBanner(true); return; }
+      timer = setTimeout(() => setShowTelegramModal(true), 2000);
+    })();
+    return () => {
+      clearTimeout(timer);
+      if (tgPollRef.current) { clearInterval(tgPollRef.current); tgPollRef.current = null; }
+    };
   }, [user]);
 
   // ---- filtered trades ----
@@ -1841,6 +1891,94 @@ const DashboardPage = () => {
         <OnboardingModal userId={user.id} lang={lang} onClose={() => setShowOnboarding(false)} />
       )}
 
+      {/* ── TELEGRAM ONBOARDING MODAL ── */}
+      <Dialog open={showTelegramModal} onOpenChange={(o) => { if (!o && !tgConnected) { stopTgPolling(); setShowTelegramModal(false); localStorage.setItem('tg_onboard_dismissed', '1'); setShowTgBanner(true); } }}>
+        <DialogContent className="max-w-sm rounded-3xl border-0 p-0 overflow-hidden">
+          <div className="border-t-4 border-teal-500 rounded-3xl bg-white">
+            <div className="p-6 space-y-5">
+              {tgConnected ? (
+                /* ── Success state ── */
+                <div className="flex flex-col items-center gap-3 py-4 text-center">
+                  <CheckCircle2 className="h-14 w-14 text-teal-500" />
+                  <p className="text-xl font-bold text-gray-900">
+                    {lang === 'ar' ? '🎉 تم الربط بنجاح!' : lang === 'fr' ? '🎉 Connecté avec succès!' : '🎉 Connected successfully!'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {lang === 'ar' ? 'ستصلك ملخصاتك اليومية على تيليجرام' : lang === 'fr' ? 'Vous recevrez vos résumés quotidiens sur Telegram' : "You'll receive your daily summaries on Telegram"}
+                  </p>
+                </div>
+              ) : (
+                /* ── Default / polling state ── */
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-50">
+                      <Send className="h-5 w-5 text-teal-500" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">
+                        {lang === 'ar' ? 'ربط Telegram' : lang === 'fr' ? 'Connecter Telegram' : 'Connect Telegram'}
+                      </h2>
+                      <p className="text-xs text-gray-500">
+                        {lang === 'ar' ? 'إشعارات يومية مجانية' : lang === 'fr' ? 'Notifications quotidiennes gratuites' : 'Free daily notifications'}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {lang === 'ar'
+                      ? 'احصل على ملخص يومي لصفقاتك مباشرة على تيليجرام'
+                      : lang === 'fr'
+                      ? 'Recevez un résumé quotidien de vos trades directement sur Telegram'
+                      : 'Get a daily summary of your trades directly on Telegram'}
+                  </p>
+                  <div className="space-y-2.5">
+                    {[
+                      { icon: '📊', ar: 'ملخص يومي تلقائي — نتائجك كل مساء', fr: 'Résumé quotidien automatique chaque soir', en: 'Automatic daily summary every evening' },
+                      { icon: '🚨', ar: 'تنبيهات فورية عند اقتراب حدود الحساب', fr: 'Alertes quand vous approchez des limites', en: 'Instant alerts when nearing account limits' },
+                      { icon: '🤖', ar: 'نصائح AI Coach على تيليجرام مباشرة', fr: "Conseils AI Coach sur Telegram", en: 'AI Coach tips delivered to Telegram' },
+                    ].map(({ icon, ar, fr, en }) => (
+                      <div key={icon} className="flex items-start gap-2.5">
+                        <span className="text-base leading-none mt-0.5">{icon}</span>
+                        <span className="text-sm text-gray-700">{lang === 'ar' ? ar : lang === 'fr' ? fr : en}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="space-y-2.5 pt-1">
+                    <button
+                      onClick={() => {
+                        if (user) window.open(`https://t.me/Tradesmartdzbot?start=${user.id}`, '_blank');
+                        setTimeout(() => startTgPolling(), 1500);
+                      }}
+                      disabled={tgPolling}
+                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-teal-500 py-3 text-sm font-bold text-white hover:bg-teal-600 transition-colors disabled:opacity-70"
+                    >
+                      {tgPolling ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {lang === 'ar' ? 'في انتظار الربط...' : lang === 'fr' ? 'En attente de connexion...' : 'Waiting for connection...'}
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4" />
+                          {lang === 'ar' ? 'ربط Telegram' : lang === 'fr' ? 'Connecter Telegram' : 'Connect Telegram'}
+                        </>
+                      )}
+                    </button>
+                    {!tgPolling && (
+                      <button
+                        onClick={() => { setShowTelegramModal(false); localStorage.setItem('tg_onboard_dismissed', '1'); setShowTgBanner(true); }}
+                        className="w-full py-2.5 text-sm text-gray-400 hover:text-gray-600 transition-colors font-medium"
+                      >
+                        {lang === 'ar' ? 'ربما لاحقاً' : lang === 'fr' ? 'Plus tard' : 'Maybe Later'}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* ── TOP BAR ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -1937,6 +2075,29 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── TELEGRAM BANNER (shown after dismissed but not yet connected) ── */}
+      {showTgBanner && !tgBannerHidden && !telegramChatId && (
+        <div className="flex items-center gap-3 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3">
+          <Bell className="h-5 w-5 shrink-0 text-teal-500" />
+          <p className="flex-1 text-sm text-teal-800 font-medium">
+            {lang === 'ar'
+              ? 'ربط Telegram للحصول على ملخصات يومية'
+              : lang === 'fr'
+              ? 'Connectez Telegram pour les notifications quotidiennes'
+              : 'Connect Telegram for daily trading summaries'}
+          </p>
+          <button
+            onClick={() => { setTgConnected(false); setTgPolling(false); setShowTelegramModal(true); }}
+            className="shrink-0 rounded-xl bg-teal-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-600 transition-colors"
+          >
+            {lang === 'ar' ? 'ربط' : lang === 'fr' ? 'Connecter' : 'Connect'}
+          </button>
+          <button onClick={() => setTgBannerHidden(true)} className="shrink-0 text-teal-400 hover:text-teal-600 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* ── WEEKLY GOAL + INSIGHTS ROW ── */}
       {(weeklyGoal > 0 || insights.length > 0) && (
