@@ -3329,37 +3329,41 @@ const TradesPage = () => {
 
       {/* Delete Confirmation Modal */}
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <DialogContent className="max-w-sm rounded-2xl">
-          <DialogHeader>
-            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-3">
-              <Trash2 className="w-6 h-6 text-red-500" />
+        <DialogContent className="flex items-center justify-center bg-transparent border-0 shadow-none p-4 max-w-none w-full">
+          <div className="bg-white rounded-3xl p-6 mx-4 shadow-2xl w-full max-w-sm">
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center">
+                <Trash2 className="w-7 h-7 text-red-500" />
+              </div>
+              <div>
+                <p className="text-lg font-black text-gray-900">
+                  {lang === 'ar' ? 'تأكيد الحذف' : lang === 'fr' ? 'Confirmer la suppression' : 'Confirm Delete'}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {deleteTarget?.label}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 w-full mt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    if (deleteTarget) handleDeleteConfirmed(deleteTarget.ids);
+                  }}
+                  className="w-full py-3.5 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-bold transition-colors"
+                >
+                  {lang === 'ar' ? 'حذف' : lang === 'fr' ? 'Supprimer' : 'Delete'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(false)}
+                  className="w-full py-3.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold transition-colors"
+                >
+                  {lang === 'ar' ? 'إلغاء' : lang === 'fr' ? 'Annuler' : 'Cancel'}
+                </button>
+              </div>
             </div>
-            <DialogTitle className="text-center text-lg font-bold">
-              {lang === 'ar' ? 'تأكيد الحذف' : lang === 'fr' ? 'Confirmer la suppression' : 'Confirm Delete'}
-            </DialogTitle>
-            <DialogDescription className="text-center text-sm text-muted-foreground">
-              {deleteTarget?.label}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex gap-2 mt-2 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setShowDeleteModal(false)}
-              className="flex-1 py-2.5 rounded-xl border border-border text-muted-foreground font-semibold text-sm hover:bg-secondary transition-colors"
-            >
-              {lang === 'ar' ? 'إلغاء' : lang === 'fr' ? 'Annuler' : 'Cancel'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowDeleteModal(false);
-                if (deleteTarget) handleDeleteConfirmed(deleteTarget.ids);
-              }}
-              className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-colors"
-            >
-              {lang === 'ar' ? 'حذف' : lang === 'fr' ? 'Supprimer' : 'Delete'}
-            </button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
