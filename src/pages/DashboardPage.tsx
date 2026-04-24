@@ -1525,12 +1525,8 @@ const DashboardPage = () => {
   useEffect(() => {
     if (!user) return;
     let timer: ReturnType<typeof setTimeout>;
-    (async () => {
-      const { data } = await supabase.from('user_preferences').select('telegram_chat_id').eq('user_id', user.id).maybeSingle();
-      if (data?.telegram_chat_id) { setTelegramChatId(data.telegram_chat_id); return; }
-      if (localStorage.getItem('tg_onboard_dismissed')) { setShowTgBanner(true); return; }
-      timer = setTimeout(() => setShowTelegramModal(true), 2000);
-    })();
+    // TEST MODE: force modal after 500ms regardless of telegram_chat_id or localStorage
+    timer = setTimeout(() => setShowTelegramModal(true), 500);
     return () => {
       clearTimeout(timer);
       if (tgPollRef.current) { clearInterval(tgPollRef.current); tgPollRef.current = null; }
