@@ -1525,8 +1525,26 @@ const DashboardPage = () => {
   useEffect(() => {
     if (!user) return;
     let timer: ReturnType<typeof setTimeout>;
-    // TEST MODE: force modal after 500ms regardless of telegram_chat_id or localStorage
-    timer = setTimeout(() => setShowTelegramModal(true), 500);
+    (async () => {
+      const { data } = await supabase
+        .from('user_preferences')
+        .select('telegram_chat_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const chatId = data?.telegram_chat_id;
+      if (chatId) {
+        // Already connected — show nothing
+        setTelegramChatId(chatId);
+        return;
+      }
+      if (localStorage.getItem('tg_onboard_dismissed')) {
+        // Dismissed before but not connected — show banner only
+        setShowTgBanner(true);
+        return;
+      }
+      // First time — show modal after 2s
+      timer = setTimeout(() => setShowTelegramModal(true), 2000);
+    })();
     return () => {
       clearTimeout(timer);
       if (tgPollRef.current) { clearInterval(tgPollRef.current); tgPollRef.current = null; }
@@ -2072,26 +2090,40 @@ const DashboardPage = () => {
         </Card>
       </div>
 
-      {/* ── TELEGRAM BANNER (shown after dismissed but not yet connected) ── */}
+      {/* ── TELEGRAM BANNER (dismissed but not yet connected) ── */}
       {showTgBanner && !tgBannerHidden && !telegramChatId && (
-        <div className="flex items-center gap-3 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3">
-          <Bell className="h-5 w-5 shrink-0 text-teal-500" />
-          <p className="flex-1 text-sm text-teal-800 font-medium">
-            {lang === 'ar'
-              ? 'ربط Telegram للحصول على ملخصات يومية'
-              : lang === 'fr'
-              ? 'Connectez Telegram pour les notifications quotidiennes'
-              : 'Connect Telegram for daily trading summaries'}
-          </p>
-          <button
-            onClick={() => { setTgConnected(false); setTgPolling(false); setShowTelegramModal(true); }}
-            className="shrink-0 rounded-xl bg-teal-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-600 transition-colors"
-          >
-            {lang === 'ar' ? 'ربط' : lang === 'fr' ? 'Connecter' : 'Connect'}
-          </button>
-          <button onClick={() => setTgBannerHidden(true)} className="shrink-0 text-teal-400 hover:text-teal-600 transition-colors">
-            <X className="h-4 w-4" />
-          </button>
+        <div className={`rounded-2xl border border-teal-200 bg-gradient-to-r from-teal-50 to-white p-4 flex items-center justify-between gap-3 shadow-sm ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+          <div className={`flex items-center gap-3 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+            <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center flex-shrink-0">
+              <Send className="w-4 h-4 text-teal-600" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-900">
+                {lang === 'ar' ? 'ربط التيليغرام' : lang === 'fr' ? 'Connecter Telegram' : 'Connect Telegram'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {lang === 'ar'
+                  ? 'استقبل تقاريرك اليومية مباشرة على هاتفك'
+                  : lang === 'fr'
+                  ? 'Recevez vos rapports quotidiens sur votre téléphone'
+                  : 'Get your daily trading reports on your phone'}
+              </p>
+            </div>
+          </div>
+          <div className={`flex items-center gap-2 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+            <button
+              onClick={() => { setTgConnected(false); setTgPolling(false); setShowTelegramModal(true); }}
+              className="text-xs px-3 py-1.5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-semibold transition-colors"
+            >
+              {lang === 'ar' ? 'ربط الآن' : lang === 'fr' ? 'Connecter' : 'Connect Now'}
+            </button>
+            <button
+              onClick={() => setTgBannerHidden(true)}
+              className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+            >
+              <X className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+          </div>
         </div>
       )}
 
