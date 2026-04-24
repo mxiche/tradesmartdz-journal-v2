@@ -1694,11 +1694,16 @@ const DashboardPage = () => {
     const drawdownType = selectedEquityAccount?.drawdown_type || 'static';
     const isTrailing = drawdownType === 'eod_trailing' || drawdownType === 'intraday_trailing';
 
+    const CHALLENGE_TYPES = ['Challenge Phase 1', 'Challenge Phase 2', 'Evaluation', 'Instant Funded'];
+    const isChallengeAccount = CHALLENGE_TYPES.includes(selectedEquityAccount?.account_type || '');
+
     const trailingFloor = selectedEquityAccount?.trailing_floor ?? null;
-    const trailingFloorLevel = isTrailing && trailingFloor !== null ? trailingFloor : null;
+    const trailingFloorLevel = isTrailing && trailingFloor !== null && trailingFloor > 0
+      ? trailingFloor : null;
 
     const profitTargetLevel = (() => {
       if (!selectedEquityAccount) return null;
+      if (!isChallengeAccount) return null;
       if (isFutures) {
         const target = selectedEquityAccount.profit_target_dollars;
         return target ? startBalance + target : null;
@@ -1714,6 +1719,12 @@ const DashboardPage = () => {
     const futuresDailyLossLevel = isFutures && selectedEquityAccount?.daily_loss_limit_dollars
       ? startBalance - selectedEquityAccount.daily_loss_limit_dollars
       : null;
+
+    const hasMeaningfulLimits = (() => {
+      if (!selectedEquityAccount) return false;
+      if (isFutures) return (selectedEquityAccount.max_loss_limit_dollars ?? 0) > 0;
+      return accountSize > 0 && (selectedEquityAccount.max_drawdown_limit ?? 0) > 0;
+    })();
 
     // Build equity points
     let pts: { date: string; balance: number }[];
@@ -1735,12 +1746,17 @@ const DashboardPage = () => {
 
     const currentBalance = pts.length > 0 ? pts[pts.length - 1].balance : startBalance;
 
-    const effectiveDangerLevel = isFutures
-      ? (futuresMaxLossLevel ?? dangerLevel ?? null)
-      : (isTrailing ? trailingFloorLevel : (dangerLevel ?? null));
+    const effectiveDangerLevel = (() => {
+      if (!hasMeaningfulLimits) return null;
+      if (isFutures) return futuresMaxLossLevel;
+      if (isTrailing && trailingFloorLevel !== null) return trailingFloorLevel;
+      return dangerLevel ?? null;
+    })();
 
-    const bufferAmount = effectiveDangerLevel !== null ? currentBalance - effectiveDangerLevel : null;
-    const totalAllowed = effectiveDangerLevel !== null ? startBalance - effectiveDangerLevel : null;
+    const bufferAmount = hasMeaningfulLimits && effectiveDangerLevel !== null
+      ? currentBalance - effectiveDangerLevel : null;
+    const totalAllowed = hasMeaningfulLimits && effectiveDangerLevel !== null
+      ? startBalance - effectiveDangerLevel : null;
     const bufferPct = bufferAmount !== null && totalAllowed !== null && totalAllowed > 0
       ? Math.min(100, (bufferAmount / totalAllowed) * 100) : null;
 
@@ -1758,9 +1774,11 @@ const DashboardPage = () => {
       futuresMaxLossLevel,
       futuresDailyLossLevel,
       isTrailing,
+      isFutures,
+      isChallengeAccount,
+      hasMeaningfulLimits,
       bufferAmount,
       bufferPct,
-      isFutures,
     };
   }, [equityAccountId, selectedEquityAccount, accounts, trades, accountSize, ddLimit, dailyLossLimit, lang]);
 
@@ -2094,18 +2112,32 @@ const DashboardPage = () => {
           <CardContent className="pb-4 pt-0">
             {/* Stats bar */}
             <div className="flex items-center gap-4 px-1 mb-3 flex-wrap">
+              {/* Balance — always show */}
               <div>
                 <p className="text-xs text-gray-400">
                   {lang === 'ar' ? 'الرصيد' : lang === 'fr' ? 'Solde' : 'Balance'}
                 </p>
                 <p className="text-sm font-black text-gray-900">
-                  ${equityData.points[equityData.points.length - 1]?.balance?.toFixed(0) ?? equityData.startBalance.toFixed(0)}
+                  ${(equityData.points[equityData.points.length - 1]?.balance ?? equityData.startBalance).toFixed(0)}
                 </p>
               </div>
-              {equityData.bufferAmount !== null && (
+              {/* P&L — always show */}
+              {(() => {
+                const pnl = (equityData.points[equityData.points.length - 1]?.balance ?? equityData.startBalance) - equityData.startBalance;
+                return (
+                  <div>
+                    <p className="text-xs text-gray-400">P&L</p>
+                    <p className={`text-sm font-black ${pnl >= 0 ? 'text-teal-600' : 'text-red-500'}`}>
+                      {pnl >= 0 ? '+' : ''}${pnl.toFixed(0)}
+                    </p>
+                  </div>
+                );
+              })()}
+              {/* Buffer — only when account has meaningful limits and a single account is selected */}
+              {equityData.bufferAmount !== null && equityData.hasMeaningfulLimits && equityAccountId !== 'all' && (
                 <div>
                   <p className="text-xs text-gray-400">
-                    {lang === 'ar' ? 'المساحة المتبقية' : lang === 'fr' ? 'Marge' : 'Buffer'}
+                    {lang === 'ar' ? 'المساحة' : lang === 'fr' ? 'Marge' : 'Buffer'}
                   </p>
                   <p className={`text-sm font-black ${
                     equityData.bufferPct !== null && equityData.bufferPct < 20
@@ -2118,20 +2150,22 @@ const DashboardPage = () => {
                   </p>
                 </div>
               )}
-              {equityData.profitTargetLevel !== null && (
+              {/* Target — only for challenge/evaluation accounts */}
+              {equityData.profitTargetLevel !== null && equityData.isChallengeAccount && equityAccountId !== 'all' && (
                 <div>
                   <p className="text-xs text-gray-400">
-                    {lang === 'ar' ? 'هدف الربح' : 'Target'}
+                    {lang === 'ar' ? 'الهدف' : lang === 'fr' ? 'Objectif' : 'Target'}
                   </p>
                   <p className="text-sm font-black text-teal-600">
                     ${equityData.profitTargetLevel.toFixed(0)}
                   </p>
                 </div>
               )}
-              {equityData.isTrailing && equityData.trailingFloorLevel !== null && (
+              {/* Trailing floor — only for EOD/intraday trailing accounts */}
+              {equityData.trailingFloorLevel !== null && equityData.isTrailing && equityAccountId !== 'all' && (
                 <div>
                   <p className="text-xs text-gray-400">
-                    {lang === 'ar' ? 'الحد الأدنى' : 'Floor'}
+                    {lang === 'ar' ? 'الحد الأدنى' : lang === 'fr' ? 'Plancher' : 'Floor'}
                   </p>
                   <p className="text-sm font-black text-amber-500">
                     ${equityData.trailingFloorLevel.toFixed(0)}
