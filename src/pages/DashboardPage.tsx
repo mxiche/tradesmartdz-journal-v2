@@ -1720,12 +1720,6 @@ const DashboardPage = () => {
       ? startBalance - selectedEquityAccount.daily_loss_limit_dollars
       : null;
 
-    const hasMeaningfulLimits = (() => {
-      if (!selectedEquityAccount) return false;
-      if (isFutures) return (selectedEquityAccount.max_loss_limit_dollars ?? 0) > 0;
-      return accountSize > 0 && (selectedEquityAccount.max_drawdown_limit ?? 0) > 0;
-    })();
-
     // Build equity points
     let pts: { date: string; balance: number }[];
     if (sorted.length === 0) {
@@ -1744,21 +1738,45 @@ const DashboardPage = () => {
       });
     }
 
-    const currentBalance = pts.length > 0 ? pts[pts.length - 1].balance : startBalance;
+    const currentEquityBalance = pts.length > 0 ? pts[pts.length - 1].balance : startBalance;
 
-    const effectiveDangerLevel = (() => {
-      if (!hasMeaningfulLimits) return null;
-      if (isFutures) return futuresMaxLossLevel;
-      if (isTrailing && trailingFloorLevel !== null) return trailingFloorLevel;
-      return dangerLevel ?? null;
+    // DD used — percentage of max drawdown consumed
+    const ddUsedPct = (() => {
+      if (!selectedEquityAccount) return null;
+      const dropped = Math.max(0, startBalance - currentEquityBalance);
+      if (isFutures) {
+        const maxLoss = selectedEquityAccount.max_loss_limit_dollars;
+        if (!maxLoss || maxLoss <= 0) return null;
+        return Math.min(100, (dropped / maxLoss) * 100);
+      }
+      const maxDD = selectedEquityAccount.max_drawdown_limit;
+      if (!maxDD || maxDD <= 0 || accountSize <= 0) return null;
+      const maxDDAmount = accountSize * (maxDD / 100);
+      return Math.min(100, (dropped / maxDDAmount) * 100);
     })();
 
-    const bufferAmount = hasMeaningfulLimits && effectiveDangerLevel !== null
-      ? currentBalance - effectiveDangerLevel : null;
-    const totalAllowed = hasMeaningfulLimits && effectiveDangerLevel !== null
-      ? startBalance - effectiveDangerLevel : null;
-    const bufferPct = bufferAmount !== null && totalAllowed !== null && totalAllowed > 0
-      ? Math.min(100, (bufferAmount / totalAllowed) * 100) : null;
+    // Daily loss used today
+    const dailyUsedPct = (() => {
+      if (!selectedEquityAccount) return null;
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayTrades = rel.filter(tr =>
+        tr.close_time && new Date(tr.close_time) >= todayStart
+      );
+      const todayLoss = Math.max(0, -(
+        todayTrades.reduce((s, tr) =>
+          s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0)
+      ));
+      if (isFutures) {
+        const dailyLimit = selectedEquityAccount.daily_loss_limit_dollars;
+        if (!dailyLimit || dailyLimit <= 0) return null;
+        return Math.min(100, (todayLoss / dailyLimit) * 100);
+      }
+      const dailyPct = selectedEquityAccount.daily_loss_limit;
+      if (!dailyPct || dailyPct <= 0 || accountSize <= 0) return null;
+      const dailyAmount = accountSize * (dailyPct / 100);
+      return Math.min(100, (todayLoss / dailyAmount) * 100);
+    })();
 
     const points = sorted.length === 0
       ? [{ date: lang === 'ar' ? 'الآن' : 'Now', balance: +startBalance.toFixed(2) }]
@@ -1767,6 +1785,7 @@ const DashboardPage = () => {
     return {
       points,
       startBalance,
+      currentEquityBalance,
       dangerLevel,
       dailyLossLevel,
       trailingFloorLevel,
@@ -1776,9 +1795,8 @@ const DashboardPage = () => {
       isTrailing,
       isFutures,
       isChallengeAccount,
-      hasMeaningfulLimits,
-      bufferAmount,
-      bufferPct,
+      ddUsedPct,
+      dailyUsedPct,
     };
   }, [equityAccountId, selectedEquityAccount, accounts, trades, accountSize, ddLimit, dailyLossLimit, lang]);
 
@@ -2118,57 +2136,59 @@ const DashboardPage = () => {
                   {lang === 'ar' ? 'الرصيد' : lang === 'fr' ? 'Solde' : 'Balance'}
                 </p>
                 <p className="text-sm font-black text-gray-900">
-                  ${(equityData.points[equityData.points.length - 1]?.balance ?? equityData.startBalance).toFixed(0)}
+                  ${equityData.currentEquityBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </p>
               </div>
               {/* P&L — always show */}
               {(() => {
-                const pnl = (equityData.points[equityData.points.length - 1]?.balance ?? equityData.startBalance) - equityData.startBalance;
+                const pnl = equityData.currentEquityBalance - equityData.startBalance;
                 return (
                   <div>
                     <p className="text-xs text-gray-400">P&L</p>
                     <p className={`text-sm font-black ${pnl >= 0 ? 'text-teal-600' : 'text-red-500'}`}>
-                      {pnl >= 0 ? '+' : ''}${pnl.toFixed(0)}
+                      {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </p>
                   </div>
                 );
               })()}
-              {/* Buffer — only when account has meaningful limits and a single account is selected */}
-              {equityData.bufferAmount !== null && equityData.hasMeaningfulLimits && equityAccountId !== 'all' && (
+              {/* DD Used — only single account with drawdown limit set */}
+              {equityAccountId !== 'all' && equityData.ddUsedPct !== null && (
                 <div>
                   <p className="text-xs text-gray-400">
-                    {lang === 'ar' ? 'المساحة' : lang === 'fr' ? 'Marge' : 'Buffer'}
+                    {lang === 'ar' ? 'السحب المستخدم' : lang === 'fr' ? 'DD utilisé' : 'DD Used'}
                   </p>
                   <p className={`text-sm font-black ${
-                    equityData.bufferPct !== null && equityData.bufferPct < 20
-                      ? 'text-red-500'
-                      : equityData.bufferPct !== null && equityData.bufferPct < 50
-                      ? 'text-amber-500'
-                      : 'text-teal-600'
+                    equityData.ddUsedPct >= 90 ? 'text-red-500' :
+                    equityData.ddUsedPct >= 70 ? 'text-amber-500' :
+                    'text-gray-700'
                   }`}>
-                    ${equityData.bufferAmount.toFixed(0)}
+                    {equityData.ddUsedPct.toFixed(1)}%
+                  </p>
+                </div>
+              )}
+              {/* Daily Used — only single account with daily loss limit set */}
+              {equityAccountId !== 'all' && equityData.dailyUsedPct !== null && (
+                <div>
+                  <p className="text-xs text-gray-400">
+                    {lang === 'ar' ? 'يومي' : lang === 'fr' ? 'Journalier' : 'Daily'}
+                  </p>
+                  <p className={`text-sm font-black ${
+                    equityData.dailyUsedPct >= 90 ? 'text-red-500' :
+                    equityData.dailyUsedPct >= 70 ? 'text-amber-500' :
+                    'text-gray-700'
+                  }`}>
+                    {equityData.dailyUsedPct.toFixed(1)}%
                   </p>
                 </div>
               )}
               {/* Target — only for challenge/evaluation accounts */}
-              {equityData.profitTargetLevel !== null && equityData.isChallengeAccount && equityAccountId !== 'all' && (
+              {equityAccountId !== 'all' && equityData.profitTargetLevel !== null && equityData.isChallengeAccount && (
                 <div>
                   <p className="text-xs text-gray-400">
                     {lang === 'ar' ? 'الهدف' : lang === 'fr' ? 'Objectif' : 'Target'}
                   </p>
                   <p className="text-sm font-black text-teal-600">
-                    ${equityData.profitTargetLevel.toFixed(0)}
-                  </p>
-                </div>
-              )}
-              {/* Trailing floor — only for EOD/intraday trailing accounts */}
-              {equityData.trailingFloorLevel !== null && equityData.isTrailing && equityAccountId !== 'all' && (
-                <div>
-                  <p className="text-xs text-gray-400">
-                    {lang === 'ar' ? 'الحد الأدنى' : lang === 'fr' ? 'Plancher' : 'Floor'}
-                  </p>
-                  <p className="text-sm font-black text-amber-500">
-                    ${equityData.trailingFloorLevel.toFixed(0)}
+                    ${equityData.profitTargetLevel.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </p>
                 </div>
               )}
@@ -2178,9 +2198,9 @@ const DashboardPage = () => {
                 <defs>
                   <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={
-                      equityData.bufferPct !== null && equityData.bufferPct < 20
+                      equityData.ddUsedPct !== null && equityData.ddUsedPct >= 90
                         ? '#ef4444'
-                        : equityData.bufferPct !== null && equityData.bufferPct < 50
+                        : equityData.ddUsedPct !== null && equityData.ddUsedPct >= 70
                         ? '#f59e0b'
                         : lineColor
                     } stopOpacity={0.2} />
