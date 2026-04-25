@@ -140,7 +140,16 @@ export default function HelpWidget() {
   const [selectedItem, setSelectedItem] = useState<ItemId | null>(null);
   const [search, setSearch] = useState('');
   const [feedbackShown, setFeedbackShown] = useState(false);
+  const [tradePanelOpen, setTradePanelOpen] = useState(false);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setTradePanelOpen(document.body.classList.contains('panel-open'));
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   // Lock body scroll when mobile sheet is open
   useEffect(() => {
@@ -384,7 +393,7 @@ export default function HelpWidget() {
   return (
     <>
       {/* ── Floating button ── */}
-      <div className="fixed z-50 bottom-36 end-4 md:bottom-24 md:end-6">
+      <div className={`fixed z-50 bottom-36 end-4 md:bottom-24 md:end-6 ${tradePanelOpen ? 'hidden' : ''}`}>
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="w-12 h-12 rounded-2xl bg-white border-2 border-teal-500 shadow-lg hover:shadow-xl hover:bg-teal-50 flex items-center justify-center transition-all duration-200 active:scale-95"

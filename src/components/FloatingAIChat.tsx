@@ -46,7 +46,16 @@ export default function FloatingAIChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [messagesUsedToday, setMessagesUsedToday] = useState(0);
   const [trades, setTrades] = useState<any[]>([]);
+  const [tradePanelOpen, setTradePanelOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setTradePanelOpen(document.body.classList.contains('panel-open'));
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -313,7 +322,7 @@ ${tradesContext || 'No trades yet'}`;
   return (
     <>
       {/* ── Floating button ── */}
-      <div className="fixed bottom-20 end-4 z-50 md:bottom-8 md:end-6">
+      <div className={`fixed bottom-20 end-4 z-50 md:bottom-8 md:end-6 ${tradePanelOpen ? 'hidden' : ''}`}>
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="relative w-14 h-14 rounded-2xl bg-teal-500 hover:bg-teal-600 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center active:scale-95"

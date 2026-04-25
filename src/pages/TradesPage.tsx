@@ -1655,14 +1655,19 @@ const TradesPage = () => {
       .upsert({ user_id: user.id, custom_tags: tags }, { onConflict: 'user_id' });
   };
 
-  // Lock body scroll when detail panel is open
+  // Lock body scroll and signal floating buttons when detail panel is open
   useEffect(() => {
     if (selectedTrade) {
       document.body.style.overflow = 'hidden';
+      document.body.classList.add('panel-open');
     } else {
       document.body.style.overflow = '';
+      document.body.classList.remove('panel-open');
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = '';
+      document.body.classList.remove('panel-open');
+    };
   }, [selectedTrade]);
 
   // Load trades, accounts, tag list, and strategies from Supabase
@@ -2060,7 +2065,7 @@ const TradesPage = () => {
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="space-y-5 p-4">
+        <div className="space-y-5 p-4 pb-6">
 
           {/* ── Section: Core fields ── */}
           <div className="rounded-xl border border-border bg-secondary/20 p-4 space-y-3">
@@ -3402,21 +3407,21 @@ const TradesPage = () => {
 
       {/* ── Detail Panel ── */}
       {/* Backdrop */}
-      {selectedTrade && (
-        <div
-          className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm"
-          onClick={() => setSelectedTrade(null)}
-        />
-      )}
+      <div
+        className={`fixed inset-0 bg-black/30 z-40 backdrop-blur-sm transition-opacity duration-300 ${
+          selectedTrade ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setSelectedTrade(null)}
+      />
       {/* Mobile bottom sheet */}
-      <div className={`sm:hidden fixed inset-x-0 bottom-0 z-50 h-[92vh] bg-white rounded-t-3xl shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+      <div className={`sm:hidden fixed inset-x-0 bottom-0 z-50 h-[92vh] rounded-t-3xl bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
         selectedTrade ? 'translate-y-0' : 'translate-y-full'
       }`}>
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 flex-shrink-0" />
         {detailPanelContent}
       </div>
       {/* Desktop side panel */}
-      <div className={`hidden sm:flex fixed inset-y-0 end-0 z-50 w-[480px] bg-white shadow-2xl flex-col transition-transform duration-300 ease-out ${
+      <div className={`hidden sm:flex fixed top-0 end-0 h-screen w-[480px] bg-white shadow-2xl z-50 flex-col transition-transform duration-300 ease-out ${
         selectedTrade ? 'translate-x-0' : (lang === 'ar' ? '-translate-x-full' : 'translate-x-full')
       }`}>
         {detailPanelContent}
