@@ -10,11 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check, CheckCircle, Lock, BookOpen, Tag } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check, CheckCircle, Lock, BookOpen, Tag, ChevronDown } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
@@ -1656,6 +1656,16 @@ const TradesPage = () => {
       .upsert({ user_id: user.id, custom_tags: tags }, { onConflict: 'user_id' });
   };
 
+  // Lock body scroll when detail panel is open
+  useEffect(() => {
+    if (selectedTrade) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [selectedTrade]);
+
   // Load trades, accounts, tag list, and strategies from Supabase
   useEffect(() => {
     if (!user) return;
@@ -1981,6 +1991,490 @@ const TradesPage = () => {
     if (unreviewedOnly && (tr as any).reviewed === true) return false;
     return true;
   });
+
+  // ── Detail panel content (shared between mobile sheet and desktop side panel) ──
+  const detailHeaderGradient =
+    editResult === 'Win' ? 'from-teal-500 to-teal-600' :
+    editResult === 'Loss' ? 'from-red-500 to-red-600' :
+    editResult === 'Breakeven' ? 'from-amber-500 to-amber-600' :
+    (editResult === 'Partial Win - TP1' || editResult === 'Partial Win - TP2') ? 'from-blue-500 to-blue-600' :
+    'from-slate-600 to-slate-700';
+
+  const detailProfitSigned = editResult === 'Loss'
+    ? -Math.abs(parseFloat(editProfit || '0'))
+    : Math.abs(parseFloat(editProfit || '0'));
+  const detailNetPnl = detailProfitSigned - parseFloat(editCommission || '0');
+
+  const detailPanelContent = selectedTrade && safeTrade ? (
+    <>
+      {/* Gradient header */}
+      <div className={`bg-gradient-to-r ${detailHeaderGradient} px-5 py-4 flex-shrink-0`}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${editDirection === 'BUY' ? 'bg-green-500/30 text-white' : 'bg-red-600/40 text-white'}`}>
+              {editDirection}
+            </span>
+            <input
+              value={editSymbol}
+              onChange={e => setEditSymbol(e.target.value.toUpperCase())}
+              className="bg-transparent text-white font-black text-xl w-28 focus:outline-none border-b border-white/30 focus:border-white placeholder:text-white/50"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            <button type="button" onClick={() => setShareOpen(v => !v)}
+              className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+              <Share2 className="h-4 w-4 text-white" />
+            </button>
+            <button type="button" onClick={e => handleDeleteTrade(selectedTrade.id, e)}
+              className="w-8 h-8 rounded-xl bg-white/20 hover:bg-red-500/50 flex items-center justify-center transition-colors">
+              <Trash2 className="h-4 w-4 text-white" />
+            </button>
+            <button type="button" onClick={() => setSelectedTrade(null)}
+              className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+              <X className="h-4 w-4 text-white" />
+            </button>
+          </div>
+        </div>
+        <div className="flex items-end gap-3">
+          <div>
+            <p className="text-white/60 text-xs mb-0.5">
+              {lang === 'ar' ? 'صافي الربح' : lang === 'fr' ? 'P&L Net' : 'Net P&L'}
+            </p>
+            <p className="text-white font-black text-2xl">
+              {detailNetPnl >= 0 ? '+' : ''}${detailNetPnl.toFixed(2)}
+            </p>
+          </div>
+          <div className="flex gap-2 mb-0.5 ms-auto flex-wrap justify-end">
+            {editResult && (
+              <span className="rounded-full bg-white/20 text-white px-2.5 py-1 text-xs font-bold">
+                {resultLabel(editResult, lang)}
+              </span>
+            )}
+            {rrCalc !== '—' && (
+              <span className="rounded-full bg-white/20 text-white px-2.5 py-1 text-xs font-bold">
+                {rrCalc}R
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto overscroll-contain">
+        <div className="p-4 space-y-3">
+          {/* Card 1: Trade Details */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+              {lang === 'ar' ? 'تفاصيل الصفقة' : lang === 'fr' ? 'Détails du trade' : 'Trade Details'}
+            </p>
+            <div className="flex gap-2">
+              {(['BUY', 'SELL'] as const).map(d => (
+                <button key={d} type="button" onClick={() => setEditDirection(d)}
+                  className={`flex-1 rounded-xl border py-2 text-sm font-semibold transition-colors ${
+                    editDirection === d
+                      ? d === 'BUY' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-red-400 bg-red-50 text-red-600'
+                      : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-gray-300'
+                  }`}
+                >{d === 'BUY' ? t('buy') : t('sell')}</button>
+              ))}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">{lang === 'ar' ? 'النتيجة' : lang === 'fr' ? 'Résultat' : 'Result'}</Label>
+              <Select value={editResult} onValueChange={setEditResult}>
+                <SelectTrigger className="h-9 rounded-xl"><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent>
+                  {RESULT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label[lang]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-500">{t('pnl')} ($)</Label>
+                <Input type="number" step="0.01" value={editProfit} onChange={e => setEditProfit(e.target.value)} className="h-9 text-sm rounded-xl" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-500">{t('risk')}</Label>
+                <Input type="number" step="0.01" value={editRisk} onChange={e => setEditRisk(e.target.value)} className="h-9 text-sm rounded-xl" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-500">R:R</Label>
+                <Input readOnly value={rrCalc} className="h-9 text-sm rounded-xl bg-gray-50 cursor-default text-gray-400" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">{lang === 'ar' ? 'العمولة ($)' : lang === 'fr' ? 'Commission ($)' : 'Commission ($)'}</Label>
+              <Input type="number" step="0.01" placeholder="0.00" value={editCommission} onChange={e => setEditCommission(e.target.value)} className="h-9 text-sm rounded-xl" />
+              {editCommission && parseFloat(editCommission) > 0 && (
+                <p className="text-xs text-gray-400">
+                  {lang === 'ar'
+                    ? `صافي الربح: ${detailNetPnl >= 0 ? '+' : ''}${detailNetPnl.toFixed(2)}`
+                    : lang === 'fr'
+                    ? `P&L net: ${detailNetPnl >= 0 ? '+' : ''}${detailNetPnl.toFixed(2)}`
+                    : `Net P&L: ${detailNetPnl >= 0 ? '+' : ''}${detailNetPnl.toFixed(2)}`}
+                </p>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-500">{lang === 'ar' ? 'الفتح' : lang === 'fr' ? 'Ouverture' : 'Open'}</Label>
+                <Input type="datetime-local" value={editOpenTime} onChange={e => setEditOpenTime(e.target.value)} className="h-9 text-xs rounded-xl" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-500">{lang === 'ar' ? 'الإغلاق' : lang === 'fr' ? 'Clôture' : 'Close'}</Label>
+                <Input type="datetime-local" value={editCloseTime} onChange={e => setEditCloseTime(e.target.value)} className="h-9 text-xs rounded-xl" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-400">
+              {t('duration')}: <span className="font-semibold text-gray-700">{durCalc}</span>
+              {safeTrade.entry != null && safeTrade.entry > 0 && <span className="ms-3">{t('entry')}: <span className="text-gray-700 font-semibold">{safeTrade.entry}</span></span>}
+              {safeTrade.exit_price != null && safeTrade.exit_price > 0 && <span className="ms-3">{t('exit')}: <span className="text-gray-700 font-semibold">{safeTrade.exit_price}</span></span>}
+            </p>
+          </div>
+
+          {/* Card 2: Session & Setup */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+              {lang === 'ar' ? 'الجلسة والإعداد' : lang === 'fr' ? 'Session & Setup' : 'Session & Setup'}
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">{lang === 'ar' ? 'الجلسة' : lang === 'fr' ? 'Session' : 'Session'}</Label>
+              <Select value={editSession} onValueChange={setEditSession}>
+                <SelectTrigger className="h-9 rounded-xl text-sm"><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{lang === 'ar' ? 'لا شيء' : lang === 'fr' ? 'Aucune' : 'None'}</SelectItem>
+                  {SESSION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label[lang]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500">{t('setup')}</Label>
+              {/* Selected tags — only editTags, no duplicates with available list */}
+              {editTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {editTags.map(tag => (
+                    <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-teal-500 text-white px-3 py-1 text-xs font-semibold">
+                      {tag}
+                      <button type="button" onClick={() => setEditTags(prev => prev.filter(t => t !== tag))}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* Add from available tags via Popover */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button type="button" className="inline-flex items-center gap-1 rounded-full border border-dashed border-teal-400 text-teal-600 px-3 py-1 text-xs font-semibold hover:bg-teal-50 transition-colors">
+                    <Plus className="h-3 w-3" />
+                    {lang === 'ar' ? 'إضافة إعداد' : lang === 'fr' ? 'Ajouter un setup' : 'Add Setup'}
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-3" align="start">
+                  <p className="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wide">
+                    {lang === 'ar' ? 'اختر إعداداً' : lang === 'fr' ? 'Choisir un setup' : 'Choose a setup'}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
+                    {allTags.filter(t => !editTags.includes(t)).map(tag => (
+                      <button key={tag} type="button"
+                        onClick={() => setEditTags(prev => [...prev, tag])}
+                        className="rounded-full border border-gray-200 bg-gray-50 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700 px-2.5 py-1 text-xs font-medium transition-colors">
+                        {tag}
+                      </button>
+                    ))}
+                    {allTags.filter(t => !editTags.includes(t)).length === 0 && (
+                      <p className="text-xs text-gray-400 w-full text-center py-2">
+                        {lang === 'ar' ? 'كل الإعدادات مضافة' : lang === 'fr' ? 'Tous les setups ajoutés' : 'All setups added'}
+                      </p>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {/* Custom tag input */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder={lang === 'ar' ? 'إعداد مخصص...' : lang === 'fr' ? 'Setup personnalisé...' : 'Custom setup...'}
+                  value={editSetupTag}
+                  className="h-8 text-sm rounded-xl"
+                  onChange={e => setEditSetupTag(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ',') {
+                      e.preventDefault();
+                      const tag = editSetupTag.replace(/,/g, '').trim();
+                      if (!tag) return;
+                      if (!editTags.includes(tag)) setEditTags(prev => [...prev, tag]);
+                      setEditSetupTag('');
+                    }
+                  }}
+                />
+                <Button size="sm" variant="outline" className="h-8 px-2 rounded-xl" type="button"
+                  disabled={!editSetupTag.trim()}
+                  onClick={() => {
+                    const tag = editSetupTag.trim();
+                    if (!tag) return;
+                    if (!editTags.includes(tag)) setEditTags(prev => [...prev, tag]);
+                    setEditSetupTag('');
+                  }}>
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Psychology */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{t('psychology_title')}</p>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">{t('emotion_tag')}</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {EMOTIONS.map(em => (
+                  <button key={em.key} type="button"
+                    onClick={() => setEditEmotion(editEmotion === em.key ? null : em.key)}
+                    className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      editEmotion === em.key
+                        ? 'border-transparent text-white'
+                        : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-teal-300'
+                    }`}
+                    style={editEmotion === em.key ? { backgroundColor: em.color } : {}}
+                  >
+                    <span>{em.emoji}</span>
+                    <span>{t(`emotion_${em.key}` as any)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">{t('followed_rules')}</Label>
+              <div className="flex gap-2">
+                {([true, false] as const).map(val => (
+                  <button key={String(val)} type="button"
+                    onClick={() => setEditFollowedRules(editFollowedRules === val ? null : val)}
+                    className={`flex-1 rounded-xl border py-2 text-xs font-semibold transition-colors ${
+                      editFollowedRules === val
+                        ? val ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-red-400 bg-red-50 text-red-600'
+                        : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-gray-300'
+                    }`}
+                  >
+                    {val ? t('yes_followed') : t('no_followed')}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {strategies.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-gray-500">{t('strategy_label')}</Label>
+                <Select value={editStrategyId ?? 'none'} onValueChange={v => setEditStrategyId(v === 'none' ? null : v)}>
+                  <SelectTrigger className="h-9 rounded-xl text-sm"><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">—</SelectItem>
+                    {strategies.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: s.color ?? '#3b82f6' }} />
+                          {s.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {editStrategyId && (() => {
+                  const strat = strategies.find(s => s.id === editStrategyId);
+                  return strat ? (
+                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs space-y-1">
+                      <div className="flex items-center gap-2 font-semibold text-gray-700">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: strat.color }} />
+                        {strat.name}
+                      </div>
+                      {strat.description && <p className="text-gray-400">{strat.description}</p>}
+                      {strat.rules?.length > 0 && (
+                        <ul className="list-disc list-inside text-gray-400 space-y-0.5">
+                          {strat.rules.map((r: string, i: number) => <li key={i}>{r}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            )}
+          </div>
+
+          {/* Card 4: Notes & Rating */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+              {lang === 'ar' ? 'الملاحظات والتقييم' : lang === 'fr' ? 'Notes & Évaluation' : 'Notes & Rating'}
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">{t('notes')}</Label>
+              <Textarea placeholder={t('notes')} rows={3} value={editNotes} onChange={e => setEditNotes(e.target.value)}
+                className="rounded-xl resize-none text-sm" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-gray-500">{t('tradeRating')}</Label>
+              <div className="flex gap-1">
+                {[1,2,3,4,5].map(s => (
+                  <button key={s} type="button" onClick={() => setEditRating(s === editRating ? 0 : s)}>
+                    <Star className={`h-6 w-6 transition-colors ${s <= editRating ? 'fill-amber-400 text-amber-400' : 'text-gray-200 hover:text-amber-300'}`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button type="button" onClick={() => setEditReviewed(v => !v)}
+              className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition-colors ${
+                editReviewed ? 'border-teal-400 bg-teal-50 text-teal-700' : 'border-gray-200 text-gray-400 hover:border-gray-300'
+              }`}>
+              <Check className="h-4 w-4 shrink-0" />
+              {editReviewed ? t('reviewed') : t('markReviewed')}
+            </button>
+          </div>
+
+          {/* Card 5: Screenshot */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+              {lang === 'ar' ? 'لقطة الشاشة' : lang === 'fr' ? "Capture d'écran" : 'Screenshot'}
+            </p>
+            {!isPro ? (
+              <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-5 text-center">
+                <Lock className="h-7 w-7 text-gray-300" />
+                <p className="text-xs text-gray-400">
+                  {lang === 'ar' ? 'رفع لقطات الشاشة متاح لمستخدمي Pro فقط' : lang === 'fr' ? 'Upload de captures réservé aux abonnés Pro' : 'Screenshot upload is available for Pro users only'}
+                </p>
+                <a href="/settings?tab=subscription" className="rounded-xl bg-teal-500 px-4 py-1.5 text-xs font-bold text-white hover:bg-teal-600 transition-colors">
+                  {lang === 'ar' ? 'ترقية إلى Pro' : lang === 'fr' ? 'Passer à Pro' : 'Upgrade to Pro'}
+                </a>
+              </div>
+            ) : screenshotUrl ? (
+              <div className="relative overflow-hidden rounded-xl border border-gray-200">
+                <img src={screenshotUrl} alt="Trade screenshot" className="w-full object-contain max-h-64" />
+                <button type="button" onClick={handleDeleteScreenshot}
+                  className="absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors shadow-sm">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-2 end-2 rounded-lg bg-white/90 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors shadow-sm">
+                  {lang === 'ar' ? 'استبدال' : lang === 'fr' ? 'Remplacer' : 'Replace'}
+                </button>
+              </div>
+            ) : (
+              <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+                onClick={() => !uploading && fileInputRef.current?.click()}
+                className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed p-5 text-center transition-colors ${
+                  isDragging ? 'border-teal-400 bg-teal-50 text-teal-600' : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-teal-300'
+                } ${uploading ? 'cursor-default opacity-70' : ''}`}>
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-7 w-7 animate-spin text-teal-500" />
+                    <p className="text-xs text-teal-500">{compressedSize === null ? (lang === 'ar' ? 'ضغط...' : 'Compressing...') : (lang === 'ar' ? 'رفع...' : 'Uploading...')}</p>
+                    <div className="h-1 w-32 overflow-hidden rounded-full bg-gray-200"><div className="h-full rounded-full bg-teal-500 transition-all" style={{ width: compressedSize === null ? '15%' : `${uploadProgress}%` }} /></div>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="h-7 w-7" />
+                    <p className="text-xs">{lang === 'ar' ? 'أفلت أو انقر للاختيار — JPG, PNG' : lang === 'fr' ? 'Déposer ou cliquer — JPG, PNG' : 'Drop or click — JPG, PNG'}</p>
+                  </>
+                )}
+              </div>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+              onChange={e => { const file = e.target.files?.[0]; if (file) handleFileUpload(file); e.target.value = ''; }} />
+          </div>
+
+          {/* Share card */}
+          {shareOpen && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+              <div ref={shareCardRef} style={{ width: '100%', maxWidth: 480, background: 'linear-gradient(135deg,#f0fdf9 0%,#ffffff 50%,#f0f9ff 100%)', borderRadius: 20, padding: 32, fontFamily: 'Arial,sans-serif', border: '2px solid #99f6e4', position: 'relative', overflow: 'hidden', ...(lang === 'ar' && { direction: 'rtl' }) }}>
+                <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, background: 'rgba(20,184,166,0.06)', borderRadius: '50%' }} />
+                <div style={{ display: 'flex', flexDirection: lang === 'ar' ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>TRADESMARTDZ</p>
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#94a3b8' }}>
+                      {safeTrade.close_time ? new Date(safeTrade.close_time).toLocaleDateString() : ''}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: lang === 'ar' ? 'left' : 'right' }}>
+                    <p style={{ margin: '0 0 2px', fontSize: 13, color: '#0f172a', fontWeight: 700 }}>{shareUserName}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 600 }}>TradeSmartDz • tradesmartdz.com</p>
+                  </div>
+                </div>
+                <div style={{ marginBottom: 20 }}>
+                  <p style={{ margin: '0 0 8px', fontSize: 40, fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{editSymbol || safeTrade.symbol}</p>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ background: editDirection === 'BUY' ? '#dcfce7' : '#fee2e2', color: editDirection === 'BUY' ? '#16a34a' : '#dc2626', padding: '4px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
+                      {editDirection === 'BUY' ? t('share_buy', lang) : t('share_sell', lang)}
+                    </span>
+                    {editResult && (
+                      <span style={{ background: '#f8fafc', color: '#64748b', padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, border: '1px solid #e2e8f0' }}>
+                        {editResult === 'Win' ? t('share_win', lang) : editResult === 'Loss' ? t('share_loss', lang) : editResult === 'Breakeven' ? t('share_be', lang) : editResult}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
+                  {[
+                    { label: t('share_pnl', lang), val: `${pnlNum >= 0 ? '+' : ''}$${pnlNum.toFixed(2)}`, color: pnlNum >= 0 ? '#0d9488' : '#dc2626' },
+                    { label: t('share_rr', lang), val: rrCalc || '—', color: '#0f172a' },
+                    { label: t('share_duration', lang), val: durCalc || '—', color: '#0f172a' },
+                  ].map((s, i) => (
+                    <div key={i} style={{ background: '#f8fafc', borderRadius: 14, padding: '12px', border: '1px solid #e2e8f0' }}>
+                      <p style={{ margin: '0 0 4px', fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>{s.label}</p>
+                      <p style={{ margin: 0, fontSize: 20, fontWeight: 900, color: s.color }}>{s.val}</p>
+                    </div>
+                  ))}
+                </div>
+                {editTags.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <span style={{ background: '#f0fdf9', border: '1px solid #99f6e4', color: '#0d9488', padding: '5px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
+                      {editTags.join(', ')}
+                    </span>
+                  </div>
+                )}
+                {editRating > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    {[...Array(5)].map((_, i) => (
+                      <span key={i} style={{ fontSize: 18, color: i < editRating ? '#f59e0b' : '#e2e8f0' }}>★</span>
+                    ))}
+                  </div>
+                )}
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{t('share_analyzed_with', lang)}</p>
+                  <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 700 }}>tradesmartdz.com</p>
+                </div>
+              </div>
+              <Button className="w-full gradient-primary text-primary-foreground" onClick={async () => {
+                if (!isPro) {
+                  toast.error(
+                    lang === 'ar' ? 'مشاركة الصورة متاحة لمستخدمي Pro فقط' :
+                    lang === 'fr' ? 'Le partage en image est réservé aux abonnés Pro' :
+                    'Image sharing is available for Pro users only'
+                  );
+                  return;
+                }
+                if (!shareCardRef.current) return;
+                const canvas = await html2canvas(shareCardRef.current, { scale: 2, backgroundColor: null, useCORS: true });
+                const a = document.createElement('a');
+                a.href = canvas.toDataURL('image/png');
+                a.download = `trade-${editSymbol || safeTrade.symbol}-${new Date().toISOString().slice(0,10)}.png`;
+                a.click();
+              }}>
+                <Download className="me-2 h-4 w-4" />{t('shareDownload')}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sticky save footer */}
+      <div className="flex-shrink-0 p-4 bg-white border-t border-gray-100">
+        <button
+          className="w-full py-3.5 rounded-2xl bg-teal-500 hover:bg-teal-600 text-white font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          onClick={saveTrade}
+          disabled={saving}
+        >
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          {lang === 'ar' ? 'حفظ التغييرات' : lang === 'fr' ? 'Enregistrer' : 'Save Changes'}
+        </button>
+      </div>
+    </>
+  ) : null;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -2908,473 +3402,26 @@ const TradesPage = () => {
       />
 
       {/* ── Detail Panel ── */}
-      <Sheet open={!!selectedTrade} onOpenChange={() => setSelectedTrade(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-          {selectedTrade && safeTrade && (
-              <>
-                <SheetHeader className="pb-2">
-                  {/* SheetTitle must be a plain text node (renders as h2) — no inputs/buttons inside */}
-                  <SheetTitle className="sr-only">{editSymbol || selectedTrade.symbol} — Trade Detail</SheetTitle>
-                  {/* Visual header row */}
-                  <div className="flex items-center gap-3">
-                    <span className={`rounded-full px-3 py-0.5 text-sm font-bold ${editDirection === 'BUY' ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss'}`}>
-                      {editDirection}
-                    </span>
-                    <Input
-                      value={editSymbol}
-                      onChange={e => setEditSymbol(e.target.value.toUpperCase())}
-                      className="h-8 w-32 text-lg font-bold uppercase"
-                    />
-                    <div className="flex gap-1 ms-auto">
-                      <button
-                        type="button"
-                        onClick={() => setShareOpen(v => !v)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                        title={t('shareTrade')}
-                      >
-                        <Share2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={e => { handleDeleteTrade(selectedTrade.id, e); }}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-destructive/30 text-destructive/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
-                        title={lang === 'ar' ? 'حذف الصفقة' : 'Delete'}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </SheetHeader>
-
-                <div className="space-y-5 pt-2">
-
-                  {/* ── Section: Core fields ── */}
-                  <div className="rounded-xl border border-border bg-secondary/20 p-4 space-y-3">
-                    {/* Direction toggle */}
-                    <div className="flex gap-2">
-                      {(['BUY','SELL'] as const).map(d => (
-                        <button key={d} type="button"
-                          onClick={() => setEditDirection(d)}
-                          className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition-colors ${
-                            editDirection === d
-                              ? d === 'BUY' ? 'border-profit bg-profit/20 text-profit' : 'border-loss bg-loss/20 text-loss'
-                              : 'border-border bg-card text-muted-foreground hover:border-primary/40'
-                          }`}
-                        >{d === 'BUY' ? t('buy') : t('sell')}</button>
-                      ))}
-                    </div>
-
-                    {/* Result */}
-                    <div className="space-y-1">
-                      <Label>{lang === 'ar' ? 'النتيجة' : lang === 'fr' ? 'Résultat' : 'Result'}</Label>
-                      <Select value={editResult} onValueChange={setEditResult}>
-                        <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                        <SelectContent>
-                          {RESULT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label[lang]}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* PnL + Risk + RR */}
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">{t('pnl')} ($)</Label>
-                        <Input type="number" step="0.01" value={editProfit} onChange={e => setEditProfit(e.target.value)} className="h-8 text-sm" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">{t('risk')}</Label>
-                        <Input type="number" step="0.01" value={editRisk} onChange={e => setEditRisk(e.target.value)} className="h-8 text-sm" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">R:R</Label>
-                        <Input readOnly value={rrCalc} className="h-8 text-sm bg-secondary cursor-default text-muted-foreground" />
-                      </div>
-                    </div>
-
-                    {/* Commission */}
-                    <div className="space-y-1">
-                      <Label className="text-xs">{lang === 'ar' ? 'العمولة ($)' : lang === 'fr' ? 'Commission ($)' : 'Commission ($)'}</Label>
-                      <Input type="number" step="0.01" placeholder="0.00" value={editCommission} onChange={e => setEditCommission(e.target.value)} className="h-8 text-sm" />
-                      {editCommission && parseFloat(editCommission) > 0 && (
-                        <p className="text-xs text-gray-400 mt-1">
-                          {(() => {
-                            const netPnl = parseFloat(editProfit || '0') - parseFloat(editCommission);
-                            return lang === 'ar'
-                              ? `صافي الربح: ${netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)} (بعد خصم العمولة ${editCommission})`
-                              : lang === 'fr'
-                              ? `P&L net: ${netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)} (après comm. ${editCommission})`
-                              : `Net P&L: ${netPnl >= 0 ? '+' : ''}${netPnl.toFixed(2)} (after ${editCommission} commission)`;
-                          })()}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Open / Close time */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">{lang === 'ar' ? 'الفتح' : lang === 'fr' ? 'Ouverture' : 'Open'}</Label>
-                        <Input type="datetime-local" value={editOpenTime} onChange={e => setEditOpenTime(e.target.value)} className="h-8 text-xs" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">{lang === 'ar' ? 'الإغلاق' : lang === 'fr' ? 'Clôture' : 'Close'}</Label>
-                        <Input type="datetime-local" value={editCloseTime} onChange={e => setEditCloseTime(e.target.value)} className="h-8 text-xs" />
-                      </div>
-                    </div>
-
-                    {/* Duration read-only */}
-                    <p className="text-xs text-muted-foreground">
-                      {t('duration')}: <span className="font-medium text-foreground">{durCalc}</span>
-                      {safeTrade.entry != null && safeTrade.entry > 0 && <span className="ms-3">{t('entry')}: {safeTrade.entry}</span>}
-                      {safeTrade.exit_price != null && safeTrade.exit_price > 0 && <span className="ms-3">{t('exit')}: {safeTrade.exit_price}</span>}
-                    </p>
-                  </div>
-
-                  {/* ── Section: Tags & Classification ── */}
-                  <div className="rounded-xl border border-border bg-secondary/20 p-4 space-y-3">
-                    {/* Session */}
-                    <div className="space-y-1">
-                      <Label className="text-xs">{lang === 'ar' ? 'الجلسة' : lang === 'fr' ? 'Session' : 'Session'}</Label>
-                      <Select value={editSession} onValueChange={setEditSession}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">{lang === 'ar' ? 'لا شيء' : lang === 'fr' ? 'Aucune' : 'None'}</SelectItem>
-                          {SESSION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label[lang]}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Setup pills */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">{t('setup')}</Label>
-                      {/* Selected pills */}
-                      {editTags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {editTags.map(tag => (
-                            <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary/20 text-primary px-2.5 py-0.5 text-xs font-medium">
-                              {tag}
-                              <button type="button" onClick={() => setEditTags(prev => prev.filter(t => t !== tag))}>
-                                <X className="h-2.5 w-2.5" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {/* Preset tag buttons */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {allTags.map(tag => {
-                          const active = editTags.includes(tag);
-                          return (
-                            <div key={tag} className="group relative flex items-center">
-                              <button type="button" onClick={() => toggleTag(tag)}
-                                className={`rounded-full border pe-5 ps-2.5 py-0.5 text-xs font-medium transition-colors ${
-                                  active ? 'border-primary bg-primary/20 text-primary' : 'border-border bg-secondary text-muted-foreground hover:border-primary/40'
-                                }`}>{tag}</button>
-                              <button type="button" onClick={() => removeTag(tag)}
-                                className="absolute end-0.5 h-4 w-4 flex items-center justify-center rounded-full opacity-0 text-muted-foreground hover:text-destructive group-hover:opacity-100 transition-opacity">
-                                <X className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {/* Custom tag input */}
-                      <div className="flex gap-2">
-                        <Input placeholder={lang === 'ar' ? 'أضف وسم مخصص...' : 'Add custom tag...'}
-                          value={editSetupTag} className="h-8 text-sm"
-                          onChange={e => setEditSetupTag(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' || e.key === ',') {
-                              e.preventDefault();
-                              const tag = editSetupTag.replace(/,/g, '').trim();
-                              if (!tag) return;
-                              if (!editTags.includes(tag)) setEditTags(prev => [...prev, tag]);
-                              setEditSetupTag('');
-                            }
-                          }}
-                        />
-                        <Button size="sm" variant="outline" className="h-8 px-2" type="button"
-                          disabled={!editSetupTag.trim()}
-                          onClick={() => {
-                            const tag = editSetupTag.trim();
-                            if (!tag) return;
-                            if (!editTags.includes(tag)) setEditTags(prev => [...prev, tag]);
-                            setEditSetupTag('');
-                          }}>
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── Section: Psychology ── */}
-                  <div className="rounded-xl border border-border bg-secondary/20 p-4 space-y-3">
-                    <Label className="text-sm font-semibold">{t('psychology_title')}</Label>
-
-                    {/* Emotion */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">{t('emotion_tag')}</Label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {EMOTIONS.map(em => (
-                          <button
-                            key={em.key}
-                            type="button"
-                            onClick={() => setEditEmotion(editEmotion === em.key ? null : em.key)}
-                            className={`flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                              editEmotion === em.key
-                                ? 'border-transparent text-white'
-                                : 'border-border bg-secondary text-muted-foreground hover:border-primary/40'
-                            }`}
-                            style={editEmotion === em.key ? { backgroundColor: em.color } : {}}
-                          >
-                            <span>{em.emoji}</span>
-                            <span>{t(`emotion_${em.key}` as any)}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Followed Rules */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">{t('followed_rules')}</Label>
-                      <div className="flex gap-2">
-                        {([true, false] as const).map(val => (
-                          <button
-                            key={String(val)}
-                            type="button"
-                            onClick={() => setEditFollowedRules(editFollowedRules === val ? null : val)}
-                            className={`flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-colors ${
-                              editFollowedRules === val
-                                ? val ? 'border-profit bg-profit/20 text-profit' : 'border-loss bg-loss/20 text-loss'
-                                : 'border-border bg-card text-muted-foreground hover:border-primary/40'
-                            }`}
-                          >
-                            {val ? t('yes_followed') : t('no_followed')}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Strategy */}
-                    {strategies.length > 0 && (
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">{t('strategy_label')}</Label>
-                        <Select value={editStrategyId ?? 'none'} onValueChange={v => setEditStrategyId(v === 'none' ? null : v)}>
-                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="—" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">—</SelectItem>
-                            {strategies.map(s => (
-                              <SelectItem key={s.id} value={s.id}>
-                                <span className="flex items-center gap-2">
-                                  <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: s.color ?? '#3b82f6' }} />
-                                  {s.name}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {editStrategyId && (() => {
-                          const strat = strategies.find(s => s.id === editStrategyId);
-                          return strat ? (
-                            <div className="rounded-lg border border-border bg-card p-2 text-xs space-y-1">
-                              <div className="flex items-center gap-2 font-semibold">
-                                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: strat.color }} />
-                                {strat.name}
-                              </div>
-                              {strat.description && <p className="text-muted-foreground">{strat.description}</p>}
-                              {strat.rules?.length > 0 && (
-                                <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
-                                  {strat.rules.map((r: string, i: number) => <li key={i}>{r}</li>)}
-                                </ul>
-                              )}
-                            </div>
-                          ) : null;
-                        })()}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── Section: Rating & Review ── */}
-                  <div className="rounded-xl border border-border bg-secondary/20 p-4 space-y-3">
-                    {/* Stars */}
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm">{t('tradeRating')}</Label>
-                      <div className="flex gap-1">
-                        {[1,2,3,4,5].map(s => (
-                          <button key={s} type="button" onClick={() => setEditRating(s === editRating ? 0 : s)}>
-                            <Star className={`h-6 w-6 transition-colors ${s <= editRating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-400/60'}`} />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Reviewed toggle */}
-                    <button type="button" onClick={() => setEditReviewed(v => !v)}
-                      className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                        editReviewed ? 'border-profit/40 bg-profit/10 text-profit' : 'border-border text-muted-foreground hover:border-primary/40'
-                      }`}>
-                      <Check className="h-4 w-4 shrink-0" />
-                      {editReviewed ? t('reviewed') : t('markReviewed')}
-                    </button>
-                  </div>
-
-                  {/* ── Section: Notes ── */}
-                  <div className="space-y-1.5">
-                    <Label>{t('notes')}</Label>
-                    <Textarea placeholder={t('notes')} rows={4} value={editNotes} onChange={e => setEditNotes(e.target.value)} />
-                  </div>
-
-                  {/* ── Section: Screenshot ── */}
-                  <div className="space-y-2">
-                    <Label>{lang === 'ar' ? 'لقطة الشاشة' : lang === 'fr' ? 'Capture d\'écran' : 'Screenshot'}</Label>
-                    {!isPro ? (
-                      <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-border bg-secondary/30 p-5 text-center">
-                        <Lock className="h-7 w-7 text-muted-foreground" />
-                        <p className="text-xs text-muted-foreground">
-                          {lang === 'ar' ? 'رفع لقطات الشاشة متاح لمستخدمي Pro فقط' : lang === 'fr' ? 'Upload de captures réservé aux abonnés Pro' : 'Screenshot upload is available for Pro users only'}
-                        </p>
-                        <a href="/settings?tab=subscription" className="rounded-lg bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity">
-                          {lang === 'ar' ? 'ترقية إلى Pro' : lang === 'fr' ? 'Passer à Pro' : 'Upgrade to Pro'}
-                        </a>
-                      </div>
-                    ) : screenshotUrl ? (
-                      <div className="relative overflow-hidden rounded-lg border border-border">
-                        <img src={screenshotUrl} alt="Trade screenshot" className="w-full object-contain max-h-64" />
-                        <button type="button" onClick={handleDeleteScreenshot}
-                          className="absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-background/80 backdrop-blur-sm text-muted-foreground hover:bg-destructive hover:text-white transition-colors">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                        <button type="button" onClick={() => fileInputRef.current?.click()}
-                          className="absolute bottom-2 end-2 rounded-md bg-background/80 px-2 py-1 text-xs backdrop-blur-sm text-muted-foreground hover:text-foreground transition-colors">
-                          {lang === 'ar' ? 'استبدال' : lang === 'fr' ? 'Remplacer' : 'Replace'}
-                        </button>
-                      </div>
-                    ) : (
-                      <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-                        onClick={() => !uploading && fileInputRef.current?.click()}
-                        className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-5 text-center transition-colors ${
-                          isDragging ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-secondary/30 text-muted-foreground hover:border-primary/50'
-                        } ${uploading ? 'cursor-default opacity-70' : ''}`}>
-                        {uploading ? (
-                          <>
-                            <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                            <p className="text-xs text-primary">{compressedSize === null ? (lang === 'ar' ? 'ضغط...' : 'Compressing...') : (lang === 'ar' ? 'رفع...' : 'Uploading...')}</p>
-                            <div className="h-1 w-32 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-primary transition-all" style={{ width: compressedSize === null ? '15%' : `${uploadProgress}%` }} /></div>
-                          </>
-                        ) : (
-                          <>
-                            <Camera className="h-7 w-7" />
-                            <p className="text-xs">{lang === 'ar' ? 'أفلت أو انقر للاختيار — JPG, PNG' : lang === 'fr' ? 'Déposer ou cliquer — JPG, PNG' : 'Drop or click — JPG, PNG'}</p>
-                          </>
-                        )}
-                      </div>
-                    )}
-                    <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-                      onChange={e => { const file = e.target.files?.[0]; if (file) handleFileUpload(file); e.target.value = ''; }} />
-                  </div>
-
-                  {/* ── Share card ── */}
-                  {shareOpen && (
-                    <div className="rounded-xl border border-primary/20 bg-secondary/30 p-4 space-y-3">
-                      {/* Preview card */}
-                      <div ref={shareCardRef} style={{ width: 480, background: 'linear-gradient(135deg,#f0fdf9 0%,#ffffff 50%,#f0f9ff 100%)', borderRadius: 20, padding: 32, fontFamily: 'Arial,sans-serif', border: '2px solid #99f6e4', position: 'relative', overflow: 'hidden', ...(lang === 'ar' && { direction: 'rtl' }) }}>
-                        {/* Background decoration */}
-                        <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, background: 'rgba(20,184,166,0.06)', borderRadius: '50%' }} />
-                        {/* Header */}
-                        <div style={{ display: 'flex', flexDirection: lang === 'ar' ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                          <div>
-                            <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>TRADESMARTDZ</p>
-                            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#94a3b8' }}>
-                              {safeTrade.close_time ? new Date(safeTrade.close_time).toLocaleDateString() : ''}
-                            </p>
-                          </div>
-                          <div style={{ textAlign: lang === 'ar' ? 'left' : 'right' }}>
-                            <p style={{ margin: '0 0 2px', fontSize: 13, color: '#0f172a', fontWeight: 700 }}>
-                              {shareUserName}
-                            </p>
-                            <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 600 }}>
-                              TradeSmartDz • tradesmartdz.com
-                            </p>
-                          </div>
-                        </div>
-                        {/* Symbol + Direction + Result */}
-                        <div style={{ marginBottom: 20 }}>
-                          <p style={{ margin: '0 0 8px', fontSize: 40, fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{editSymbol || safeTrade.symbol}</p>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <span style={{ background: editDirection === 'BUY' ? '#dcfce7' : '#fee2e2', color: editDirection === 'BUY' ? '#16a34a' : '#dc2626', padding: '4px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
-                              {editDirection === 'BUY' ? t('share_buy', lang) : t('share_sell', lang)}
-                            </span>
-                            {editResult && (
-                              <span style={{ background: '#f8fafc', color: '#64748b', padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, border: '1px solid #e2e8f0' }}>
-                                {editResult === 'Win' ? t('share_win', lang) : editResult === 'Loss' ? t('share_loss', lang) : editResult === 'Breakeven' ? t('share_be', lang) : editResult}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {/* Stats cards */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
-                          {[
-                            { label: t('share_pnl', lang), val: `${pnlNum >= 0 ? '+' : ''}$${pnlNum.toFixed(2)}`, color: pnlNum >= 0 ? '#0d9488' : '#dc2626' },
-                            { label: t('share_rr', lang), val: rrCalc || '—', color: '#0f172a' },
-                            { label: t('share_duration', lang), val: durCalc || '—', color: '#0f172a' },
-                          ].map((s, i) => (
-                            <div key={i} style={{ background: '#f8fafc', borderRadius: 14, padding: '12px', border: '1px solid #e2e8f0' }}>
-                              <p style={{ margin: '0 0 4px', fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>{s.label}</p>
-                              <p style={{ margin: 0, fontSize: 20, fontWeight: 900, color: s.color }}>{s.val}</p>
-                            </div>
-                          ))}
-                        </div>
-                        {/* Setup tag */}
-                        {editSetupTag && (
-                          <div style={{ marginBottom: 16 }}>
-                            <span style={{ background: '#f0fdf9', border: '1px solid #99f6e4', color: '#0d9488', padding: '5px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
-                              {editSetupTag}
-                            </span>
-                          </div>
-                        )}
-                        {/* Star rating */}
-                        {editRating > 0 && (
-                          <div style={{ marginBottom: 16 }}>
-                            {[...Array(5)].map((_, i) => (
-                              <span key={i} style={{ fontSize: 18, color: i < editRating ? '#f59e0b' : '#e2e8f0' }}>★</span>
-                            ))}
-                          </div>
-                        )}
-                        {/* Footer */}
-                        <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{t('share_analyzed_with', lang)}</p>
-                          <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 700 }}>tradesmartdz.com</p>
-                        </div>
-                      </div>
-                      <Button className="w-full gradient-primary text-primary-foreground" onClick={async () => {
-                        if (!isPro) {
-                          toast.error(
-                            lang === 'ar' ? 'مشاركة الصورة متاحة لمستخدمي Pro فقط' :
-                            lang === 'fr' ? 'Le partage en image est réservé aux abonnés Pro' :
-                            'Image sharing is available for Pro users only'
-                          );
-                          return;
-                        }
-                        if (!shareCardRef.current) return;
-                        const canvas = await html2canvas(shareCardRef.current, { scale: 2, backgroundColor: null, useCORS: true });
-                        const a = document.createElement('a');
-                        a.href = canvas.toDataURL('image/png');
-                        a.download = `trade-${editSymbol || safeTrade.symbol}-${new Date().toISOString().slice(0,10)}.png`;
-                        a.click();
-                      }}>
-                        <Download className="me-2 h-4 w-4" />{t('shareDownload')}
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Save + action bar */}
-                  <Button className="w-full min-h-[44px] gradient-primary text-primary-foreground" onClick={saveTrade} disabled={saving}>
-                    {saving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-                    {t('save')}
-                  </Button>
-                </div>
-              </>
-            )}
-        </SheetContent>
-      </Sheet>
+      {/* Backdrop */}
+      {selectedTrade && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm"
+          onClick={() => setSelectedTrade(null)}
+        />
+      )}
+      {/* Mobile bottom sheet */}
+      <div className={`sm:hidden fixed inset-x-0 bottom-0 z-50 h-[92vh] bg-white rounded-t-3xl shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+        selectedTrade ? 'translate-y-0' : 'translate-y-full'
+      }`}>
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 flex-shrink-0" />
+        {detailPanelContent}
+      </div>
+      {/* Desktop side panel */}
+      <div className={`hidden sm:flex fixed inset-y-0 end-0 z-50 w-[480px] bg-white shadow-2xl flex-col transition-transform duration-300 ease-out ${
+        selectedTrade ? 'translate-x-0' : (lang === 'ar' ? '-translate-x-full' : 'translate-x-full')
+      }`}>
+        {detailPanelContent}
+      </div>
 
       {/* ── Manage Setups Modal ── */}
       <Dialog open={showManageSetups} onOpenChange={setShowManageSetups}>
