@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo, KeyboardEvent, DragEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { useSwipeToDismiss } from '@/hooks/useSwipeToDismiss';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -1232,6 +1231,9 @@ const TradesPage = () => {
   const [unreviewedOnly, setUnreviewedOnly] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [panelVisible, setPanelVisible] = useState(false);
+  const [panelDragY, setPanelDragY] = useState(0);
+  const [panelIsDragging, setPanelIsDragging] = useState(false);
+  const panelDragStartY = useRef(0);
   const [editTags, setEditTags] = useState<string[]>([]);
   const [editNotes, setEditNotes] = useState('');
   const [editRating, setEditRating] = useState(0);
@@ -1662,6 +1664,7 @@ const TradesPage = () => {
     if (selectedTrade) {
       document.body.style.overflow = 'hidden';
       document.body.classList.add('panel-open');
+      setPanelDragY(0);
       requestAnimationFrame(() => setPanelVisible(true));
     } else {
       setPanelVisible(false);
@@ -2022,7 +2025,9 @@ const TradesPage = () => {
   const detailPanelContent = selectedTrade && safeTrade ? (
     <>
       {/* Gradient header */}
-      <div className={`bg-gradient-to-r ${detailHeaderGradient} px-5 py-4 flex-shrink-0`}>
+      <div className={`bg-gradient-to-r ${detailHeaderGradient} px-5 py-4 flex-shrink-0 rounded-t-3xl sm:rounded-none`}>
+        {/* Drag handle — mobile only */}
+        <div className="sm:hidden w-10 h-1 bg-white/40 rounded-full mx-auto mb-3" />
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className={`text-xs font-black px-3 py-1.5 rounded-xl border-2 ${editDirection === 'BUY' ? 'bg-white text-teal-600 border-white' : 'bg-white text-red-500 border-white'}`}>
@@ -3420,17 +3425,36 @@ const TradesPage = () => {
         <>
           {/* Backdrop */}
           <div
-            className={`fixed inset-0 bg-black/30 z-[998] backdrop-blur-sm transition-opacity duration-300 ${
+            className={`fixed inset-0 backdrop-blur-sm z-[998] transition-opacity duration-300 ${
               panelVisible ? 'opacity-100' : 'opacity-0'
             }`}
+            style={{ backgroundColor: `rgba(0,0,0,${Math.max(0, 0.3 - (panelDragY / 400))})` }}
             onClick={closePanel}
           />
 
           {/* Mobile bottom sheet */}
-          <div className={`sm:hidden fixed inset-x-0 bottom-0 z-[999] h-[92vh] rounded-t-3xl bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
-            panelVisible ? 'translate-y-0' : 'translate-y-full'
-          }`}>
-            <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 mb-2 flex-shrink-0" />
+          <div
+            className={`sm:hidden fixed inset-x-0 bottom-0 z-[999] h-[92vh] shadow-2xl flex flex-col overflow-hidden ${
+              panelIsDragging ? '' : 'transition-transform duration-300 ease-out'
+            } ${panelVisible ? 'translate-y-0' : 'translate-y-full'}`}
+            style={{ transform: panelVisible ? `translateY(${panelDragY}px)` : 'translateY(100%)' }}
+            onTouchStart={e => {
+              panelDragStartY.current = e.touches[0].clientY;
+              setPanelIsDragging(true);
+            }}
+            onTouchMove={e => {
+              const delta = e.touches[0].clientY - panelDragStartY.current;
+              if (delta > 0) setPanelDragY(delta);
+            }}
+            onTouchEnd={() => {
+              setPanelIsDragging(false);
+              if (panelDragY > 120) {
+                closePanel();
+              } else {
+                setPanelDragY(0);
+              }
+            }}
+          >
             {detailPanelContent}
           </div>
 
