@@ -121,6 +121,8 @@ async function getUserAccount(supabase: any, userId: string) {
 
 async function runMorningMotivation(supabase: any, botToken: string, users: any[]) {
   const now = new Date();
+  console.log(`[MORNING_MOTIVATION] Starting at ${now.toISOString()}`);
+  console.log(`[MORNING_MOTIVATION] Found ${users.length} eligible users`);
 
   const yesterdayStart = new Date(now);
   yesterdayStart.setDate(yesterdayStart.getDate() - 1);
@@ -134,9 +136,12 @@ async function runMorningMotivation(supabase: any, botToken: string, users: any[
   weekStart.setDate(weekStart.getDate() + diff);
   weekStart.setHours(0, 0, 0, 0);
 
+  console.log(`[MORNING_MOTIVATION] Date range: ${yesterdayStart.toISOString()} to ${yesterdayEnd.toISOString()}`);
+
   for (const user of users) {
     try {
       const yesterdayTrades = await getUserTrades(supabase, user.user_id, yesterdayStart, yesterdayEnd);
+      console.log(`[MORNING_MOTIVATION] User ${user.user_id}: found ${yesterdayTrades.length} trades`);
       const weekTrades = await getUserTrades(supabase, user.user_id, weekStart, now);
 
       const yesterdayPnl = yesterdayTrades.reduce((s: number, t: any) => s + netPnl(t), 0);
@@ -227,12 +232,16 @@ async function runMorningMotivation(supabase: any, botToken: string, users: any[
 
 async function runTradeReminder(supabase: any, botToken: string, users: any[]) {
   const now = new Date();
+  console.log(`[TRADE_REMINDER] Starting at ${now.toISOString()}`);
+  console.log(`[TRADE_REMINDER] Found ${users.length} eligible users`);
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
+  console.log(`[TRADE_REMINDER] Date range: ${todayStart.toISOString()} to ${now.toISOString()}`);
 
   for (const user of users) {
     try {
       const todayTrades = await getUserTrades(supabase, user.user_id, todayStart, now);
+      console.log(`[TRADE_REMINDER] User ${user.user_id}: found ${todayTrades.length} trades`);
 
       if (todayTrades.length === 0) {
         const msg =
@@ -253,10 +262,23 @@ async function runTradeReminder(supabase: any, botToken: string, users: any[]) {
 
 async function runDailyReport(supabase: any, botToken: string, users: any[]) {
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(now);
-  todayEnd.setHours(23, 59, 59, 999);
+  console.log(`[DAILY_REPORT] Starting at ${now.toISOString()}`);
+  console.log(`[DAILY_REPORT] Found ${users.length} eligible users`);
+
+  const algeriaOffset = 60 * 60 * 1000;
+  const nowAlgeria = new Date(now.getTime() + algeriaOffset);
+
+  // Today in Algeria
+  const todayAlgeria = new Date(nowAlgeria);
+  todayAlgeria.setUTCHours(0, 0, 0, 0);
+
+  // Convert to UTC for DB query
+  const todayStart = new Date(todayAlgeria.getTime() - algeriaOffset);
+  const todayEnd = new Date(
+    todayAlgeria.getTime() - algeriaOffset + (24 * 60 * 60 * 1000) - 1
+  );
+
+  console.log(`[DAILY_REPORT] Date range: ${todayStart.toISOString()} to ${todayEnd.toISOString()}`);
 
   const monthStart = new Date(now);
   monthStart.setDate(1);
@@ -265,6 +287,7 @@ async function runDailyReport(supabase: any, botToken: string, users: any[]) {
   for (const user of users) {
     try {
       const todayTrades = await getUserTrades(supabase, user.user_id, todayStart, todayEnd);
+      console.log(`[DAILY_REPORT] User ${user.user_id}: found ${todayTrades.length} trades`);
       const monthTrades = await getUserTrades(supabase, user.user_id, monthStart, now);
 
       const todayPnl = todayTrades.reduce((s: number, t: any) => s + netPnl(t), 0);
@@ -429,24 +452,49 @@ async function runDailyReport(supabase: any, botToken: string, users: any[]) {
   }
 }
 
-// ── Job 4: Weekly Summary (Monday 9:00 AM Algeria / 8:00 UTC) ───────────────
+// ── Job 4: Weekly Summary (Saturday 00:00 Algeria / Friday 23:00 UTC) ────────
 
 async function runWeeklySummary(supabase: any, botToken: string, users: any[]) {
   const now = new Date();
+  console.log(`[WEEKLY_SUMMARY] Starting at ${now.toISOString()}`);
+  console.log(`[WEEKLY_SUMMARY] Found ${users.length} eligible users`);
 
-  const lastMonday = new Date(now);
-  const day = lastMonday.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  lastMonday.setDate(lastMonday.getDate() + diff - 7);
-  lastMonday.setHours(0, 0, 0, 0);
+  // Algeria is UTC+1
+  // Cron fires Friday 23:00 UTC = Saturday 00:00 Algeria
+  // We want: this past week = Monday to Friday Algeria time
 
-  const lastSunday = new Date(lastMonday);
-  lastSunday.setDate(lastSunday.getDate() + 6);
-  lastSunday.setHours(23, 59, 59, 999);
+  const algeriaOffset = 60 * 60 * 1000; // 1 hour in ms
+  const nowAlgeria = new Date(now.getTime() + algeriaOffset);
+
+  // Day of week in Algeria (0=Sun, 1=Mon ... 6=Sat)
+  const dayOfWeek = nowAlgeria.getUTCDay();
+
+  // Days since Monday (if today is Saturday=6, days since Monday=5)
+  const daysSinceMonday = dayOfWeek === 0
+    ? 6  // Sunday
+    : dayOfWeek - 1;
+
+  // Monday 00:00:00 Algeria = Monday 23:00:00 UTC (prev day)
+  const mondayAlgeria = new Date(nowAlgeria);
+  mondayAlgeria.setUTCDate(nowAlgeria.getUTCDate() - daysSinceMonday);
+  mondayAlgeria.setUTCHours(0, 0, 0, 0);
+
+  // Convert back to UTC for DB query
+  const weekStart = new Date(mondayAlgeria.getTime() - algeriaOffset);
+
+  // Friday 23:59:59 Algeria = Friday 22:59:59 UTC
+  const fridayAlgeria = new Date(mondayAlgeria);
+  fridayAlgeria.setUTCDate(mondayAlgeria.getUTCDate() + 4);
+  fridayAlgeria.setUTCHours(23, 59, 59, 999);
+
+  const weekEnd = new Date(fridayAlgeria.getTime() - algeriaOffset);
+
+  console.log(`[WEEKLY_SUMMARY] Date range: ${weekStart.toISOString()} to ${weekEnd.toISOString()}`);
 
   for (const user of users) {
     try {
-      const trades = await getUserTrades(supabase, user.user_id, lastMonday, lastSunday);
+      const trades = await getUserTrades(supabase, user.user_id, weekStart, weekEnd);
+      console.log(`[WEEKLY_SUMMARY] User ${user.user_id}: found ${trades.length} trades`);
 
       if (trades.length === 0) {
         const msg =
@@ -511,9 +559,12 @@ async function runWeeklySummary(supabase: any, botToken: string, users: any[]) {
 
 async function runMonthlyRecap(supabase: any, botToken: string, users: any[]) {
   const now = new Date();
+  console.log(`[MONTHLY_RECAP] Starting at ${now.toISOString()}`);
+  console.log(`[MONTHLY_RECAP] Found ${users.length} eligible users`);
 
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  console.log(`[MONTHLY_RECAP] Date range: ${lastMonthStart.toISOString()} to ${lastMonthEnd.toISOString()}`);
 
   const monthNames = [
     'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -524,6 +575,7 @@ async function runMonthlyRecap(supabase: any, botToken: string, users: any[]) {
   for (const user of users) {
     try {
       const trades = await getUserTrades(supabase, user.user_id, lastMonthStart, lastMonthEnd);
+      console.log(`[MONTHLY_RECAP] User ${user.user_id}: found ${trades.length} trades`);
 
       if (trades.length === 0) {
         const msg =
@@ -572,6 +624,8 @@ async function runMonthlyRecap(supabase: any, botToken: string, users: any[]) {
 // ── Job 6: News Alerts (every 15 minutes) ───────────────────────────────────
 
 async function runNewsAlerts(supabase: any, botToken: string, users: any[]) {
+  console.log(`[NEWS_ALERTS] Starting at ${new Date().toISOString()}`);
+  console.log(`[NEWS_ALERTS] Found ${users.length} eligible users`);
   let events: any[] = [];
   try {
     const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json');
@@ -584,6 +638,7 @@ async function runNewsAlerts(supabase: any, botToken: string, users: any[]) {
   const now = new Date();
   const alertWindowEnd = new Date(now.getTime() + 20 * 60 * 1000);
   const alertWindowStart = new Date(now.getTime() + 10 * 60 * 1000);
+  console.log(`[NEWS_ALERTS] Date range: ${alertWindowStart.toISOString()} to ${alertWindowEnd.toISOString()}`);
 
   const upcomingEvents = events.filter((event: any) => {
     const eventTime = new Date(event.date);
