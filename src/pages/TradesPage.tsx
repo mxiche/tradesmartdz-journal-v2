@@ -14,7 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check, CheckCircle, Lock, BookOpen } from 'lucide-react';
+import { Search, Download, Loader2, Plus, X, Camera, Trash2, Pencil, CheckSquare, Upload, Star, Share2, Check, CheckCircle, Lock, BookOpen, Tag } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
@@ -937,7 +937,7 @@ function Mt5ImportModal({
                             <SelectValue placeholder={lang === 'ar' ? 'الإعداد...' : lang === 'fr' ? 'Setup...' : 'Setup...'} />
                           </SelectTrigger>
                           <SelectContent position="popper" className="z-[9999]">
-                            {(userTags.length > 0 ? userTags : DEFAULT_TAGS).map(tag => (
+                            {userTags.map(tag => (
                               <SelectItem key={tag} value={tag}>{tag}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1609,6 +1609,45 @@ const TradesPage = () => {
   const [newTagInput, setNewTagInput] = useState('');
   const [addingTag, setAddingTag] = useState(false);
 
+  // Manage Setups modal
+  const [showManageSetups, setShowManageSetups] = useState(false);
+  const [manageTagInput, setManageTagInput] = useState('');
+  const [localTags, setLocalTags] = useState<string[]>([]);
+  const [savingTags, setSavingTags] = useState(false);
+
+  const openManageSetups = () => {
+    setLocalTags([...allTags]);
+    setManageTagInput('');
+    setShowManageSetups(true);
+  };
+
+  const addLocalTag = () => {
+    const tag = manageTagInput.trim();
+    if (!tag) return;
+    if (localTags.includes(tag)) return;
+    setLocalTags(prev => [...prev, tag]);
+    setManageTagInput('');
+  };
+
+  const saveTagsToSupabase = async () => {
+    if (!user) return;
+    setSavingTags(true);
+    await supabase
+      .from('user_preferences')
+      .upsert({ user_id: user.id, custom_tags: localTags }, { onConflict: 'user_id' });
+    setAllTags(localTags);
+    if (setupFilter !== 'all' && !localTags.includes(setupFilter)) {
+      setSetupFilter('all');
+    }
+    setSavingTags(false);
+    setShowManageSetups(false);
+    toast.success(
+      lang === 'ar' ? 'تم حفظ الإعدادات بنجاح' :
+      lang === 'fr' ? 'Setups sauvegardés avec succès' :
+      'Setups saved successfully'
+    );
+  };
+
   // Persist the full tag list to Supabase
   const saveTagList = async (tags: string[]) => {
     if (!user) return;
@@ -1633,8 +1672,9 @@ const TradesPage = () => {
       setStrategies(strategiesData ?? []);
 
       // custom_tags is jsonb — Supabase returns it as a JS array directly
+      // null = first time user → show defaults; [] = user cleared intentionally → show empty
       const stored = prefsData?.custom_tags;
-      if (Array.isArray(stored) && stored.length > 0) {
+      if (Array.isArray(stored)) {
         setAllTags(stored as string[]);
       } else {
         setAllTags(DEFAULT_TAGS);
@@ -2038,6 +2078,15 @@ const TradesPage = () => {
         >
           <CheckSquare className="h-3.5 w-3.5" />
           {t('unreviewed')}
+        </button>
+        {/* Manage Setups */}
+        <button
+          type="button"
+          onClick={openManageSetups}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:border-teal-400 hover:bg-teal-50 text-sm font-semibold text-gray-600 hover:text-teal-600 transition-all duration-150 whitespace-nowrap"
+        >
+          <Tag className="w-4 h-4" />
+          {lang === 'ar' ? 'إدارة الإعدادات' : lang === 'fr' ? 'Gérer les setups' : 'Manage Setups'}
         </button>
       </div>
 
@@ -3326,6 +3375,113 @@ const TradesPage = () => {
             )}
         </SheetContent>
       </Sheet>
+
+      {/* ── Manage Setups Modal ── */}
+      <Dialog open={showManageSetups} onOpenChange={setShowManageSetups}>
+        <DialogContent className="p-0 overflow-hidden rounded-3xl border-0 max-w-md w-full">
+          <DialogTitle className="sr-only">
+            {lang === 'ar' ? 'إدارة إعدادات التداول' : lang === 'fr' ? 'Gérer les setups' : 'Manage Trading Setups'}
+          </DialogTitle>
+          <DialogDescription className="sr-only">manage setup tags</DialogDescription>
+          {/* Header */}
+          <div className="px-6 py-5 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-50 flex items-center justify-center">
+                  <Tag className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <p className="font-black text-gray-900">
+                    {lang === 'ar' ? 'إدارة إعدادات التداول' : lang === 'fr' ? 'Gérer mes setups de trading' : 'Manage Trading Setups'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {lang === 'ar' ? 'أضف أو احذف الإعدادات المستخدمة في صفقاتك' : lang === 'fr' ? 'Ajoutez ou supprimez vos setups de trading' : 'Add or remove your trading setup tags'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowManageSetups(false)}
+                className="w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+          </div>
+
+          {/* Tags area */}
+          <div className="px-6 py-5">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 block">
+              {lang === 'ar' ? 'الإعدادات الحالية' : lang === 'fr' ? 'Setups actuels' : 'Current Setups'}
+            </p>
+            <div className="flex flex-wrap gap-2 min-h-[60px] p-3 rounded-2xl bg-gray-50 border border-gray-100 mb-5">
+              {localTags.length === 0 ? (
+                <p className="text-sm text-gray-400 m-auto text-center w-full">
+                  {lang === 'ar' ? 'لا توجد إعدادات — أضف إعدادك الأول أدناه' : lang === 'fr' ? 'Aucun setup — ajoutez votre premier ci-dessous' : 'No setups yet — add your first one below'}
+                </p>
+              ) : (
+                localTags.map(tag => (
+                  <div key={tag} className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm group">
+                    <span className="text-sm font-semibold text-gray-800">{tag}</span>
+                    <button
+                      onClick={() => setLocalTags(prev => prev.filter(t => t !== tag))}
+                      className="w-4 h-4 rounded-full bg-gray-100 group-hover:bg-red-100 flex items-center justify-center transition-colors"
+                    >
+                      <X className="w-2.5 h-2.5 text-gray-400 group-hover:text-red-500" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add new tag */}
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 block">
+              {lang === 'ar' ? 'إضافة إعداد جديد' : lang === 'fr' ? 'Ajouter un nouveau setup' : 'Add New Setup'}
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={manageTagInput}
+                onChange={e => setManageTagInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addLocalTag(); } }}
+                maxLength={30}
+                placeholder={
+                  lang === 'ar' ? 'مثال: FVG، Order Block...' :
+                  lang === 'fr' ? 'Ex: FVG, Order Block...' :
+                  'e.g. FVG, Order Block...'
+                }
+                className="flex-1 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:outline-none focus:border-teal-400 focus:bg-white transition-colors placeholder:text-gray-400"
+              />
+              <button
+                onClick={addLocalTag}
+                disabled={!manageTagInput.trim()}
+                className="px-4 py-2.5 rounded-2xl bg-teal-500 hover:bg-teal-600 text-white font-bold text-sm transition-colors disabled:opacity-40"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Footer buttons */}
+          <div className="px-6 pb-6 flex flex-col gap-2">
+            <button
+              onClick={saveTagsToSupabase}
+              disabled={savingTags}
+              className="w-full py-3.5 rounded-2xl bg-teal-500 hover:bg-teal-600 text-white font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {savingTags
+                ? <><Loader2 className="w-4 h-4 animate-spin" />{lang === 'ar' ? 'جاري الحفظ...' : lang === 'fr' ? 'Enregistrement...' : 'Saving...'}</>
+                : (lang === 'ar' ? 'حفظ الإعدادات' : lang === 'fr' ? 'Enregistrer' : 'Save Setups')
+              }
+            </button>
+            <button
+              onClick={() => setShowManageSetups(false)}
+              className="w-full py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold text-sm transition-colors"
+            >
+              {lang === 'ar' ? 'إلغاء' : lang === 'fr' ? 'Annuler' : 'Cancel'}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Modal */}
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>

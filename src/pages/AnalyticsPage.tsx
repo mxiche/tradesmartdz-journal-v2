@@ -1219,7 +1219,11 @@ const AnalyticsPage = () => {
       <div className="relative">
       {!isPro && <ProLockOverlay feature={l.setupTable} />}
       <Section title={l.setupTable}>
-        {setupTableData.length === 0 ? <EmptyState msg={noDataMsg} /> : (
+        {setupTableData.length === 0 ? (
+          <div className="text-center py-8 text-sm text-gray-400">
+            {lang === 'ar' ? 'لا توجد بيانات — أضف إعدادات لصفقاتك' : lang === 'fr' ? 'Pas de données — ajoutez des setups à vos trades' : 'No data — add setups to your trades'}
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
