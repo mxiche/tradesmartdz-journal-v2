@@ -377,7 +377,36 @@ function Mt5ImportModal({
     window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)
   );
 
-  const { sheetRef: importSheetRef, onTouchStart: importTouchStart, onTouchMove: importTouchMove, onTouchEnd: importTouchEnd } = useSwipeToDismiss(onClose);
+  const importSheetRef = useRef<HTMLDivElement>(null);
+  const importSwipeStartY = useRef<number | null>(null);
+  const importSwipeCurrentY = useRef<number | null>(null);
+  const importTouchStart = (e: React.TouchEvent) => {
+    importSwipeStartY.current = e.touches[0].clientY;
+  };
+  const importTouchMove = (e: React.TouchEvent) => {
+    if (importSwipeStartY.current === null) return;
+    importSwipeCurrentY.current = e.touches[0].clientY;
+    const delta = importSwipeCurrentY.current - importSwipeStartY.current;
+    if (delta > 0 && importSheetRef.current) {
+      importSheetRef.current.style.transform = `translateY(${delta}px)`;
+      importSheetRef.current.style.transition = 'none';
+    }
+  };
+  const importTouchEnd = () => {
+    if (importSwipeStartY.current === null || importSwipeCurrentY.current === null) return;
+    const delta = importSwipeCurrentY.current - importSwipeStartY.current;
+    if (importSheetRef.current) {
+      importSheetRef.current.style.transition = 'transform 0.3s ease';
+      if (delta > 80) {
+        importSheetRef.current.style.transform = 'translateY(100%)';
+        setTimeout(onClose, 300);
+      } else {
+        importSheetRef.current.style.transform = 'translateY(0)';
+      }
+    }
+    importSwipeStartY.current = null;
+    importSwipeCurrentY.current = null;
+  };
 
   // Reset when closed
   useEffect(() => {
@@ -1470,7 +1499,36 @@ const TradesPage = () => {
     setSetupInput('');
   };
 
-  const { sheetRef: addSheetRef, onTouchStart: addTouchStart, onTouchMove: addTouchMove, onTouchEnd: addTouchEnd } = useSwipeToDismiss(() => { setAddOpen(false); resetForm(); });
+  const addSheetRef = useRef<HTMLDivElement>(null);
+  const addSwipeStartY = useRef<number | null>(null);
+  const addSwipeCurrentY = useRef<number | null>(null);
+  const addTouchStart = (e: React.TouchEvent) => {
+    addSwipeStartY.current = e.touches[0].clientY;
+  };
+  const addTouchMove = (e: React.TouchEvent) => {
+    if (addSwipeStartY.current === null) return;
+    addSwipeCurrentY.current = e.touches[0].clientY;
+    const delta = addSwipeCurrentY.current - addSwipeStartY.current;
+    if (delta > 0 && addSheetRef.current) {
+      addSheetRef.current.style.transform = `translateY(${delta}px)`;
+      addSheetRef.current.style.transition = 'none';
+    }
+  };
+  const addTouchEnd = () => {
+    if (addSwipeStartY.current === null || addSwipeCurrentY.current === null) return;
+    const delta = addSwipeCurrentY.current - addSwipeStartY.current;
+    if (addSheetRef.current) {
+      addSheetRef.current.style.transition = 'transform 0.3s ease';
+      if (delta > 80) {
+        addSheetRef.current.style.transform = 'translateY(100%)';
+        setTimeout(() => { setAddOpen(false); resetForm(); }, 300);
+      } else {
+        addSheetRef.current.style.transform = 'translateY(0)';
+      }
+    }
+    addSwipeStartY.current = null;
+    addSwipeCurrentY.current = null;
+  };
 
   const handleAddTrade = async () => {
     const hasAmount = isPartial ? form.tp1Amount !== '' : form.profit !== '';
