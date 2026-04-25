@@ -1429,63 +1429,6 @@ function QuickAddTrade({
 }
 
 // ============================================================
-// DRAWDOWN FLOOR CALCULATOR
-// Pure function — call from component and account card
-// ============================================================
-function calculateDrawdownFloors(
-  account: any,
-  currentBalance: number,
-  tradeHistory: any[]  // sorted ascending by close_time
-): { maxLossFloor: number | null; dailyFloor: number | null; highWaterMark: number; isSafe: boolean } {
-  if (!account) return { maxLossFloor: null, dailyFloor: null, highWaterMark: currentBalance, isSafe: false };
-
-  const isFutures = account.account_category === 'futures';
-  const startBal: number = account.starting_balance ?? account.account_size ?? 0;
-  const drawdownType: string = account.drawdown_type ?? 'static';
-
-  const maxLossDollars: number = isFutures
-    ? (account.max_loss_limit_dollars ?? 0)
-    : ((account.account_size ?? 0) * ((account.max_drawdown_limit ?? 0) / 100));
-
-  const dailyLossDollars: number = isFutures
-    ? (account.daily_loss_limit_dollars ?? 0)
-    : ((account.account_size ?? 0) * ((account.daily_loss_limit ?? 0) / 100));
-
-  if (drawdownType === 'static') {
-    return {
-      maxLossFloor: maxLossDollars > 0 ? startBal - maxLossDollars : null,
-      dailyFloor: dailyLossDollars > 0 ? currentBalance - dailyLossDollars : null,
-      highWaterMark: currentBalance,
-      isSafe: false,
-    };
-  }
-
-  // EOD trailing / intraday trailing (treated same since we only have closed trades)
-  let runningBalance = startBal;
-  let highWaterMark = startBal;
-  for (const trade of tradeHistory) {
-    const netPnl = (trade.profit ?? 0) - ((trade as any).commission ?? 0);
-    runningBalance += netPnl;
-    if (runningBalance > highWaterMark) highWaterMark = runningBalance;
-  }
-  // Ensure current balance is reflected (handles manual balance edits)
-  highWaterMark = Math.max(highWaterMark, currentBalance);
-
-  // Floor locks at startBal once account has earned back the full max loss — can never blow out
-  const isSafe = maxLossDollars > 0 && highWaterMark >= startBal + maxLossDollars;
-
-  let maxLossFloor: number | null = null;
-  if (maxLossDollars > 0) {
-    maxLossFloor = isSafe ? startBal : +(highWaterMark - maxLossDollars).toFixed(2);
-  }
-
-  // Daily floor resets each day — always based on current balance
-  const dailyFloor = dailyLossDollars > 0 ? +(currentBalance - dailyLossDollars).toFixed(2) : null;
-
-  return { maxLossFloor, dailyFloor, highWaterMark, isSafe };
-}
-
-// ============================================================
 // MAIN DASHBOARD
 // ============================================================
 const DashboardPage = () => {
@@ -1521,6 +1464,58 @@ const DashboardPage = () => {
   const [showTgBanner, setShowTgBanner] = useState(false);
   const [tgBannerHidden, setTgBannerHidden] = useState(false);
   const tgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const getDrawdownFloors = (
+    account: any,
+    currentBalance: number,
+    sortedTrades: any[]
+  ): { maxLossFloor: number | null; dailyFloor: number | null; highWaterMark: number; isLocked: boolean; drawdownType: string } => {
+    if (!account) return { maxLossFloor: null, dailyFloor: null, highWaterMark: currentBalance, isLocked: false, drawdownType: 'static' };
+
+    const isFutures = account.account_category === 'futures';
+    const startBal: number = account.starting_balance ?? account.account_size ?? 0;
+    const drawdownType: string = account.drawdown_type ?? 'static';
+
+    const maxLossDollars: number = isFutures
+      ? (account.max_loss_limit_dollars ?? 0)
+      : ((account.account_size ?? 0) * ((account.max_drawdown_limit ?? 0) / 100));
+
+    const dailyLossDollars: number = isFutures
+      ? (account.daily_loss_limit_dollars ?? 0)
+      : ((account.account_size ?? 0) * ((account.daily_loss_limit ?? 0) / 100));
+
+    if (drawdownType === 'static') {
+      return {
+        maxLossFloor: maxLossDollars > 0 ? startBal - maxLossDollars : null,
+        dailyFloor: dailyLossDollars > 0 ? currentBalance - dailyLossDollars : null,
+        highWaterMark: currentBalance,
+        isLocked: false,
+        drawdownType,
+      };
+    }
+
+    // EOD trailing / intraday trailing
+    let runningBalance = startBal;
+    let highWaterMark = startBal;
+    for (const trade of sortedTrades) {
+      const netPnl = (trade.profit ?? 0) - ((trade as any).commission ?? 0);
+      runningBalance += netPnl;
+      if (runningBalance > highWaterMark) highWaterMark = runningBalance;
+    }
+    highWaterMark = Math.max(highWaterMark, currentBalance);
+
+    // Floor locks at startBal once account has earned back the full max loss
+    const isLocked = maxLossDollars > 0 && highWaterMark >= startBal + maxLossDollars;
+
+    let maxLossFloor: number | null = null;
+    if (maxLossDollars > 0) {
+      maxLossFloor = isLocked ? startBal : +(highWaterMark - maxLossDollars).toFixed(2);
+    }
+
+    const dailyFloor = dailyLossDollars > 0 ? +(currentBalance - dailyLossDollars).toFixed(2) : null;
+
+    return { maxLossFloor, dailyFloor, highWaterMark, isLocked, drawdownType };
+  };
 
   const fetchData = async () => {
     if (!user) return;
@@ -1909,7 +1904,7 @@ const DashboardPage = () => {
     const currentEquityBalance = pts.length > 0 ? pts[pts.length - 1].balance : startBalance;
 
     // Compute floors for the current state using the full trade history
-    const accountFloors = calculateDrawdownFloors(selectedEquityAccount, currentEquityBalance, sorted);
+    const accountFloors = getDrawdownFloors(selectedEquityAccount, currentEquityBalance, sorted);
 
     // DD used % — based on drop from high water mark (correct for trailing accounts)
     const ddUsedPct = (() => {
@@ -1947,9 +1942,10 @@ const DashboardPage = () => {
 
     // Per-point floor — uses trades up to that point for correct trailing calculation
     const points = rawPoints.map((pt) => {
+      if (!selectedEquityAccount || isAll) return { ...pt, maxLossFloor: null as number | null, dailyFloor: null as number | null };
       const tradesUpToPoint = sorted.slice(0, pt.tradeCount);
-      const ptFloors = calculateDrawdownFloors(selectedEquityAccount, pt.balance, tradesUpToPoint);
-      return { ...pt, floor: ptFloors.maxLossFloor };
+      const ptFloors = getDrawdownFloors(selectedEquityAccount, pt.balance, tradesUpToPoint);
+      return { ...pt, maxLossFloor: ptFloors.maxLossFloor, dailyFloor: ptFloors.dailyFloor };
     });
 
     return {
@@ -1959,7 +1955,7 @@ const DashboardPage = () => {
       maxLossFloor: accountFloors.maxLossFloor,
       dailyFloor: accountFloors.dailyFloor,
       highWaterMark: accountFloors.highWaterMark,
-      isSafe: accountFloors.isSafe,
+      isLocked: accountFloors.isLocked,
       profitTargetLevel,
       isTrailing,
       isFutures,
@@ -2545,11 +2541,8 @@ const DashboardPage = () => {
                   width={68}
                   domain={(() => {
                     const levels = [
-                      equityData.dangerLevel,
-                      equityData.dailyLossLevel,
-                      equityData.trailingFloorLevel,
-                      equityData.futuresMaxLossLevel,
-                      equityData.futuresDailyLossLevel,
+                      equityData.maxLossFloor,
+                      equityData.dailyFloor,
                     ].filter(l => l !== null) as number[];
                     if (levels.length === 0) return ['auto', 'auto'] as ['auto', 'auto'];
                     const minLvl = Math.min(...levels);
@@ -2562,9 +2555,10 @@ const DashboardPage = () => {
                   content={({ active, payload, label }) => {
                     if (!active || !payload?.length) return null;
                     const equity: number = payload.find(p => p.dataKey === 'balance')?.value ?? 0;
-                    const floor: number | null = payload.find(p => p.dataKey === 'floor')?.value ?? null;
+                    const ptPayload = payload[0]?.payload as any;
+                    const floor: number | null = ptPayload?.maxLossFloor ?? null;
                     const change = equity - equityData.startBalance;
-                    const tradeCount: number = (payload[0]?.payload as any)?.tradeCount ?? 0;
+                    const tradeCount: number = ptPayload?.tradeCount ?? 0;
                     const cushion = floor !== null ? equity - floor : null;
                     const cushionPct = cushion !== null && floor !== null && floor > 0
                       ? ((cushion / floor) * 100)
@@ -2624,7 +2618,7 @@ const DashboardPage = () => {
                 {/* Max loss floor (static or trailing, forex or futures) */}
                 {equityData.maxLossFloor !== null && (
                   <ReferenceLine y={equityData.maxLossFloor} stroke="#ef4444" strokeDasharray="5 4" strokeWidth={1.5}
-                    label={{ value: `$${equityData.maxLossFloor.toLocaleString()}`, position: 'insideBottomRight', fill: '#ef4444', fontSize: 11, fontWeight: 700 }} />
+                    label={{ value: `${equityData.isLocked ? '🔒 ' : ''}$${equityData.maxLossFloor.toLocaleString()}`, position: 'insideBottomRight', fill: '#ef4444', fontSize: 11, fontWeight: 700 }} />
                 )}
                 {/* Daily floor */}
                 {equityData.dailyFloor !== null && (
@@ -2636,8 +2630,8 @@ const DashboardPage = () => {
                   <ReferenceLine y={equityData.profitTargetLevel} stroke="#14b8a6" strokeDasharray="8 3" strokeWidth={1.5}
                     label={{ value: `$${equityData.profitTargetLevel.toLocaleString()}`, position: 'insideTopRight', fill: '#14b8a6', fontSize: 11, fontWeight: 700 }} />
                 )}
-                {equityAccountId !== 'all' && equityData.points.some(p => (p as any).floor !== null) && (() => {
-                  const floorVals = equityData.points.map(p => (p as any).floor as number).filter(f => f !== null);
+                {equityAccountId !== 'all' && equityData.points.some(p => (p as any).maxLossFloor !== null) && (() => {
+                  const floorVals = equityData.points.map(p => (p as any).maxLossFloor as number).filter(f => f !== null);
                   const balVals = equityData.points.map(p => p.balance);
                   return (
                     <ReferenceArea
@@ -2657,9 +2651,13 @@ const DashboardPage = () => {
                 </defs>
                 <Area type="monotone" dataKey="balance" stroke={lineColor} strokeWidth={2} fill="url(#equityFill)"
                   dot={false} activeDot={{ r: 4, fill: lineColor, strokeWidth: 0 }} />
-                {equityAccountId !== 'all' && (
-                  <Line type="monotone" dataKey="floor" stroke="#f59e0b" strokeWidth={1.5}
-                    strokeDasharray="5 5" dot={false} name="floor" legendType="none" />
+                {equityAccountId !== 'all' && equityData.isTrailing && (
+                  <Line type="stepAfter" dataKey="maxLossFloor" stroke="#ef4444" strokeWidth={1.5}
+                    strokeDasharray="5 5" dot={false} strokeOpacity={0.5} legendType="none" />
+                )}
+                {equityAccountId !== 'all' && !equityData.isTrailing && (
+                  <Line type="monotone" dataKey="maxLossFloor" stroke="#ef4444" strokeWidth={1.5}
+                    strokeDasharray="5 5" dot={false} legendType="none" />
                 )}
               </AreaChart>
             </ResponsiveContainer>
@@ -2706,7 +2704,7 @@ const DashboardPage = () => {
                 const currentBal = acc.balance ?? startBal;
                 const accPnl = accTrades.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
 
-                const floors = calculateDrawdownFloors(a, currentBal, accTrades);
+                const floors = getDrawdownFloors(a, currentBal, accTrades);
 
                 // Max loss DD
                 const maxLossDollars = isFuturesAcc
@@ -2795,9 +2793,9 @@ const DashboardPage = () => {
                                 <Shield className="h-3 w-3" />
                                 {lang === 'ar' ? 'الهامش المتتبع' : lang === 'fr' ? 'Buffer trailing' : 'Trailing Buffer'}
                               </span>
-                              {floors.isSafe ? (
+                              {floors.isLocked ? (
                                 <span className="text-profit font-semibold">
-                                  {lang === 'ar' ? '✓ المنطقة الآمنة' : lang === 'fr' ? '✓ Zone sûre' : '✓ Safe Zone'}
+                                  {lang === 'ar' ? '🔒 المنطقة الآمنة' : lang === 'fr' ? '🔒 Zone sûre' : '🔒 Safe Zone'}
                                 </span>
                               ) : (
                                 <span className={`font-semibold ${bufferPct !== null && bufferPct < 15 ? 'text-loss' : bufferPct !== null && bufferPct < 30 ? 'text-amber-500' : ''}`}>
@@ -2805,7 +2803,7 @@ const DashboardPage = () => {
                                 </span>
                               )}
                             </div>
-                            {!floors.isSafe && (
+                            {!floors.isLocked && (
                               <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
                                 <div
                                   className={`h-full rounded-full transition-[width] duration-500 ${bufferPct !== null && bufferPct < 15 ? 'bg-loss' : bufferPct !== null && bufferPct < 30 ? 'bg-yellow-400' : 'bg-[#22c55e]'}`}
