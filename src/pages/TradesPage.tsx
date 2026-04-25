@@ -2137,7 +2137,7 @@ const TradesPage = () => {
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto overscroll-contain">
+      <div className="flex-1 overflow-y-auto overscroll-contain bg-white">
         <div className="space-y-5 p-4 pb-6">
 
           {/* ── Section: Core fields ── */}
@@ -3492,7 +3492,7 @@ const TradesPage = () => {
 
           {/* Mobile bottom sheet */}
           <div
-            className={`sm:hidden fixed inset-x-0 bottom-0 z-[999] h-[92vh] shadow-2xl flex flex-col overflow-hidden ${
+            className={`sm:hidden fixed inset-x-0 bottom-0 z-[999] h-[92vh] bg-white rounded-t-3xl shadow-2xl flex flex-col overflow-hidden ${
               panelIsDragging ? '' : 'transition-transform duration-300 ease-out'
             } ${panelVisible ? 'translate-y-0' : 'translate-y-full'}`}
             style={{ transform: panelVisible ? `translateY(${panelDragY}px)` : 'translateY(100%)' }}
