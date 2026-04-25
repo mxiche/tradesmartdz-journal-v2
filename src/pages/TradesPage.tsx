@@ -1761,6 +1761,20 @@ const TradesPage = () => {
       setLoading(false);
     };
     fetchAll();
+
+    const channel = supabase
+      .channel('user-prefs-trades')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'user_preferences', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          const tags = (payload.new as any).custom_tags;
+          if (Array.isArray(tags)) setAllTags(tags as string[]);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   const openTrade = (trade: Trade) => {

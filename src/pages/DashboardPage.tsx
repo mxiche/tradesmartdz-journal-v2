@@ -1445,7 +1445,9 @@ const DashboardPage = () => {
   const [insightIndex, setInsightIndex] = useState(0);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalInput, setGoalInput] = useState('');
-  const [goalRefreshKey, setGoalRefreshKey] = useState(0);
+  const [weeklyGoal, setWeeklyGoal] = useState(0);
+  const [weeklyGoalActive, setWeeklyGoalActive] = useState(false);
+  const [showDeleteGoalConfirm, setShowDeleteGoalConfirm] = useState(false);
 
   // Filters
   const [dateRange, setDateRange] = useState<DateRange>('all');
@@ -1471,6 +1473,70 @@ const DashboardPage = () => {
     ]);
     setTrades(tradesData ?? []);
     setAccounts(accountsData ?? []);
+    await loadWeeklyGoal();
+  };
+
+  const getCurrentWeekKey = () => {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const weekNum = Math.ceil(
+      ((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7
+    );
+    return `${now.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  };
+
+  const loadWeeklyGoal = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('user_preferences')
+      .select('weekly_goal_amount, weekly_goal_week, weekly_goal_set_at')
+      .eq('user_id', user.id)
+      .single();
+    if (!data) return;
+    const currentWeek = getCurrentWeekKey();
+    if ((data as any).weekly_goal_week === currentWeek && (data as any).weekly_goal_amount) {
+      setWeeklyGoal((data as any).weekly_goal_amount);
+      setWeeklyGoalActive(true);
+    } else {
+      setWeeklyGoal(0);
+      setWeeklyGoalActive(false);
+    }
+  };
+
+  const saveWeeklyGoal = async (amount: number) => {
+    if (!user) return;
+    const currentWeek = getCurrentWeekKey();
+    await supabase
+      .from('user_preferences')
+      .update({
+        weekly_goal_amount: amount,
+        weekly_goal_week: currentWeek,
+        weekly_goal_set_at: new Date().toISOString(),
+      } as any)
+      .eq('user_id', user.id);
+    setWeeklyGoal(amount);
+    setWeeklyGoalActive(true);
+    toast.success(
+      lang === 'ar' ? 'تم حفظ الهدف الأسبوعي' :
+      lang === 'fr' ? 'Objectif hebdomadaire enregistré' :
+      'Weekly goal saved'
+    );
+  };
+
+  const deleteWeeklyGoal = async () => {
+    if (!user) return;
+    await supabase
+      .from('user_preferences')
+      .update({ weekly_goal_amount: null, weekly_goal_week: null, weekly_goal_set_at: null } as any)
+      .eq('user_id', user.id);
+    setWeeklyGoal(0);
+    setWeeklyGoalActive(false);
+    setShowDeleteGoalConfirm(false);
+    toast.success(
+      lang === 'ar' ? 'تم حذف الهدف الأسبوعي' :
+      lang === 'fr' ? 'Objectif supprimé' :
+      'Weekly goal removed'
+    );
   };
 
   const stopTgPolling = () => {
@@ -1502,6 +1568,27 @@ const DashboardPage = () => {
     if (!user) return;
     setLoading(true);
     fetchData().finally(() => setLoading(false));
+
+    const channel = supabase
+      .channel('user-preferences-sync')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'user_preferences', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          const data = payload.new as any;
+          const currentWeek = getCurrentWeekKey();
+          if (data.weekly_goal_week === currentWeek && data.weekly_goal_amount) {
+            setWeeklyGoal(data.weekly_goal_amount);
+            setWeeklyGoalActive(true);
+          } else {
+            setWeeklyGoal(0);
+            setWeeklyGoalActive(false);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   useEffect(() => {
@@ -1603,34 +1690,7 @@ const DashboardPage = () => {
     return { count, type: isWin ? 'win' : 'loss' as 'win'|'loss' };
   }, [closedTrades]);
 
-  // ---- weekly goal ----
-  const weeklyGoal = useMemo(() => {
-    if (!user?.id) return 0;
-
-    const raw = localStorage.getItem(`weekly_goal_${user.id}`);
-    if (!raw) return 0;
-
-    const storedWeek = localStorage.getItem(`weekly_goal_week_${user.id}`);
-    if (storedWeek) {
-      // Sunday-based week number: days from start-of-year to start-of-week / 7
-      const now = new Date();
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
-      startOfWeek.setHours(0, 0, 0, 0);
-      const weekNum = Math.floor(
-        (startOfWeek.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000)
-      );
-      if (parseInt(storedWeek) !== weekNum) {
-        localStorage.removeItem(`weekly_goal_${user.id}`);
-        localStorage.removeItem(`weekly_goal_week_${user.id}`);
-        return 0;
-      }
-    }
-
-    const val = parseFloat(raw);
-    return isNaN(val) ? 0 : val;
-  }, [user?.id, goalRefreshKey]);
+  // ---- weekly goal — stored in Supabase, loaded via loadWeeklyGoal() ----
 
   const thisWeekPnl = useMemo(() => {
     const now = new Date();
@@ -1642,7 +1702,7 @@ const DashboardPage = () => {
       .reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
   }, [closedTrades]);
 
-  const weeklyProgress = weeklyGoal > 0 ? Math.min((thisWeekPnl / weeklyGoal) * 100, 100) : 0;
+  const weeklyProgress = weeklyGoalActive && weeklyGoal > 0 ? Math.min((thisWeekPnl / weeklyGoal) * 100, 100) : 0;
 
   // ---- smart insights ----
   const insights = useMemo(() => {
@@ -2006,7 +2066,7 @@ const DashboardPage = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Weekly goal prompt */}
-          {weeklyGoal === 0 && closedTrades.length > 0 && (
+          {!weeklyGoalActive && closedTrades.length > 0 && (
             <button
               type="button"
               onClick={() => { setGoalInput(''); setShowGoalModal(true); }}
@@ -2128,10 +2188,10 @@ const DashboardPage = () => {
       )}
 
       {/* ── WEEKLY GOAL + INSIGHTS ROW ── */}
-      {(weeklyGoal > 0 || insights.length > 0) && (
+      {(weeklyGoalActive || insights.length > 0) && (
         <div className="grid gap-3 sm:grid-cols-2">
           {/* Weekly goal progress */}
-          {weeklyGoal > 0 && (
+          {weeklyGoalActive && (
             <Card className="border-border bg-card">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -2141,13 +2201,46 @@ const DashboardPage = () => {
                       {lang === 'ar' ? 'هدف الأسبوع' : lang === 'fr' ? 'Objectif semaine' : 'Weekly Goal'}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { setGoalInput(String(weeklyGoal)); setShowGoalModal(true); }}
-                    className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    {lang === 'ar' ? 'تعديل' : lang === 'fr' ? 'Modifier' : 'Edit'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {showDeleteGoalConfirm ? (
+                      <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                        <p className="text-xs text-gray-500">
+                          {lang === 'ar' ? 'حذف الهدف؟' : lang === 'fr' ? "Supprimer l'objectif ?" : 'Remove goal?'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={deleteWeeklyGoal}
+                          className="text-xs font-bold text-red-500 hover:text-red-600 px-2 py-0.5 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          {lang === 'ar' ? 'نعم' : lang === 'fr' ? 'Oui' : 'Yes'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowDeleteGoalConfirm(false)}
+                          className="text-xs text-gray-400 hover:text-gray-600 px-2 py-0.5 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                          {lang === 'ar' ? 'لا' : lang === 'fr' ? 'Non' : 'No'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setGoalInput(String(weeklyGoal)); setShowGoalModal(true); }}
+                          className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          {lang === 'ar' ? 'تعديل' : lang === 'fr' ? 'Modifier' : 'Edit'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowDeleteGoalConfirm(true)}
+                          className="w-6 h-6 rounded-lg hover:bg-red-50 flex items-center justify-center transition-colors group"
+                        >
+                          <X className="w-3.5 h-3.5 text-gray-300 group-hover:text-red-400 transition-colors" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-end gap-2 mb-2">
                   <span className={`text-2xl font-bold tabular-nums ${thisWeekPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
@@ -2736,21 +2829,13 @@ const DashboardPage = () => {
                 type="number"
                 value={goalInput}
                 onChange={e => setGoalInput(e.target.value)}
-                onKeyDown={e => {
+                onKeyDown={async e => {
                   if (e.key === 'Enter') {
                     const val = parseFloat(goalInput);
-                    if (!isNaN(val) && val > 0 && user) {
-                      const now = new Date();
-                      const startOfYear = new Date(now.getFullYear(), 0, 1);
-                      const startOfWeek = new Date(now);
-                      startOfWeek.setDate(now.getDate() - now.getDay());
-                      startOfWeek.setHours(0, 0, 0, 0);
-                      const weekNum = Math.floor((startOfWeek.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000));
-                      localStorage.setItem(`weekly_goal_${user.id}`, String(val));
-                      localStorage.setItem(`weekly_goal_week_${user.id}`, String(weekNum));
+                    if (!isNaN(val) && val > 0) {
+                      await saveWeeklyGoal(val);
                       setShowGoalModal(false);
                       setGoalInput('');
-                      setGoalRefreshKey(prev => prev + 1);
                     }
                   }
                 }}
@@ -2770,20 +2855,12 @@ const DashboardPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 const val = parseFloat(goalInput);
-                if (!isNaN(val) && val > 0 && user) {
-                  const now = new Date();
-                  const startOfYear = new Date(now.getFullYear(), 0, 1);
-                  const startOfWeek = new Date(now);
-                  startOfWeek.setDate(now.getDate() - now.getDay());
-                  startOfWeek.setHours(0, 0, 0, 0);
-                  const weekNum = Math.floor((startOfWeek.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000));
-                  localStorage.setItem(`weekly_goal_${user.id}`, String(val));
-                  localStorage.setItem(`weekly_goal_week_${user.id}`, String(weekNum));
+                if (!isNaN(val) && val > 0) {
+                  await saveWeeklyGoal(val);
                   setShowGoalModal(false);
                   setGoalInput('');
-                  setGoalRefreshKey(prev => prev + 1);
                 }
               }}
               className="flex-1 py-2.5 rounded-xl bg-teal-500 text-white font-bold text-sm hover:bg-teal-600 transition-colors"
