@@ -730,16 +730,15 @@ const ConnectPage = () => {
                     {/* FIX 6: Futures consistency */}
                     {ConsistencySection({ forFutures: true })}
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t('contract_limit')}</Label>
+                      <div className="flex flex-col">
+                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 h-8 flex items-center">{t('contract_limit')}</Label>
                         <input type="number" step="1" placeholder="10" className={inputCls}
                           value={form.contract_limit}
                           onChange={e => setForm(f => ({ ...f, contract_limit: e.target.value }))}
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        {/* FIX 5: optional */}
-                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                      <div className="flex flex-col">
+                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 h-8 flex items-center">
                           {t('min_winning_days')}
                           <span className="text-gray-300 font-normal ms-1 normal-case tracking-normal">
                             ({lang === 'ar' ? 'اختياري' : 'optional'})
@@ -751,10 +750,9 @@ const ConnectPage = () => {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 items-end">
-                      <div className="space-y-1.5">
-                        {/* FIX 5: optional */}
-                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col">
+                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 h-8 flex items-center">
                           {t('winning_day_threshold')}
                           <span className="text-gray-300 font-normal ms-1 normal-case tracking-normal">
                             ({lang === 'ar' ? 'اختياري' : 'optional'})
@@ -765,9 +763,8 @@ const ConnectPage = () => {
                           onChange={e => setForm(f => ({ ...f, winning_day_threshold: e.target.value }))}
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        {/* FIX 5: optional */}
-                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                      <div className="flex flex-col">
+                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 h-8 flex items-center">
                           {t('position_close_time')}
                           <span className="text-gray-300 font-normal ms-1 normal-case tracking-normal">
                             ({lang === 'ar' ? 'اختياري' : 'optional'})

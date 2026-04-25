@@ -22,8 +22,8 @@ import { AccountCard } from '@/pages/ConnectPage';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { toast } from 'sonner';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, ReferenceLine,
+  AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, ReferenceLine, ReferenceArea,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
 } from 'recharts';
 import { Tables } from '@/integrations/supabase/types';
@@ -1845,20 +1845,23 @@ const DashboardPage = () => {
       : null;
 
     // Build equity points
-    let pts: { date: string; balance: number }[];
+    let pts: { date: string; balance: number; tradeCount: number }[];
     if (sorted.length === 0) {
       pts = [];
     } else {
       // Group by day — one data point per trading day (not per trade)
-      const byDay = new Map<string, number>();
+      const byDay = new Map<string, { pnl: number; count: number }>();
       for (const tr of sorted) {
         const day = new Date(tr.close_time!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        byDay.set(day, (byDay.get(day) ?? 0) + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)));
+        const prev = byDay.get(day) ?? { pnl: 0, count: 0 };
+        byDay.set(day, { pnl: prev.pnl + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), count: prev.count + 1 });
       }
       let running = startBalance;
-      pts = Array.from(byDay.entries()).map(([date, dailyPnl]) => {
-        running += dailyPnl;
-        return { date, balance: +running.toFixed(2) };
+      let cumCount = 0;
+      pts = Array.from(byDay.entries()).map(([date, { pnl, count }]) => {
+        running += pnl;
+        cumCount += count;
+        return { date, balance: +running.toFixed(2), tradeCount: cumCount };
       });
     }
 
@@ -1902,9 +1905,34 @@ const DashboardPage = () => {
       return Math.min(100, (todayLoss / dailyAmount) * 100);
     })();
 
-    const points = sorted.length === 0
-      ? [{ date: lang === 'ar' ? 'الآن' : 'Now', balance: +startBalance.toFixed(2) }]
-      : [{ date: '', balance: +startBalance.toFixed(2) }, ...pts];
+    const rawPoints = sorted.length === 0
+      ? [{ date: lang === 'ar' ? 'الآن' : 'Now', balance: +startBalance.toFixed(2), tradeCount: 0 }]
+      : [{ date: '', balance: +startBalance.toFixed(2), tradeCount: 0 }, ...pts];
+
+    // Floor per point — only when a single account is selected
+    const calculateFloor = (pointIndex: number, allPts: { balance: number }[]): number | null => {
+      if (!selectedEquityAccount || equityAccountId === 'all') return null;
+      let maxLoss: number | null = null;
+      if (isFutures) {
+        maxLoss = (selectedEquityAccount as any).max_loss_limit_dollars ?? null;
+      } else {
+        const sz = selectedEquityAccount.account_size ?? 0;
+        const ddPct = selectedEquityAccount.max_drawdown_limit ?? 0;
+        maxLoss = sz > 0 && ddPct > 0 ? sz * (ddPct / 100) : null;
+      }
+      if (!maxLoss) return null;
+      if (drawdownType === 'static') {
+        return +(startBalance - maxLoss).toFixed(2);
+      }
+      // eod_trailing or intraday_trailing — floor trails highest balance seen so far
+      const highWater = Math.max(...allPts.slice(0, pointIndex + 1).map(p => p.balance));
+      return +Math.max(highWater - maxLoss, startBalance - maxLoss).toFixed(2);
+    };
+
+    const points = rawPoints.map((pt, i) => ({
+      ...pt,
+      floor: calculateFloor(i, rawPoints),
+    }));
 
     return {
       points,
@@ -2514,9 +2542,62 @@ const DashboardPage = () => {
                   })()}
                 />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', color: '#0f172a', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                  labelStyle={{ color: '#64748b', fontWeight: 600 }}
-                  formatter={(v: number) => [`$${v.toFixed(2)}`, lang === 'ar' ? 'الرصيد' : lang === 'fr' ? 'Solde' : 'Balance']}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const equity: number = payload.find(p => p.dataKey === 'balance')?.value ?? 0;
+                    const floor: number | null = payload.find(p => p.dataKey === 'floor')?.value ?? null;
+                    const change = equity - equityData.startBalance;
+                    const tradeCount: number = (payload[0]?.payload as any)?.tradeCount ?? 0;
+                    const cushion = floor !== null ? equity - floor : null;
+                    const cushionPct = cushion !== null && floor !== null && floor > 0
+                      ? ((cushion / floor) * 100)
+                      : null;
+                    return (
+                      <div className="bg-gray-900/95 backdrop-blur-sm rounded-2xl p-4 shadow-2xl border border-white/10 min-w-[200px]" dir="ltr">
+                        {label && <p className="text-xs text-gray-400 mb-3 font-medium border-b border-white/10 pb-2">{label}</p>}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-teal-400" />
+                            <span className="text-xs text-gray-300">{lang === 'ar' ? 'الرصيد' : lang === 'fr' ? 'Solde' : 'Equity'}</span>
+                          </div>
+                          <span className="text-sm font-black text-white ms-4">${equity.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        </div>
+                        {floor !== null && (
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-amber-400" />
+                              <span className="text-xs text-gray-300">{lang === 'ar' ? 'حد السحب' : lang === 'fr' ? 'Plancher' : 'DD Floor'}</span>
+                            </div>
+                            <span className="text-sm font-bold text-amber-400 ms-4">${floor.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                          </div>
+                        )}
+                        {cushion !== null && (
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${cushionPct !== null && cushionPct > 50 ? 'bg-teal-400' : cushionPct !== null && cushionPct > 25 ? 'bg-amber-400' : 'bg-red-400'}`} />
+                              <span className="text-xs text-gray-300">{lang === 'ar' ? 'الهامش المتبقي' : lang === 'fr' ? 'Marge restante' : 'Cushion Left'}</span>
+                            </div>
+                            <span className={`text-sm font-bold ms-4 ${cushionPct !== null && cushionPct > 50 ? 'text-teal-400' : cushionPct !== null && cushionPct > 25 ? 'text-amber-400' : 'text-red-400'}`}>
+                              ${cushion.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                        )}
+                        <div className="border-t border-white/10 my-2" />
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-400">{lang === 'ar' ? 'التغيير' : lang === 'fr' ? 'Variation' : 'Change'}</span>
+                          <span className={`text-sm font-bold ms-4 ${change >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+                            {change >= 0 ? '+' : ''}${Math.abs(change).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </span>
+                        </div>
+                        {tradeCount > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-400">{lang === 'ar' ? 'الصفقات' : lang === 'fr' ? 'Trades' : 'Trades'}</span>
+                            <span className="text-sm font-bold text-white ms-4">{tradeCount}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }}
                 />
                 {/* Start balance reference — shown when there are limit levels to compare against */}
                 {(equityData.dangerLevel !== null || equityData.dailyLossLevel !== null || equityData.futuresMaxLossLevel !== null || equityData.futuresDailyLossLevel !== null) && (
@@ -2573,8 +2654,31 @@ const DashboardPage = () => {
                     label={{ value: lang === 'ar' ? 'يومي' : 'Daily', position: 'insideBottomLeft', fill: '#f97316', fontSize: 9 }}
                   />
                 )}
+                {equityAccountId !== 'all' && equityData.points.some(p => (p as any).floor !== null) && (() => {
+                  const floorVals = equityData.points.map(p => (p as any).floor as number).filter(f => f !== null);
+                  const balVals = equityData.points.map(p => p.balance);
+                  return (
+                    <ReferenceArea
+                      y1={Math.min(...floorVals)}
+                      y2={Math.max(...balVals)}
+                      fill="url(#cushionGradient)"
+                      fillOpacity={1}
+                      strokeOpacity={0}
+                    />
+                  );
+                })()}
+                <defs>
+                  <linearGradient id="cushionGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.08} />
+                    <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <Area type="monotone" dataKey="balance" stroke={lineColor} strokeWidth={2} fill="url(#equityFill)"
                   dot={false} activeDot={{ r: 4, fill: lineColor, strokeWidth: 0 }} />
+                {equityAccountId !== 'all' && (
+                  <Line type="monotone" dataKey="floor" stroke="#f59e0b" strokeWidth={1.5}
+                    strokeDasharray="5 5" dot={false} name="floor" legendType="none" />
+                )}
               </AreaChart>
             </ResponsiveContainer>
             {equityData.points.length === 1 && (
