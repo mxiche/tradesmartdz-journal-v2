@@ -116,9 +116,9 @@ const helpCategories = [
           en: 'How do I upgrade to Pro?',
         },
         answer: {
-          ar: 'اذهب إلى الإعدادات ثم تبويب "الاشتراك". اضغط "ترقية إلى Pro" واختر طريقة الدفع: BaridiMob (3,700 دج) أو USDT (15 دولار). أرسل الدفع وارفع صورة الإيصال. سيتم التفعيل خلال 24 ساعة.',
-          fr: 'Allez dans Paramètres puis l\'onglet "Abonnement". Cliquez "Passer à Pro" et choisissez le mode de paiement : BaridiMob (3 700 DA) ou USDT (15$). Envoyez le paiement et uploadez la preuve. Activation sous 24h.',
-          en: 'Go to Settings then the "Subscription" tab. Click "Upgrade to Pro" and choose payment method: BaridiMob (3,700 DA) or USDT ($15). Send the payment and upload the proof screenshot. Activation within 24 hours.',
+          ar: 'اذهب إلى الإعدادات ثم تبويب "الاشتراك". اضغط "ترقية إلى Pro" واختر طريقة الدفع: BaridiMob (2,200 دج) أو USDT (9 دولار). أرسل الدفع وارفع صورة الإيصال. سيتم التفعيل خلال 24 ساعة.',
+          fr: 'Allez dans Paramètres puis l\'onglet "Abonnement". Cliquez "Passer à Pro" et choisissez le mode de paiement : BaridiMob (2 200 DA) ou USDT (9$). Envoyez le paiement et uploadez la preuve. Activation sous 24h.',
+          en: 'Go to Settings then the "Subscription" tab. Click "Upgrade to Pro" and choose payment method: BaridiMob (2,200 DA) or USDT ($9). Send the payment and upload the proof screenshot. Activation within 24 hours.',
         },
       },
     ],
@@ -407,9 +407,9 @@ export default function HelpWidget() {
         {panelContent}
       </div>
 
-      {/* ── DESKTOP: slide-in panel (bottom-right corner) ── */}
-      <div className={`hidden md:flex fixed bottom-8 end-6 z-40 w-96 max-h-[580px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex-col transition-all duration-300 ease-out ${
-        isOpen ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'
+      {/* ── DESKTOP: slide-in panel (left of buttons) ── */}
+      <div className={`hidden md:flex fixed bottom-8 end-24 z-40 w-96 max-h-[560px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex-col transition-all duration-300 ease-out ${
+        isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'
       }`}>
         {panelContent}
       </div>

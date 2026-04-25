@@ -1418,7 +1418,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
         </button>
       </div>
 
-      {/* FIX 1: Update Balance Modal */}
+      {/* Update Balance Modal */}
       {showUpdateModal && (
         <div
           className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4"
@@ -1426,35 +1426,71 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
         >
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div
-            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in slide-in-from-bottom duration-300"
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in slide-in-from-bottom duration-300 border-0"
             onClick={e => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="px-5 pt-5 pb-4 border-b border-gray-50">
+            {/* Gradient header */}
+            <div className="bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-5">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-black text-gray-900 text-base">
-                    {lang === 'ar' ? 'تحديث الرصيد' : lang === 'fr' ? 'Mettre à jour le solde' : 'Update Balance'}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">{acc.account_name || acc.firm}</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+                    <Wallet className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-black text-white text-base">
+                      {lang === 'ar' ? 'تحديث الرصيد' : lang === 'fr' ? 'Mettre à jour le solde' : 'Update Balance'}
+                    </p>
+                    <p className="text-white/70 text-xs mt-0.5">
+                      {lang === 'ar' ? 'أدخل الرصيد الحالي للحساب' : lang === 'fr' ? 'Entrez le solde actuel du compte' : 'Enter the current account balance'}
+                    </p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setShowUpdateModal(false)}
-                  className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                  className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
                 >
-                  <span className="text-gray-500 text-sm">✕</span>
+                  <span className="text-white text-sm font-bold">✕</span>
                 </button>
               </div>
             </div>
 
-            <div className="px-5 py-4 space-y-4">
-              {/* Current Balance input */}
+            {/* Account name */}
+            <div className="px-6 pt-5 pb-2">
+              <p className="text-xs text-gray-400 font-medium mb-1">
+                {lang === 'ar' ? 'الحساب' : lang === 'fr' ? 'Compte' : 'Account'}
+              </p>
+              <p className="text-sm font-bold text-gray-900">{acc.account_name || acc.firm}</p>
+            </div>
+
+            {/* Current balance info row */}
+            <div className="mx-6 mb-4 rounded-2xl bg-gray-50 border border-gray-100 p-4 flex items-center justify-between">
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 block">
+                <p className="text-xs text-gray-400">
                   {lang === 'ar' ? 'الرصيد الحالي' : lang === 'fr' ? 'Solde actuel' : 'Current Balance'}
+                </p>
+                <p className="text-lg font-black text-gray-900 mt-0.5">
+                  {symbol}{curr.toLocaleString()}
+                </p>
+                {newBalance && (
+                  <p className={`text-xs font-bold mt-0.5 ${parseFloat(newBalance) >= (acc.starting_balance || 0) ? 'text-teal-600' : 'text-red-500'}`}>
+                    {parseFloat(newBalance) >= (acc.starting_balance || 0) ? '+' : ''}
+                    {symbol}{(parseFloat(newBalance) - (acc.starting_balance || 0)).toFixed(2)} P&L
+                  </p>
+                )}
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-teal-500" />
+              </div>
+            </div>
+
+            <div className="px-6 pb-2 space-y-4">
+              {/* New balance input */}
+              <div>
+                <label className="text-xs font-bold text-gray-700 mb-2 block">
+                  {lang === 'ar' ? 'الرصيد الجديد' : lang === 'fr' ? 'Nouveau solde' : 'New Balance'}
                 </label>
                 <div className="relative">
-                  <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
+                  <span className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">
                     {acc.currency === 'EUR' ? '€' : '$'}
                   </span>
                   <input
@@ -1462,33 +1498,28 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                     value={newBalance}
                     onChange={e => setNewBalance(e.target.value)}
                     autoFocus
-                    className="w-full ps-7 py-3 border-2 border-teal-200 rounded-2xl text-base font-black text-gray-900 focus:outline-none focus:border-teal-500"
+                    placeholder="e.g. 10500"
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 ps-8 pe-4 py-3.5 text-gray-900 font-bold text-sm focus:outline-none focus:border-teal-400 focus:bg-white transition-colors"
                   />
                 </div>
-                {newBalance && (
-                  <p className={`text-xs font-bold mt-1.5 ${parseFloat(newBalance) >= (acc.starting_balance || 0) ? 'text-teal-600' : 'text-red-500'}`}>
-                    {parseFloat(newBalance) >= (acc.starting_balance || 0) ? '+' : ''}
-                    ${(parseFloat(newBalance) - (acc.starting_balance || 0)).toFixed(2)} P&L
-                  </p>
-                )}
               </div>
 
               {/* Trailing floor — only for trailing accounts */}
               {(a.drawdown_type === 'eod_trailing' || a.drawdown_type === 'intraday_trailing') && (
                 <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1 block">
+                  <label className="text-xs font-bold text-gray-700 mb-1 block">
                     {lang === 'ar' ? 'الحد الأدنى المتتبع الحالي' : lang === 'fr' ? 'Plancher trailing actuel' : 'Current Trailing Floor'}
                   </label>
                   <p className="text-xs text-amber-600 mb-2">
                     {lang === 'ar' ? '⚠️ تحقق من قيمته في لوحة تحكم شركتك' : "⚠️ Check exact value in your firm's dashboard"}
                   </p>
                   <div className="relative">
-                    <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
+                    <span className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">$</span>
                     <input
                       type="number"
                       value={newFloor}
                       onChange={e => setNewFloor(e.target.value)}
-                      className="w-full ps-7 py-3 border-2 border-amber-200 rounded-2xl text-base font-semibold text-gray-900 focus:outline-none focus:border-amber-400"
+                      className="w-full rounded-2xl border border-amber-200 bg-gray-50 ps-8 pe-4 py-3.5 text-gray-900 font-semibold text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition-colors"
                     />
                   </div>
                   {newBalance && newFloor && (
@@ -1505,8 +1536,10 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                   )}
                 </div>
               )}
+            </div>
 
-              {/* Save */}
+            {/* Buttons */}
+            <div className="px-6 pb-6 pt-4 flex flex-col gap-3">
               <button
                 onClick={async () => {
                   if (!newBalance || isNaN(parseFloat(newBalance))) return;
@@ -1519,9 +1552,15 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                   if (onRefresh) onRefresh(); else window.location.reload();
                 }}
                 disabled={!newBalance}
-                className="w-full py-3.5 bg-teal-500 hover:bg-teal-600 disabled:bg-gray-100 disabled:text-gray-400 text-white font-black text-sm rounded-2xl transition-all"
+                className="w-full py-3.5 rounded-2xl bg-teal-500 hover:bg-teal-600 text-white font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {lang === 'ar' ? 'حفظ التحديث ✓' : lang === 'fr' ? 'Enregistrer ✓' : 'Save Update ✓'}
+                {lang === 'ar' ? 'حفظ الرصيد' : lang === 'fr' ? 'Enregistrer' : 'Save Balance'}
+              </button>
+              <button
+                onClick={() => setShowUpdateModal(false)}
+                className="w-full py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold text-sm transition-colors"
+              >
+                {lang === 'ar' ? 'إلغاء' : lang === 'fr' ? 'Annuler' : 'Cancel'}
               </button>
             </div>
           </div>

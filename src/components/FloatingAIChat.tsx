@@ -344,9 +344,9 @@ ${tradesContext || 'No trades yet'}`;
         {panelContent}
       </div>
 
-      {/* ── DESKTOP: slide-in panel (bottom-right corner) ── */}
-      <div className={`hidden md:flex fixed bottom-28 end-6 z-40 w-96 h-[600px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex-col transition-all duration-300 ease-out ${
-        isOpen ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0 pointer-events-none'
+      {/* ── DESKTOP: slide-in panel (left of buttons) ── */}
+      <div className={`hidden md:flex fixed bottom-8 end-24 z-40 w-96 h-[580px] bg-white rounded-3xl shadow-2xl border border-gray-100 flex-col transition-all duration-300 ease-out ${
+        isOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'
       }`}>
         {panelContent}
       </div>
