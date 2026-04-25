@@ -1826,14 +1826,14 @@ const DashboardPage = () => {
       ? trailingFloor : null;
 
     const profitTargetLevel = (() => {
-      if (!selectedEquityAccount) return null;
-      if (!isChallengeAccount) return null;
+      if (!selectedEquityAccount || isAll) return null;
       if (isFutures) {
-        const target = selectedEquityAccount.profit_target_dollars;
-        return target ? startBalance + target : null;
+        const target = (selectedEquityAccount as any).profit_target_dollars ?? 0;
+        return target > 0 ? +(startBalance + target).toFixed(2) : null;
       }
-      const pct = selectedEquityAccount.profit_target;
-      return pct && accountSize > 0 ? startBalance + (accountSize * pct / 100) : null;
+      const pct = selectedEquityAccount.profit_target ?? 0;
+      const sz = selectedEquityAccount.account_size ?? 0;
+      return pct > 0 && sz > 0 ? +(startBalance + (sz * pct / 100)).toFixed(2) : null;
     })();
 
     const futuresMaxLossLevel = isFutures && selectedEquityAccount?.max_loss_limit_dollars
@@ -2599,60 +2599,40 @@ const DashboardPage = () => {
                     );
                   }}
                 />
-                {/* Start balance reference — shown when there are limit levels to compare against */}
-                {(equityData.dangerLevel !== null || equityData.dailyLossLevel !== null || equityData.futuresMaxLossLevel !== null || equityData.futuresDailyLossLevel !== null) && (
-                  <ReferenceLine y={equityData.startBalance} stroke="#f59e0b" strokeDasharray="5 4" strokeWidth={1.5}
-                    label={{ value: lang === 'ar' ? 'البداية' : 'Start', position: 'insideTopRight', fill: '#f59e0b', fontSize: 9 }} />
+                {/* Start balance — always shown for single account */}
+                {equityAccountId !== 'all' && (
+                  <ReferenceLine y={equityData.startBalance} stroke="#94a3b8" strokeDasharray="5 4" strokeWidth={1.5}
+                    label={{ value: `$${equityData.startBalance.toLocaleString()}`, position: 'insideTopRight', fill: '#94a3b8', fontSize: 11, fontWeight: 700 }} />
                 )}
-                {/* Max drawdown — forex static accounts */}
+                {/* Max drawdown — forex */}
                 {equityData.dangerLevel !== null && (
                   <ReferenceLine y={equityData.dangerLevel} stroke="#ef4444" strokeDasharray="5 4" strokeWidth={1.5}
-                    label={{ value: lang === 'ar' ? 'حد السحب' : lang === 'fr' ? 'DD Max' : 'Max DD', position: 'insideBottomRight', fill: '#ef4444', fontSize: 9 }} />
+                    label={{ value: `$${equityData.dangerLevel.toLocaleString()}`, position: 'insideBottomRight', fill: '#ef4444', fontSize: 11, fontWeight: 700 }} />
                 )}
-                {/* Daily loss limit — forex static accounts */}
+                {/* Daily loss — forex */}
                 {equityData.dailyLossLevel !== null && (
-                  <ReferenceLine y={equityData.dailyLossLevel} stroke="#f97316" strokeDasharray="4 3" strokeWidth={1.5}
-                    label={{ value: lang === 'ar' ? 'خسارة يومية' : lang === 'fr' ? 'Perte/jour' : 'Daily Loss', position: 'insideBottomLeft', fill: '#f97316', fontSize: 9 }} />
+                  <ReferenceLine y={equityData.dailyLossLevel} stroke="#f59e0b" strokeDasharray="4 3" strokeWidth={1.5}
+                    label={{ value: `$${equityData.dailyLossLevel.toLocaleString()}`, position: 'insideBottomLeft', fill: '#f59e0b', fontSize: 11, fontWeight: 700 }} />
                 )}
                 {/* Trailing floor */}
                 {equityData.trailingFloorLevel !== null && (
-                  <ReferenceLine
-                    y={equityData.trailingFloorLevel}
-                    stroke="#f59e0b"
-                    strokeDasharray="6 3"
-                    strokeWidth={2}
-                    label={{ value: lang === 'ar' ? 'الحد المتتبع' : lang === 'fr' ? 'Plancher' : 'Floor', position: 'insideBottomRight', fill: '#f59e0b', fontSize: 9, fontWeight: 700 }}
-                  />
+                  <ReferenceLine y={equityData.trailingFloorLevel} stroke="#f59e0b" strokeDasharray="6 3" strokeWidth={2}
+                    label={{ value: `$${equityData.trailingFloorLevel.toLocaleString()}`, position: 'insideBottomRight', fill: '#f59e0b', fontSize: 11, fontWeight: 700 }} />
                 )}
                 {/* Profit target */}
                 {equityData.profitTargetLevel !== null && (
-                  <ReferenceLine
-                    y={equityData.profitTargetLevel}
-                    stroke="#0d9488"
-                    strokeDasharray="8 3"
-                    strokeWidth={1.5}
-                    label={{ value: lang === 'ar' ? 'هدف الربح' : lang === 'fr' ? 'Objectif' : 'Target', position: 'insideTopRight', fill: '#0d9488', fontSize: 9, fontWeight: 700 }}
-                  />
+                  <ReferenceLine y={equityData.profitTargetLevel} stroke="#14b8a6" strokeDasharray="8 3" strokeWidth={1.5}
+                    label={{ value: `$${equityData.profitTargetLevel.toLocaleString()}`, position: 'insideTopRight', fill: '#14b8a6', fontSize: 11, fontWeight: 700 }} />
                 )}
-                {/* Futures max loss limit */}
+                {/* Futures max loss */}
                 {equityData.futuresMaxLossLevel !== null && (
-                  <ReferenceLine
-                    y={equityData.futuresMaxLossLevel}
-                    stroke="#ef4444"
-                    strokeDasharray="5 4"
-                    strokeWidth={1.5}
-                    label={{ value: 'Max Loss', position: 'insideBottomRight', fill: '#ef4444', fontSize: 9 }}
-                  />
+                  <ReferenceLine y={equityData.futuresMaxLossLevel} stroke="#ef4444" strokeDasharray="5 4" strokeWidth={1.5}
+                    label={{ value: `$${equityData.futuresMaxLossLevel.toLocaleString()}`, position: 'insideBottomRight', fill: '#ef4444', fontSize: 11, fontWeight: 700 }} />
                 )}
-                {/* Futures daily loss limit */}
+                {/* Futures daily loss */}
                 {equityData.futuresDailyLossLevel !== null && (
-                  <ReferenceLine
-                    y={equityData.futuresDailyLossLevel}
-                    stroke="#f97316"
-                    strokeDasharray="4 3"
-                    strokeWidth={1.5}
-                    label={{ value: lang === 'ar' ? 'يومي' : 'Daily', position: 'insideBottomLeft', fill: '#f97316', fontSize: 9 }}
-                  />
+                  <ReferenceLine y={equityData.futuresDailyLossLevel} stroke="#f59e0b" strokeDasharray="4 3" strokeWidth={1.5}
+                    label={{ value: `$${equityData.futuresDailyLossLevel.toLocaleString()}`, position: 'insideBottomLeft', fill: '#f59e0b', fontSize: 11, fontWeight: 700 }} />
                 )}
                 {equityAccountId !== 'all' && equityData.points.some(p => (p as any).floor !== null) && (() => {
                   const floorVals = equityData.points.map(p => (p as any).floor as number).filter(f => f !== null);
