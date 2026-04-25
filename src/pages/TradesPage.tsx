@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo, KeyboardEvent, DragEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useSwipeToDismiss } from '@/hooks/useSwipeToDismiss';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -1230,6 +1231,7 @@ const TradesPage = () => {
   const [ratingFilter, setRatingFilter] = useState(0);       // 0 = all, 1-5 = min stars
   const [unreviewedOnly, setUnreviewedOnly] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
+  const [panelVisible, setPanelVisible] = useState(false);
   const [editTags, setEditTags] = useState<string[]>([]);
   const [editNotes, setEditNotes] = useState('');
   const [editRating, setEditRating] = useState(0);
@@ -1655,12 +1657,14 @@ const TradesPage = () => {
       .upsert({ user_id: user.id, custom_tags: tags }, { onConflict: 'user_id' });
   };
 
-  // Lock body scroll and signal floating buttons when detail panel is open
+  // Lock body scroll, signal floating buttons, and drive panel CSS transition
   useEffect(() => {
     if (selectedTrade) {
       document.body.style.overflow = 'hidden';
       document.body.classList.add('panel-open');
+      requestAnimationFrame(() => setPanelVisible(true));
     } else {
+      setPanelVisible(false);
       document.body.style.overflow = '';
       document.body.classList.remove('panel-open');
     }
@@ -1732,6 +1736,11 @@ const TradesPage = () => {
     setEditEmotion((trade as any).emotion_tag ?? null);
     setEditFollowedRules((trade as any).followed_rules ?? null);
     setEditStrategyId((trade as any).strategy_id ?? null);
+  };
+
+  const closePanel = () => {
+    setPanelVisible(false);
+    setTimeout(() => setSelectedTrade(null), 300);
   };
 
   const toggleTag = (tag: string) => {
@@ -1819,7 +1828,7 @@ const TradesPage = () => {
       const updated = { ...selectedTrade, ...updatePayload } as Trade;
       setTrades(prev => prev.map(tr => tr.id === selectedTrade.id ? updated : tr));
       toast.success(lang === 'ar' ? 'تم الحفظ' : lang === 'fr' ? 'Enregistré' : 'Saved!');
-      setSelectedTrade(null);
+      closePanel();
     }
   };
 
@@ -1871,6 +1880,7 @@ const TradesPage = () => {
       await supabase.from('trades').delete().eq('id', ids[0]);
       setTrades(prev => prev.filter(tr => tr.id !== ids[0]));
       setSelectedIds(prev => { const next = new Set(prev); next.delete(ids[0]); return next; });
+      if (selectedTrade?.id === ids[0]) closePanel();
       toast.success(lang === 'ar' ? 'تم الحذف' : lang === 'fr' ? 'Supprimé' : 'Trade deleted');
     } else {
       setDeletingBulk(true);
@@ -2015,7 +2025,7 @@ const TradesPage = () => {
       <div className={`bg-gradient-to-r ${detailHeaderGradient} px-5 py-4 flex-shrink-0`}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${editDirection === 'BUY' ? 'bg-green-500/30 text-white' : 'bg-red-600/40 text-white'}`}>
+            <span className={`text-xs font-black px-3 py-1.5 rounded-xl border-2 ${editDirection === 'BUY' ? 'bg-white text-teal-600 border-white' : 'bg-white text-red-500 border-white'}`}>
               {editDirection}
             </span>
             <input
@@ -2033,7 +2043,7 @@ const TradesPage = () => {
               className="w-8 h-8 rounded-xl bg-white/20 hover:bg-red-500/50 flex items-center justify-center transition-colors">
               <Trash2 className="h-4 w-4 text-white" />
             </button>
-            <button type="button" onClick={() => setSelectedTrade(null)}
+            <button type="button" onClick={closePanel}
               className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
               <X className="h-4 w-4 text-white" />
             </button>
@@ -3405,27 +3415,34 @@ const TradesPage = () => {
         }}
       />
 
-      {/* ── Detail Panel ── */}
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 bg-black/30 z-40 backdrop-blur-sm transition-opacity duration-300 ${
-          selectedTrade ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={() => setSelectedTrade(null)}
-      />
-      {/* Mobile bottom sheet */}
-      <div className={`sm:hidden fixed inset-x-0 bottom-0 z-50 h-[92vh] rounded-t-3xl bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
-        selectedTrade ? 'translate-y-0' : 'translate-y-full'
-      }`}>
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 flex-shrink-0" />
-        {detailPanelContent}
-      </div>
-      {/* Desktop side panel */}
-      <div className={`hidden sm:flex fixed top-0 end-0 h-screen w-[480px] bg-white shadow-2xl z-50 flex-col transition-transform duration-300 ease-out ${
-        selectedTrade ? 'translate-x-0' : (lang === 'ar' ? '-translate-x-full' : 'translate-x-full')
-      }`}>
-        {detailPanelContent}
-      </div>
+      {/* ── Detail Panel — rendered via portal directly into document.body ── */}
+      {selectedTrade && createPortal(
+        <>
+          {/* Backdrop */}
+          <div
+            className={`fixed inset-0 bg-black/30 z-[998] backdrop-blur-sm transition-opacity duration-300 ${
+              panelVisible ? 'opacity-100' : 'opacity-0'
+            }`}
+            onClick={closePanel}
+          />
+
+          {/* Mobile bottom sheet */}
+          <div className={`sm:hidden fixed inset-x-0 bottom-0 z-[999] h-[92vh] rounded-t-3xl bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+            panelVisible ? 'translate-y-0' : 'translate-y-full'
+          }`}>
+            <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 mb-2 flex-shrink-0" />
+            {detailPanelContent}
+          </div>
+
+          {/* Desktop side panel */}
+          <div className={`hidden sm:flex fixed top-0 end-0 h-screen w-[480px] bg-white shadow-2xl z-[999] flex-col transition-transform duration-300 ease-out ${
+            panelVisible ? 'translate-x-0' : (lang === 'ar' ? '-translate-x-full' : 'translate-x-full')
+          }`}>
+            {detailPanelContent}
+          </div>
+        </>,
+        document.body
+      )}
 
       {/* ── Manage Setups Modal ── */}
       <Dialog open={showManageSetups} onOpenChange={setShowManageSetups}>
