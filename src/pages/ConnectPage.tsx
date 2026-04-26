@@ -1095,7 +1095,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
     if (!userId || !acc.id) return;
     supabase
       .from('trades')
-      .select('profit, commission, close_time')
+      .select('profit, commission, close_time, account_id')
       .eq('account_id', acc.id)
       .eq('user_id', userId)
       .then(({ data }) => {
@@ -1130,7 +1130,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
 
   const a = acc as any;
   const isFuturesCard = a.account_category === 'futures';
-  const start = acc.starting_balance ?? 0;
+  const start = acc.starting_balance ?? acc.account_size ?? 0;
   const curr = acc.balance ?? 0;
   const accountSize = acc.account_size ?? start;
   const symbol = (acc.currency ?? 'USD') === 'EUR' ? '€' : '$';
@@ -1138,14 +1138,20 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const effectivePnl = tradePnl !== null ? tradePnl : curr - start;
   const effectiveTodayPnl = todayPnl ?? 0;
 
+  // Filter to this account's trades, sorted ascending
+  const thisAccTrades = allTradesSorted
+    .filter((tr: any) => tr.account_id === acc.id)
+    .sort((a: any, b: any) => new Date(a.close_time).getTime() - new Date(b.close_time).getTime());
+
   // Unified drawdown floors (for DD floor row display)
-  const floors = getDrawdownFloors(acc, curr, allTradesSorted);
+  const floors = getDrawdownFloors(acc, curr, thisAccTrades);
   const isTrailingDrawdown = floors.drawdownType === 'eod_trailing' || floors.drawdownType === 'intraday_trailing';
 
   // Inline HWM: static uses start as reference, trailing uses running peak
   const accDrawdownType = (acc as any).drawdown_type ?? 'static';
-  let accHwm = start; let accRunBal = start;
-  for (const tr of allTradesSorted) {
+  const effectiveStart = acc.starting_balance ?? acc.account_size ?? 0;
+  let accHwm = effectiveStart; let accRunBal = effectiveStart;
+  for (const tr of thisAccTrades) {
     accRunBal += (tr.profit ?? 0) - (tr.commission ?? 0);
     if (accRunBal > accHwm) accHwm = accRunBal;
   }
@@ -1154,9 +1160,10 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
     ? Math.max(0, start - curr)
     : Math.max(0, accHwm - curr);
 
-  // Forex DD
-  const ddLimitPct = acc.max_drawdown_limit ?? 0;
-  const ddLimitAmt = (accountSize) * (ddLimitPct / 100);
+  // DD limit — handles both forex and futures
+  const ddLimitAmt = isFuturesCard
+    ? (a.max_loss_limit_dollars ?? 0)
+    : (accountSize * ((acc.max_drawdown_limit ?? 0) / 100));
   const ddUsedAmt = ddConsumed;
   const ddPct = ddLimitAmt > 0 ? Math.min((ddUsedAmt / ddLimitAmt) * 100, 100) : 0;
 
