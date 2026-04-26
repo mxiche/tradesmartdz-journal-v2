@@ -2746,15 +2746,10 @@ const DashboardPage = () => {
                   : (size * ((acc.max_drawdown_limit ?? 0) / 100));
                 const ddDropped = Math.max(0, floors.highWaterMark - currentBal);
                 const ddUsedPct = maxLossDollars > 0 ? Math.min((ddDropped / maxLossDollars) * 100, 100) : 0;
-                const ddPct = maxLossDollars > 0 ? Math.min((ddDropped / maxLossDollars) * 100, 100) : 0;
 
                 // Daily loss
-                const dailyLossTrades = accTrades.filter(tr => {
-                  if (!tr.close_time) return false;
-                  const d = new Date(tr.close_time);
-                  const today = new Date();
-                  return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
-                });
+                const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+                const dailyLossTrades = accTrades.filter(tr => tr.close_time && new Date(tr.close_time) >= todayStart);
                 const dailyPnl = dailyLossTrades.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
                 const dailyLossDollars = isFuturesAcc
                   ? (a.daily_loss_limit_dollars ?? 0)
@@ -2774,27 +2769,27 @@ const DashboardPage = () => {
                 const bufferPct = bufferAmount !== null && maxLossDollars > 0 ? (bufferAmount / maxLossDollars) * 100 : null;
 
                 const hasPropRules = maxLossDollars > 0 || dailyLossDollars > 0 || profitTargetDollars > 0;
-                const isDdDanger = ddPct >= 80;
-                const isDailyDanger = dailyPct >= 80;
+                const status = ddUsedPct >= 90 || dailyPct >= 90 ? 'danger'
+                  : ddUsedPct >= 70 || dailyPct >= 70 ? 'warning'
+                  : 'safe';
                 return (
                   <div key={acc.id} className="space-y-3">
                     <AccountCard acc={acc} lang={lang} compact userId={user?.id} />
                     {hasPropRules && (
-                      <div className={`rounded-xl border p-3 space-y-2.5 ${isDdDanger || isDailyDanger ? 'border-loss/40 bg-loss/5' : 'border-border bg-card'}`}>
-                        {(isDdDanger || isDailyDanger) && (
-                          <div className="flex items-center gap-1.5 text-xs text-loss font-semibold">
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            {lang === 'ar' ? 'تحذير: اقتربت من الحد' : lang === 'fr' ? 'Attention: limite proche' : 'Warning: limit approaching'}
-                          </div>
-                        )}
+                      <div className={`rounded-xl border p-3 space-y-2.5 ${status === 'danger' ? 'border-loss/40 bg-loss/5' : status === 'warning' ? 'border-amber-400/40 bg-amber-50/30 dark:bg-amber-900/10' : 'border-border bg-card'}`}>
+                        <div className="flex items-center gap-1.5 text-xs font-semibold">
+                          {status === 'danger' && <><AlertTriangle className="h-3.5 w-3.5 text-loss" /><span className="text-loss">{lang === 'ar' ? '⚠ خطر' : lang === 'fr' ? '⚠ Danger' : '⚠ Danger'}</span></>}
+                          {status === 'warning' && <><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /><span className="text-amber-500">{lang === 'ar' ? '⚠ تحذير' : lang === 'fr' ? '⚠ Attention' : '⚠ Warning'}</span></>}
+                          {status === 'safe' && <span className="text-profit">✅ {lang === 'ar' ? 'آمن' : lang === 'fr' ? 'Sûr' : 'Safe'}</span>}
+                        </div>
                         {maxLossDollars > 0 && (
                           <div className="space-y-1">
                             <div className="flex justify-between text-[10px] text-muted-foreground">
                               <span className="flex items-center gap-1"><Shield className="h-3 w-3" />{lang === 'ar' ? 'الحد الأقصى للسحب' : lang === 'fr' ? 'DD Max' : 'Max Drawdown'}</span>
-                              <span className={isDdDanger ? 'text-loss font-semibold' : ''}>${ddDropped.toLocaleString(undefined, { maximumFractionDigits: 0 })} / ${maxLossDollars.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                              <span className={ddUsedPct >= 90 ? 'text-loss font-semibold' : ddUsedPct >= 70 ? 'text-amber-500 font-semibold' : ''}>${ddDropped.toLocaleString(undefined, { maximumFractionDigits: 0 })} / ${maxLossDollars.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                             </div>
                             <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
-                              <div className={`h-full rounded-full transition-[width] duration-500 ${ddPct >= 80 ? 'bg-loss' : ddPct >= 50 ? 'bg-yellow-400' : 'bg-[#22c55e]'}`} style={{ width: `${ddPct}%` }} />
+                              <div className={`h-full rounded-full transition-[width] duration-500 ${ddUsedPct >= 90 ? 'bg-loss' : ddUsedPct >= 70 ? 'bg-yellow-400' : 'bg-[#22c55e]'}`} style={{ width: `${ddUsedPct}%` }} />
                             </div>
                           </div>
                         )}
@@ -2802,10 +2797,10 @@ const DashboardPage = () => {
                           <div className="space-y-1">
                             <div className="flex justify-between text-[10px] text-muted-foreground">
                               <span>{lang === 'ar' ? 'الخسارة اليومية' : lang === 'fr' ? 'Perte/jour' : 'Daily Loss'}</span>
-                              <span className={isDailyDanger ? 'text-loss font-semibold' : ''}>${dailyLossUsed.toLocaleString(undefined, { maximumFractionDigits: 0 })} / ${dailyLossDollars.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                              <span className={dailyPct >= 90 ? 'text-loss font-semibold' : dailyPct >= 70 ? 'text-amber-500 font-semibold' : ''}>${dailyLossUsed.toLocaleString(undefined, { maximumFractionDigits: 0 })} / ${dailyLossDollars.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                             </div>
                             <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
-                              <div className={`h-full rounded-full transition-[width] duration-500 ${dailyPct >= 80 ? 'bg-loss' : dailyPct >= 50 ? 'bg-yellow-400' : 'bg-[#22c55e]'}`} style={{ width: `${dailyPct}%` }} />
+                              <div className={`h-full rounded-full transition-[width] duration-500 ${dailyPct >= 90 ? 'bg-loss' : dailyPct >= 70 ? 'bg-yellow-400' : 'bg-[#22c55e]'}`} style={{ width: `${dailyPct}%` }} />
                             </div>
                           </div>
                         )}
@@ -2832,7 +2827,7 @@ const DashboardPage = () => {
                                   {lang === 'ar' ? '🔒 المنطقة الآمنة' : lang === 'fr' ? '🔒 Zone sûre' : '🔒 Safe Zone'}
                                 </span>
                               ) : (
-                                <span className={`font-semibold ${bufferPct !== null && bufferPct < 15 ? 'text-loss' : bufferPct !== null && bufferPct < 30 ? 'text-amber-500' : ''}`}>
+                                <span className={`font-semibold ${bufferPct !== null && bufferPct <= 25 ? 'text-loss' : bufferPct !== null && bufferPct <= 50 ? 'text-amber-500' : ''}`}>
                                   ${bufferAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                 </span>
                               )}
@@ -2840,7 +2835,7 @@ const DashboardPage = () => {
                             {!floors.isLocked && (
                               <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full transition-[width] duration-500 ${bufferPct !== null && bufferPct < 15 ? 'bg-loss' : bufferPct !== null && bufferPct < 30 ? 'bg-yellow-400' : 'bg-[#22c55e]'}`}
+                                  className={`h-full rounded-full transition-[width] duration-500 ${bufferPct !== null && bufferPct <= 25 ? 'bg-loss' : bufferPct !== null && bufferPct <= 50 ? 'bg-yellow-400' : 'bg-[#22c55e]'}`}
                                   style={{ width: `${Math.min(100, bufferPct ?? 0)}%` }}
                                 />
                               </div>
