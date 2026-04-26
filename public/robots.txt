@@ -1,14 +1,12 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
 User-agent: *
 Allow: /
+Disallow: /dashboard
+Disallow: /trades
+Disallow: /analytics
+Disallow: /connect
+Disallow: /calendar
+Disallow: /journal
+Disallow: /ai-coach
+Disallow: /settings
+
+Sitemap: https://tradesmartdz.com/sitemap.xml

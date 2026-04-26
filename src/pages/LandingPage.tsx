@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Logo } from '@/components/Logo';
 import { Language } from '@/lib/i18n';
@@ -98,6 +99,24 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-white" dir={isAr ? 'rtl' : 'ltr'}>
+      <Helmet>
+        <html lang={lang === 'ar' ? 'ar' : lang === 'fr' ? 'fr' : 'en'} />
+        <title>
+          {lang === 'ar'
+            ? 'TradeSmartDz — مجلة التداول الاحترافية للعرب'
+            : lang === 'fr'
+            ? 'TradeSmartDz — Journal de Trading Professionnel Arabe'
+            : 'TradeSmartDz — Professional Arabic Trading Journal'}
+        </title>
+        <meta name="description" content={
+          lang === 'ar'
+            ? 'مجلة تداول احترافية للعرب — تتبع صفقاتك، راقب حسابات البروب فيرم، وحلل أداءك. تدعم FTMO و FundingPips و Alpha Capital.'
+            : lang === 'fr'
+            ? 'Journal de trading professionnel pour traders arabes — Suivez vos trades, surveillez vos comptes prop firm, analysez vos performances.'
+            : 'Professional trading journal for Arab traders — Track trades, monitor prop firm accounts, analyze performance. Supports FTMO, FundingPips, Alpha Capital.'
+        } />
+        <link rel="canonical" href="https://tradesmartdz.com/" />
+      </Helmet>
 
       {/* ── NAVBAR ── */}
       <nav className={`sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100 transition-all duration-300 ${scrolled ? 'shadow-lg shadow-gray-200/50' : 'shadow-none'}`}>
@@ -196,7 +215,7 @@ const LandingPage = () => {
       </nav>
 
       {/* ── HERO ── */}
-      <section className="relative overflow-hidden bg-white pt-20 pb-16 md:pb-24">
+      <section aria-label="hero" className="relative overflow-hidden bg-white pt-20 pb-16 md:pb-24">
         {/* Background blobs */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 right-0 w-96 h-96 bg-teal-50 rounded-full blur-3xl opacity-60 -translate-y-1/2 translate-x-1/2" />
@@ -408,7 +427,7 @@ const LandingPage = () => {
       <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
 
       {/* ── FEATURES ── */}
-      <section id="features" className="py-24 bg-white">
+      <section id="features" aria-label="features" className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4">
           <div ref={featuresAnim.ref}>
             <div className="text-center mb-16">
@@ -450,7 +469,7 @@ const LandingPage = () => {
       <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
 
       {/* ── HOW IT WORKS ── */}
-      <section id="how" className="py-24 bg-gray-50">
+      <section id="how" aria-label="how-it-works" className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
           <div ref={howAnim.ref}>
             <div className="text-center mb-16">
@@ -488,7 +507,7 @@ const LandingPage = () => {
       <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
 
       {/* ── PRICING ── */}
-      <section id="pricing" className="py-24 bg-white">
+      <section id="pricing" aria-label="pricing" className="py-24 bg-white">
         <div className="max-w-5xl mx-auto px-4">
           <div ref={pricingAnim.ref}>
             <div className="text-center mb-6">
@@ -570,7 +589,7 @@ const LandingPage = () => {
       <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
 
       {/* ── TESTIMONIALS ── */}
-      <section className="py-24 bg-gray-50">
+      <section aria-label="testimonials" className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
           <div ref={testimonialsAnim.ref}>
             <h2 className="text-3xl font-black text-gray-900 text-center mb-12">{t('landing_testimonials_title')}</h2>
@@ -640,7 +659,7 @@ const LandingPage = () => {
       <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
 
       {/* ── FAQ ── */}
-      <section className="py-24 bg-white">
+      <section aria-label="faq" className="py-24 bg-white">
         <div className="max-w-3xl mx-auto px-4">
           <h2 className="text-3xl font-black text-gray-900 text-center mb-12">{t('landing_faq_title')}</h2>
           <div className="space-y-4">
@@ -679,7 +698,7 @@ const LandingPage = () => {
       </section>
 
       {/* ── FINAL CTA ── */}
-      <section className="py-16 md:py-24 bg-gradient-to-br from-teal-600 to-teal-700">
+      <section aria-label="cta" className="py-16 md:py-24 bg-gradient-to-br from-teal-600 to-teal-700">
         <div className="max-w-3xl mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-black text-white mb-4">{t('landing_cta_title')}</h2>
           <p className="text-teal-100 text-lg mb-8">{t('landing_cta_subtitle')}</p>
@@ -700,14 +719,14 @@ const LandingPage = () => {
             <div className="[&_.logo-text]:text-white [&_.logo-dz]:text-teal-400">
               <Logo size="sm" />
             </div>
-            <div className="flex items-center gap-6 text-sm">
+            <address className="not-italic flex items-center gap-6 text-sm">
               <a href="mailto:tradesmartdz2@gmail.com" className="hover:text-teal-400 transition-colors">
                 {t('landing_footer_support')}
               </a>
               <a href="https://t.me/tradesmartdzz" className="hover:text-teal-400 transition-colors">
                 Telegram
               </a>
-            </div>
+            </address>
             <p className="text-sm">
               © {new Date().getFullYear()} TradeSmartDz — {t('landing_footer_rights')}
             </p>
