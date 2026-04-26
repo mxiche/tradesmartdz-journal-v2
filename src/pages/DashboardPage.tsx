@@ -2763,10 +2763,9 @@ const DashboardPage = () => {
                   : (size * ((acc.profit_target ?? 0) / 100));
                 const profitPct = profitTargetDollars > 0 ? Math.min((accPnl / profitTargetDollars) * 100, 100) : 0;
 
-                // Trailing buffer
+                // DD floor (trailing accounts)
                 const isTrailingAcc = a.drawdown_type === 'eod_trailing' || a.drawdown_type === 'intraday_trailing';
-                const bufferAmount = floors.maxLossFloor !== null ? currentBal - floors.maxLossFloor : null;
-                const bufferPct = bufferAmount !== null && maxLossDollars > 0 ? (bufferAmount / maxLossDollars) * 100 : null;
+                const ddFloor = floors.maxLossFloor;
 
                 const hasPropRules = maxLossDollars > 0 || dailyLossDollars > 0 || profitTargetDollars > 0;
                 const status = ddUsedPct >= 90 || dailyPct >= 90 ? 'danger'
@@ -2815,31 +2814,22 @@ const DashboardPage = () => {
                             </div>
                           </div>
                         )}
-                        {isTrailingAcc && bufferAmount !== null && (
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-[10px] text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Shield className="h-3 w-3" />
-                                {lang === 'ar' ? 'الهامش المتتبع' : lang === 'fr' ? 'Buffer trailing' : 'Trailing Buffer'}
-                              </span>
-                              {floors.isLocked ? (
-                                <span className="text-profit font-semibold">
-                                  {lang === 'ar' ? '🔒 المنطقة الآمنة' : lang === 'fr' ? '🔒 Zone sûre' : '🔒 Safe Zone'}
-                                </span>
-                              ) : (
-                                <span className={`font-semibold ${bufferPct !== null && bufferPct <= 25 ? 'text-loss' : bufferPct !== null && bufferPct <= 50 ? 'text-amber-500' : ''}`}>
-                                  ${bufferAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                </span>
-                              )}
+                        {isTrailingAcc && ddFloor !== null && (
+                          <div className="flex justify-between items-start text-[10px] text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Shield className="h-3 w-3" />
+                              {lang === 'ar' ? 'حد السحب المتحرك' : lang === 'fr' ? 'Plancher flottant' : 'DD Floor'}
+                            </span>
+                            <div className="text-end">
+                              <p className="text-sm font-bold text-teal-600">
+                                ${ddFloor.toLocaleString(undefined, { maximumFractionDigits: 0 })}{floors.isLocked ? ' 🔒' : ''}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {floors.isLocked
+                                  ? (lang === 'ar' ? 'الحد مقفل — حسابك في أمان' : lang === 'fr' ? 'Plancher verrouillé — compte sûr' : 'Floor locked — account is safe')
+                                  : (lang === 'ar' ? 'الحد الأدنى المتحرك لرصيدك' : lang === 'fr' ? 'Plancher mobile de votre solde' : 'Your trailing balance floor')}
+                              </p>
                             </div>
-                            {!floors.isLocked && (
-                              <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-[width] duration-500 ${bufferPct !== null && bufferPct <= 25 ? 'bg-loss' : bufferPct !== null && bufferPct <= 50 ? 'bg-yellow-400' : 'bg-[#22c55e]'}`}
-                                  style={{ width: `${Math.min(100, bufferPct ?? 0)}%` }}
-                                />
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>
