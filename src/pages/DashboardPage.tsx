@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import {
   TrendingUp, TrendingDown, Loader2, Plus, ChevronLeft, ChevronRight, Camera, X, Download,
   Lightbulb, Target, Shield, AlertTriangle, CalendarDays, BarChart2,
-  Send, CheckCircle2, Bell,
+  Send, CheckCircle2, Bell, BellOff,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { t } from '@/lib/i18n';
@@ -1434,7 +1435,9 @@ function QuickAddTrade({
 const DashboardPage = () => {
   const { t, language } = useLanguage();
   const lang = language as 'ar'|'fr'|'en';
-  const { user } = useAuth();
+  const { user, userPlan, userStatus } = useAuth();
+  const navigate = useNavigate();
+  const isPro = userPlan === 'pro' || userStatus === 'trial';
 
   const [trades, setTrades]     = useState<Trade[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -1672,16 +1675,15 @@ const DashboardPage = () => {
         .maybeSingle();
       const chatId = data?.telegram_chat_id;
       if (chatId) {
-        // Already connected — show nothing
         setTelegramChatId(chatId);
         return;
       }
+      // Free users: no banner, no modal
+      if (!isPro) return;
       if (localStorage.getItem('tg_onboard_dismissed')) {
-        // Dismissed before but not connected — show banner only
         setShowTgBanner(true);
         return;
       }
-      // First time — show modal after 2s
       timer = setTimeout(() => setShowTelegramModal(true), 2000);
     })();
     return () => {
@@ -2007,7 +2009,10 @@ const DashboardPage = () => {
       )}
 
       {/* ── TELEGRAM ONBOARDING MODAL ── */}
-      <Dialog open={showTelegramModal} onOpenChange={(o) => { if (!o && !tgConnected) { stopTgPolling(); setShowTelegramModal(false); localStorage.setItem('tg_onboard_dismissed', '1'); setShowTgBanner(true); } }}>
+      <Dialog open={showTelegramModal && isPro} onOpenChange={(o) => {
+        if (!isPro) { setShowTelegramModal(false); navigate('/settings?tab=subscription'); return; }
+        if (!o && !tgConnected) { stopTgPolling(); setShowTelegramModal(false); localStorage.setItem('tg_onboard_dismissed', '1'); setShowTgBanner(true); }
+      }}>
         <DialogContent className="max-w-sm rounded-3xl border-0 p-0 overflow-hidden">
           <div className="border-t-4 border-teal-500 rounded-3xl bg-white">
             <div className="p-6 space-y-5">
@@ -2191,8 +2196,8 @@ const DashboardPage = () => {
         </Card>
       </div>
 
-      {/* ── TELEGRAM BANNER (dismissed but not yet connected) ── */}
-      {showTgBanner && !tgBannerHidden && !telegramChatId && (
+      {/* ── TELEGRAM BANNER — Case 1: isPro, no telegram, dismissed ── */}
+      {isPro && showTgBanner && !tgBannerHidden && !telegramChatId && (
         <div className={`rounded-2xl border border-teal-200 bg-gradient-to-r from-teal-50 to-white p-4 flex items-center justify-between gap-3 shadow-sm ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
           <div className={`flex items-center gap-3 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
             <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center flex-shrink-0">
@@ -2225,6 +2230,35 @@ const DashboardPage = () => {
               <X className="w-3.5 h-3.5 text-gray-400" />
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── TELEGRAM BANNER — Case 3: not isPro, has telegram (trial expired while connected) ── */}
+      {!isPro && telegramChatId && (
+        <div className={`rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white p-4 flex items-center justify-between gap-3 shadow-sm ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+          <div className={`flex items-center gap-3 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
+            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <BellOff className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-900">
+                {lang === 'ar' ? 'إشعارات تيليغرام متوقفة' : lang === 'fr' ? 'Notifications Telegram en pause' : 'Telegram notifications paused'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {lang === 'ar'
+                  ? 'قم بالترقية إلى Pro لاستئناف التقارير اليومية'
+                  : lang === 'fr'
+                  ? 'Passez à Pro pour reprendre les rapports quotidiens'
+                  : 'Upgrade to Pro to resume daily reports'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/settings?tab=subscription')}
+            className="text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold transition-colors flex-shrink-0"
+          >
+            {lang === 'ar' ? 'ترقية' : lang === 'fr' ? 'Passer à Pro' : 'Upgrade to Pro'}
+          </button>
         </div>
       )}
 
