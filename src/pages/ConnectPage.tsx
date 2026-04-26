@@ -1018,6 +1018,58 @@ const ConnectPage = () => {
   );
 };
 
+// ---- Drawdown floors (mirrors DashboardPage logic) ----
+function getDrawdownFloors(
+  account: any,
+  currentBalance: number,
+  sortedTrades: any[]
+): { maxLossFloor: number | null; dailyFloor: number | null; highWaterMark: number; isLocked: boolean; drawdownType: string } {
+  if (!account) return { maxLossFloor: null, dailyFloor: null, highWaterMark: currentBalance, isLocked: false, drawdownType: 'static' };
+
+  const isFutures = account.account_category === 'futures';
+  const startBal: number = account.starting_balance ?? account.account_size ?? 0;
+  const drawdownType: string = account.drawdown_type ?? 'static';
+
+  const maxLossDollars: number = isFutures
+    ? (account.max_loss_limit_dollars ?? 0)
+    : ((account.account_size ?? 0) * ((account.max_drawdown_limit ?? 0) / 100));
+
+  const dailyLossDollars: number = isFutures
+    ? (account.daily_loss_limit_dollars ?? 0)
+    : ((account.account_size ?? 0) * ((account.daily_loss_limit ?? 0) / 100));
+
+  if (drawdownType === 'static') {
+    return {
+      maxLossFloor: maxLossDollars > 0 ? startBal - maxLossDollars : null,
+      dailyFloor: dailyLossDollars > 0 ? currentBalance - dailyLossDollars : null,
+      highWaterMark: currentBalance,
+      isLocked: false,
+      drawdownType,
+    };
+  }
+
+  // EOD trailing / intraday trailing
+  let runningBalance = startBal;
+  let highWaterMark = startBal;
+  for (const trade of sortedTrades) {
+    const netPnl = (trade.profit ?? 0) - ((trade.commission ?? 0));
+    runningBalance += netPnl;
+    if (runningBalance > highWaterMark) highWaterMark = runningBalance;
+  }
+  highWaterMark = Math.max(highWaterMark, currentBalance);
+
+  const isLocked = maxLossDollars > 0 && highWaterMark >= startBal + maxLossDollars;
+
+  let maxLossFloor: number | null = null;
+  if (maxLossDollars > 0) {
+    maxLossFloor = isLocked ? startBal : +(highWaterMark - maxLossDollars).toFixed(2);
+  }
+
+  const dailyFloor = dailyLossDollars > 0 ? +(currentBalance - dailyLossDollars).toFixed(2) : null;
+
+  return { maxLossFloor, dailyFloor, highWaterMark, isLocked, drawdownType };
+}
+
 // ---- Account Card ----
 interface AccountCardProps {
   acc: Account;
@@ -1033,6 +1085,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const [tradePnl, setTradePnl] = useState<number | null>(null);
   const [todayPnl, setTodayPnl] = useState<number | null>(null);
   const [monthlyTrades, setMonthlyTrades] = useState<any[]>([]);
+  const [allTradesSorted, setAllTradesSorted] = useState<any[]>([]);
   // FIX 1: modal state
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [newBalance, setNewBalance] = useState('');
@@ -1054,6 +1107,10 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
           .reduce((s, tr) => s + (tr.profit ?? 0), 0);
         setTradePnl(total);
         setTodayPnl(todaySum);
+        const sorted = [...data]
+          .filter(tr => tr.close_time)
+          .sort((a, b) => new Date(a.close_time!).getTime() - new Date(b.close_time!).getTime());
+        setAllTradesSorted(sorted);
       });
   }, [userId, acc.id]);
 
@@ -1081,15 +1138,20 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const effectivePnl = tradePnl !== null ? tradePnl : curr - start;
   const effectiveTodayPnl = todayPnl ?? 0;
 
+  // Unified drawdown floors (correct for static + trailing)
+  const floors = getDrawdownFloors(acc, curr, allTradesSorted);
+  const ddConsumed = Math.max(0, floors.highWaterMark - curr);
+  const isTrailingDrawdown = floors.drawdownType === 'eod_trailing' || floors.drawdownType === 'intraday_trailing';
+
   // Forex DD
   const ddLimitPct = acc.max_drawdown_limit ?? 0;
-  const ddLimitAmt = start * (ddLimitPct / 100);
-  const ddUsedAmt = Math.max(0, start - curr);
+  const ddLimitAmt = (accountSize) * (ddLimitPct / 100);
+  const ddUsedAmt = ddConsumed;
   const ddPct = ddLimitAmt > 0 ? Math.min((ddUsedAmt / ddLimitAmt) * 100, 100) : 0;
 
   // Forex Daily Loss
   const dailyLossPctLimit = acc.daily_loss_limit ?? 0;
-  const dailyLossLimitAmt = start * (dailyLossPctLimit / 100);
+  const dailyLossLimitAmt = accountSize * (dailyLossPctLimit / 100);
   const todayLossAmt = Math.max(0, -effectiveTodayPnl);
   const dailyLossPct = dailyLossLimitAmt > 0 ? Math.min((todayLossAmt / dailyLossLimitAmt) * 100, 100) : 0;
 
@@ -1100,10 +1162,8 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const profitPct = accountSize > 0 ? (effectivePnl / accountSize) * 100 : 0;
 
   // Futures
-  const futuresTrailingFloor = a.trailing_floor ?? null;
-  const futuresBuffer = futuresTrailingFloor != null ? curr - futuresTrailingFloor : null;
   const futuresDDLimit = a.max_loss_limit_dollars ?? 0;
-  const futuresDDUsed = Math.max(0, start - curr);
+  const futuresDDUsed = ddConsumed;
   const futuresDDPct = futuresDDLimit > 0 ? Math.min((futuresDDUsed / futuresDDLimit) * 100, 100) : 0;
   const futuresDailyLimit = a.daily_loss_limit_dollars ?? 0;
   const futuresDailyPct = futuresDailyLimit > 0 ? Math.min((todayLossAmt / futuresDailyLimit) * 100, 100) : 0;
@@ -1152,10 +1212,8 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   }
 
   // Status
-  const isDanger = ddPct >= 90 || dailyLossPct >= 90 || futuresDDPct >= 90 || futuresDailyPct >= 90 ||
-    (futuresBuffer != null && futuresBuffer < 500);
-  const isWarning = !isDanger && (ddPct >= 70 || dailyLossPct >= 70 || futuresDDPct >= 70 || futuresDailyPct >= 70 ||
-    (futuresBuffer != null && futuresBuffer < 1000));
+  const isDanger = ddPct >= 90 || dailyLossPct >= 90 || futuresDDPct >= 90 || futuresDailyPct >= 90;
+  const isWarning = !isDanger && (ddPct >= 70 || dailyLossPct >= 70 || futuresDDPct >= 70 || futuresDailyPct >= 70);
   const barColor = isDanger ? 'bg-red-500' : isWarning ? 'bg-amber-400' : 'bg-teal-500';
   const iconBg = isDanger ? 'bg-red-500' : isWarning ? 'bg-amber-400' : 'bg-teal-500';
 
@@ -1325,6 +1383,21 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 </div>
               </div>
             )}
+            {isTrailingDrawdown && floors.maxLossFloor !== null && (
+              <div className="flex justify-between items-start text-xs">
+                <span className="text-gray-400">{lang === 'ar' ? 'حد السحب المتحرك' : lang === 'fr' ? 'Plancher flottant' : 'DD Floor'}</span>
+                <div className="text-end">
+                  <p className="font-bold text-teal-600">
+                    ${floors.maxLossFloor.toLocaleString(undefined, { maximumFractionDigits: 0 })}{floors.isLocked ? ' 🔒' : ''}
+                  </p>
+                  <p className="text-[10px] text-gray-400">
+                    {floors.isLocked
+                      ? (lang === 'ar' ? 'الحد مقفل — حسابك في أمان' : lang === 'fr' ? 'Plancher verrouillé — compte sécurisé' : 'Floor locked — account is safe')
+                      : (lang === 'ar' ? 'الحد الأدنى المتحرك لرصيدك' : lang === 'fr' ? 'Plancher mobile de votre solde' : 'Your trailing balance floor')}
+                  </p>
+                </div>
+              </div>
+            )}
             <ConsistencyPanel />
           </>
         )}
@@ -1332,16 +1405,6 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
         {/* Futures panels */}
         {isFuturesCard && (
           <>
-            {futuresBuffer != null && (
-              <div className={`rounded-2xl p-3 border ${futuresBuffer < 500 ? 'bg-red-50 border-red-100' : futuresBuffer < 1000 ? 'bg-amber-50 border-amber-100' : 'bg-teal-50 border-teal-100'}`}>
-                <p className="text-xs font-bold text-gray-500 uppercase mb-1">
-                  {lang === 'ar' ? 'المساحة المتبقية' : lang === 'fr' ? 'Marge restante' : 'Trailing Buffer'}
-                </p>
-                <p className={`text-lg font-black ${futuresBuffer < 500 ? 'text-red-600' : futuresBuffer < 1000 ? 'text-amber-600' : 'text-teal-700'}`}>
-                  ${futuresBuffer.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                </p>
-              </div>
-            )}
             {futuresDDLimit > 0 && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
@@ -1397,6 +1460,21 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 </span>
               )}
             </div>
+            {isTrailingDrawdown && floors.maxLossFloor !== null && (
+              <div className="flex justify-between items-start text-xs">
+                <span className="text-gray-400">{lang === 'ar' ? 'حد السحب المتحرك' : lang === 'fr' ? 'Plancher flottant' : 'DD Floor'}</span>
+                <div className="text-end">
+                  <p className="font-bold text-teal-600">
+                    ${floors.maxLossFloor.toLocaleString(undefined, { maximumFractionDigits: 0 })}{floors.isLocked ? ' 🔒' : ''}
+                  </p>
+                  <p className="text-[10px] text-gray-400">
+                    {floors.isLocked
+                      ? (lang === 'ar' ? 'الحد مقفل — حسابك في أمان' : lang === 'fr' ? 'Plancher verrouillé — compte sécurisé' : 'Floor locked — account is safe')
+                      : (lang === 'ar' ? 'الحد الأدنى المتحرك لرصيدك' : lang === 'fr' ? 'Plancher mobile de votre solde' : 'Your trailing balance floor')}
+                  </p>
+                </div>
+              </div>
+            )}
             <ConsistencyPanel />
           </>
         )}
@@ -1519,18 +1597,6 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                       className="w-full rounded-2xl border border-amber-200 bg-gray-50 ps-8 pe-4 py-3.5 text-gray-900 font-semibold text-sm focus:outline-none focus:border-amber-400 focus:bg-white transition-colors"
                     />
                   </div>
-                  {newBalance && newFloor && (
-                    <p className="text-xs text-gray-500 mt-1.5">
-                      {lang === 'ar' ? 'المساحة المتبقية:' : 'Buffer:'}{' '}
-                      <span className={`font-bold ${
-                        parseFloat(newBalance) - parseFloat(newFloor) < 500 ? 'text-red-500'
-                        : parseFloat(newBalance) - parseFloat(newFloor) < 1000 ? 'text-amber-500'
-                        : 'text-teal-600'
-                      }`}>
-                        ${(parseFloat(newBalance) - parseFloat(newFloor)).toFixed(0)}
-                      </span>
-                    </p>
-                  )}
                 </div>
               )}
             </div>
