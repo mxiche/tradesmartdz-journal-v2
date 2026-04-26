@@ -2744,7 +2744,17 @@ const DashboardPage = () => {
                 const maxLossDollars = isFuturesAcc
                   ? (a.max_loss_limit_dollars ?? 0)
                   : (size * ((acc.max_drawdown_limit ?? 0) / 100));
-                const ddDropped = Math.max(0, floors.highWaterMark - currentBal);
+                // Inline HWM: static uses startBal as reference, trailing uses running peak
+                const accDrawdownType = a.drawdown_type ?? 'static';
+                let accHwm = startBal; let accRunBal = startBal;
+                for (const tr of accTrades) {
+                  accRunBal += (tr.profit ?? 0) - ((tr as any).commission ?? 0);
+                  if (accRunBal > accHwm) accHwm = accRunBal;
+                }
+                accHwm = Math.max(accHwm, currentBal);
+                const ddDropped = accDrawdownType === 'static'
+                  ? Math.max(0, startBal - currentBal)
+                  : Math.max(0, accHwm - currentBal);
                 const ddUsedPct = maxLossDollars > 0 ? Math.min((ddDropped / maxLossDollars) * 100, 100) : 0;
 
                 // Daily loss

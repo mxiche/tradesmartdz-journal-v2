@@ -1138,10 +1138,21 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const effectivePnl = tradePnl !== null ? tradePnl : curr - start;
   const effectiveTodayPnl = todayPnl ?? 0;
 
-  // Unified drawdown floors (correct for static + trailing)
+  // Unified drawdown floors (for DD floor row display)
   const floors = getDrawdownFloors(acc, curr, allTradesSorted);
-  const ddConsumed = Math.max(0, floors.highWaterMark - curr);
   const isTrailingDrawdown = floors.drawdownType === 'eod_trailing' || floors.drawdownType === 'intraday_trailing';
+
+  // Inline HWM: static uses start as reference, trailing uses running peak
+  const accDrawdownType = (acc as any).drawdown_type ?? 'static';
+  let accHwm = start; let accRunBal = start;
+  for (const tr of allTradesSorted) {
+    accRunBal += (tr.profit ?? 0) - (tr.commission ?? 0);
+    if (accRunBal > accHwm) accHwm = accRunBal;
+  }
+  accHwm = Math.max(accHwm, curr);
+  const ddConsumed = accDrawdownType === 'static'
+    ? Math.max(0, start - curr)
+    : Math.max(0, accHwm - curr);
 
   // Forex DD
   const ddLimitPct = acc.max_drawdown_limit ?? 0;
