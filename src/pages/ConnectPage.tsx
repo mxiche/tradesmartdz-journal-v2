@@ -1161,9 +1161,10 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
     : Math.max(0, accHwm - curr);
 
   // DD limit — handles both forex and futures
+  const ddLimitPct = acc.max_drawdown_limit ?? 0;
   const ddLimitAmt = isFuturesCard
     ? (a.max_loss_limit_dollars ?? 0)
-    : (accountSize * ((acc.max_drawdown_limit ?? 0) / 100));
+    : (accountSize * (ddLimitPct / 100));
   const ddUsedAmt = ddConsumed;
   const ddPct = ddLimitAmt > 0 ? Math.min((ddUsedAmt / ddLimitAmt) * 100, 100) : 0;
 
