@@ -1143,8 +1143,12 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
     .filter((tr: any) => tr.account_id === acc.id)
     .sort((a: any, b: any) => new Date(a.close_time).getTime() - new Date(b.close_time).getTime());
 
+  // Derive current balance from trade history (avoids stale acc.balance from DB)
+  const totalNetPnl = thisAccTrades.reduce((s: number, tr: any) => s + (tr.profit ?? 0) - (tr.commission ?? 0), 0);
+  const effectiveCurrentBal = start + totalNetPnl;
+
   // Unified drawdown floors (for DD floor row display)
-  const floors = getDrawdownFloors(acc, curr, thisAccTrades);
+  const floors = getDrawdownFloors(acc, effectiveCurrentBal, thisAccTrades);
   const isTrailingDrawdown = floors.drawdownType === 'eod_trailing' || floors.drawdownType === 'intraday_trailing';
 
   // Inline HWM: static uses start as reference, trailing uses running peak
@@ -1155,10 +1159,10 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
     accRunBal += (tr.profit ?? 0) - (tr.commission ?? 0);
     if (accRunBal > accHwm) accHwm = accRunBal;
   }
-  accHwm = Math.max(accHwm, curr);
+  accHwm = Math.max(accHwm, effectiveCurrentBal);
   const ddConsumed = accDrawdownType === 'static'
-    ? Math.max(0, start - curr)
-    : Math.max(0, accHwm - curr);
+    ? Math.max(0, start - effectiveCurrentBal)
+    : Math.max(0, accHwm - effectiveCurrentBal);
 
   // DD limit — handles both forex and futures
   const ddLimitPct = acc.max_drawdown_limit ?? 0;
@@ -1168,10 +1172,13 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const ddUsedAmt = ddConsumed;
   const ddPct = ddLimitAmt > 0 ? Math.min((ddUsedAmt / ddLimitAmt) * 100, 100) : 0;
 
-  // Forex Daily Loss
+  // Forex Daily Loss — use trade history with commission for accuracy
   const dailyLossPctLimit = acc.daily_loss_limit ?? 0;
   const dailyLossLimitAmt = accountSize * (dailyLossPctLimit / 100);
-  const todayLossAmt = Math.max(0, -effectiveTodayPnl);
+  const todayCutoff = new Date(); todayCutoff.setHours(0, 0, 0, 0);
+  const todayTrades = thisAccTrades.filter((tr: any) => tr.close_time && new Date(tr.close_time) >= todayCutoff);
+  const todayNetPnl = todayTrades.reduce((s: number, tr: any) => s + (tr.profit ?? 0) - (tr.commission ?? 0), 0);
+  const todayLossAmt = todayNetPnl < 0 ? Math.abs(todayNetPnl) : 0;
   const dailyLossPct = dailyLossLimitAmt > 0 ? Math.min((todayLossAmt / dailyLossLimitAmt) * 100, 100) : 0;
 
   // Forex Profit

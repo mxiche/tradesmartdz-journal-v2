@@ -2737,8 +2737,9 @@ const DashboardPage = () => {
                   .sort((a, b) => new Date(a.close_time!).getTime() - new Date(b.close_time!).getTime());
                 const currentBal = acc.balance ?? startBal;
                 const accPnl = accTrades.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
+                const effectiveCurrentBal = startBal + accPnl;
 
-                const floors = getDrawdownFloors(a, currentBal, accTrades);
+                const floors = getDrawdownFloors(a, effectiveCurrentBal, accTrades);
 
                 // Max loss DD
                 const maxLossDollars = isFuturesAcc
@@ -2751,10 +2752,10 @@ const DashboardPage = () => {
                   accRunBal += (tr.profit ?? 0) - ((tr as any).commission ?? 0);
                   if (accRunBal > accHwm) accHwm = accRunBal;
                 }
-                accHwm = Math.max(accHwm, currentBal);
+                accHwm = Math.max(accHwm, effectiveCurrentBal);
                 const ddDropped = accDrawdownType === 'static'
-                  ? Math.max(0, startBal - currentBal)
-                  : Math.max(0, accHwm - currentBal);
+                  ? Math.max(0, startBal - effectiveCurrentBal)
+                  : Math.max(0, accHwm - effectiveCurrentBal);
                 const ddUsedPct = maxLossDollars > 0 ? Math.min((ddDropped / maxLossDollars) * 100, 100) : 0;
 
                 // Daily loss
