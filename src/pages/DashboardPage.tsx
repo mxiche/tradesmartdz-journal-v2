@@ -1487,10 +1487,19 @@ const DashboardPage = () => {
       ? (account.daily_loss_limit_dollars ?? 0)
       : ((account.account_size ?? 0) * ((account.daily_loss_limit ?? 0) / 100));
 
+    // Daily floor is based on start-of-day balance (flat for the whole day)
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayNetPnl = sortedTrades
+      .filter(t => t.close_time && new Date(t.close_time) >= todayStart)
+      .reduce((sum, t) => sum + ((t.profit ?? 0) - ((t as any).commission ?? 0)), 0);
+    const startOfDayBalance = currentBalance - todayNetPnl;
+    const dailyFloor = dailyLossDollars > 0 ? +(startOfDayBalance - dailyLossDollars).toFixed(2) : null;
+
     if (drawdownType === 'static') {
       return {
         maxLossFloor: maxLossDollars > 0 ? startBal - maxLossDollars : null,
-        dailyFloor: dailyLossDollars > 0 ? currentBalance - dailyLossDollars : null,
+        dailyFloor,
         highWaterMark: currentBalance,
         isLocked: false,
         drawdownType,
@@ -1514,8 +1523,6 @@ const DashboardPage = () => {
     if (maxLossDollars > 0) {
       maxLossFloor = isLocked ? startBal : +(highWaterMark - maxLossDollars).toFixed(2);
     }
-
-    const dailyFloor = dailyLossDollars > 0 ? +(currentBalance - dailyLossDollars).toFixed(2) : null;
 
     return { maxLossFloor, dailyFloor, highWaterMark, isLocked, drawdownType };
   };
@@ -1943,11 +1950,14 @@ const DashboardPage = () => {
       : [{ date: '', balance: +startBalance.toFixed(2), tradeCount: 0 }, ...pts];
 
     // Per-point floor — uses trades up to that point for correct trailing calculation
+    // Daily floor only shown for today's points (it resets each day; showing historical is misleading)
+    const todayDateLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const points = rawPoints.map((pt) => {
       if (!selectedEquityAccount || isAll) return { ...pt, maxLossFloor: null as number | null, dailyFloor: null as number | null };
       const tradesUpToPoint = sorted.slice(0, pt.tradeCount);
       const ptFloors = getDrawdownFloors(selectedEquityAccount, pt.balance, tradesUpToPoint);
-      return { ...pt, maxLossFloor: ptFloors.maxLossFloor, dailyFloor: ptFloors.dailyFloor };
+      const isToday = pt.date === todayDateLabel;
+      return { ...pt, maxLossFloor: ptFloors.maxLossFloor, dailyFloor: isToday ? ptFloors.dailyFloor : null };
     });
 
     return {
