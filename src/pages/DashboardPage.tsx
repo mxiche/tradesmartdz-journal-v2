@@ -1472,8 +1472,8 @@ const DashboardPage = () => {
     account: any,
     currentBalance: number,
     sortedTrades: any[]
-  ): { maxLossFloor: number | null; dailyFloor: number | null; highWaterMark: number; isLocked: boolean; drawdownType: string } => {
-    if (!account) return { maxLossFloor: null, dailyFloor: null, highWaterMark: currentBalance, isLocked: false, drawdownType: 'static' };
+  ): { maxLossFloor: number | null; dailyFloor: number | null; highWaterMark: number; isLocked: boolean; drawdownType: string; dailyLossDollars: number; todayLoss: number; startOfDayBalance: number } => {
+    if (!account) return { maxLossFloor: null, dailyFloor: null, highWaterMark: currentBalance, isLocked: false, drawdownType: 'static', dailyLossDollars: 0, todayLoss: 0, startOfDayBalance: currentBalance };
 
     const isFutures = account.account_category === 'futures';
     const startBal: number = account.starting_balance ?? account.account_size ?? 0;
@@ -1483,10 +1483,6 @@ const DashboardPage = () => {
       ? (account.max_loss_limit_dollars ?? 0)
       : ((account.account_size ?? 0) * ((account.max_drawdown_limit ?? 0) / 100));
 
-    const dailyLossDollars: number = isFutures
-      ? (account.daily_loss_limit_dollars ?? 0)
-      : ((account.account_size ?? 0) * ((account.daily_loss_limit ?? 0) / 100));
-
     // Daily floor is based on start-of-day balance (flat for the whole day)
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -1494,6 +1490,13 @@ const DashboardPage = () => {
       .filter(t => t.close_time && new Date(t.close_time) >= todayStart)
       .reduce((sum, t) => sum + ((t.profit ?? 0) - ((t as any).commission ?? 0)), 0);
     const startOfDayBalance = currentBalance - todayNetPnl;
+    const todayLoss = todayNetPnl < 0 ? Math.abs(todayNetPnl) : 0;
+
+    // Daily limit: forex uses % of start-of-day balance; futures uses fixed $
+    const dailyLossDollars: number = isFutures
+      ? ((account as any).daily_loss_limit_dollars ?? 0)
+      : (startOfDayBalance * ((account.daily_loss_limit ?? 0) / 100));
+
     const dailyFloor = dailyLossDollars > 0 ? +(startOfDayBalance - dailyLossDollars).toFixed(2) : null;
 
     if (drawdownType === 'static') {
@@ -1503,6 +1506,9 @@ const DashboardPage = () => {
         highWaterMark: currentBalance,
         isLocked: false,
         drawdownType,
+        dailyLossDollars,
+        todayLoss,
+        startOfDayBalance,
       };
     }
 
@@ -1524,7 +1530,7 @@ const DashboardPage = () => {
       maxLossFloor = isLocked ? startBal : +(highWaterMark - maxLossDollars).toFixed(2);
     }
 
-    return { maxLossFloor, dailyFloor, highWaterMark, isLocked, drawdownType };
+    return { maxLossFloor, dailyFloor, highWaterMark, isLocked, drawdownType, dailyLossDollars, todayLoss, startOfDayBalance };
   };
 
   const fetchData = async () => {
@@ -1928,20 +1934,20 @@ const DashboardPage = () => {
 
     // Daily loss used today
     const dailyUsedPct = (() => {
-      if (!selectedEquityAccount) return null;
+      if (!selectedEquityAccount || isAll) return null;
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
       const todayTrades = rel.filter(tr =>
         tr.close_time && new Date(tr.close_time) >= todayStart
       );
-      const todayLoss = Math.max(0, -(
-        todayTrades.reduce((s, tr) =>
-          s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0)
-      ));
+      const todayNetPnl = todayTrades.reduce((s, tr) =>
+        s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
+      const startOfDayBal = currentEquityBalance - todayNetPnl;
       const dailyLossDollars = isFutures
         ? ((selectedEquityAccount as any).daily_loss_limit_dollars ?? 0)
-        : ((selectedEquityAccount.account_size ?? 0) * ((selectedEquityAccount.daily_loss_limit ?? 0) / 100));
+        : (startOfDayBal * ((selectedEquityAccount.daily_loss_limit ?? 0) / 100));
       if (dailyLossDollars <= 0) return null;
+      const todayLoss = todayNetPnl < 0 ? Math.abs(todayNetPnl) : 0;
       return Math.min(100, (todayLoss / dailyLossDollars) * 100);
     })();
 
@@ -2768,14 +2774,15 @@ const DashboardPage = () => {
                   : Math.max(0, accHwm - effectiveCurrentBal);
                 const ddUsedPct = maxLossDollars > 0 ? Math.min((ddDropped / maxLossDollars) * 100, 100) : 0;
 
-                // Daily loss
+                // Daily loss — uses start-of-day balance for correct forex % limit
                 const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
                 const dailyLossTrades = accTrades.filter(tr => tr.close_time && new Date(tr.close_time) >= todayStart);
                 const dailyPnl = dailyLossTrades.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
+                const startOfDayBal = effectiveCurrentBal - dailyPnl;
                 const dailyLossDollars = isFuturesAcc
                   ? (a.daily_loss_limit_dollars ?? 0)
-                  : (size * ((acc.daily_loss_limit ?? 0) / 100));
-                const dailyLossUsed = Math.max(0, -dailyPnl);
+                  : (startOfDayBal * ((acc.daily_loss_limit ?? 0) / 100));
+                const dailyLossUsed = dailyPnl < 0 ? Math.abs(dailyPnl) : 0;
                 const dailyPct = dailyLossDollars > 0 ? Math.min((dailyLossUsed / dailyLossDollars) * 100, 100) : 0;
 
                 // Profit target

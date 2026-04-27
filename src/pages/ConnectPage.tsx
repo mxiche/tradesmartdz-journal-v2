@@ -1034,14 +1034,25 @@ function getDrawdownFloors(
     ? (account.max_loss_limit_dollars ?? 0)
     : ((account.account_size ?? 0) * ((account.max_drawdown_limit ?? 0) / 100));
 
+  // Daily floor is based on start-of-day balance (flat for the whole day)
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayNetPnl = sortedTrades
+    .filter(t => t.close_time && new Date(t.close_time) >= todayStart)
+    .reduce((sum, t) => sum + ((t.profit ?? 0) - (t.commission ?? 0)), 0);
+  const startOfDayBalance = currentBalance - todayNetPnl;
+
+  // Daily limit: forex uses % of start-of-day balance; futures uses fixed $
   const dailyLossDollars: number = isFutures
     ? (account.daily_loss_limit_dollars ?? 0)
-    : ((account.account_size ?? 0) * ((account.daily_loss_limit ?? 0) / 100));
+    : (startOfDayBalance * ((account.daily_loss_limit ?? 0) / 100));
+
+  const dailyFloor = dailyLossDollars > 0 ? +(startOfDayBalance - dailyLossDollars).toFixed(2) : null;
 
   if (drawdownType === 'static') {
     return {
       maxLossFloor: maxLossDollars > 0 ? startBal - maxLossDollars : null,
-      dailyFloor: dailyLossDollars > 0 ? currentBalance - dailyLossDollars : null,
+      dailyFloor,
       highWaterMark: currentBalance,
       isLocked: false,
       drawdownType,
@@ -1064,8 +1075,6 @@ function getDrawdownFloors(
   if (maxLossDollars > 0) {
     maxLossFloor = isLocked ? startBal : +(highWaterMark - maxLossDollars).toFixed(2);
   }
-
-  const dailyFloor = dailyLossDollars > 0 ? +(currentBalance - dailyLossDollars).toFixed(2) : null;
 
   return { maxLossFloor, dailyFloor, highWaterMark, isLocked, drawdownType };
 }
@@ -1172,12 +1181,13 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const ddUsedAmt = ddConsumed;
   const ddPct = ddLimitAmt > 0 ? Math.min((ddUsedAmt / ddLimitAmt) * 100, 100) : 0;
 
-  // Forex Daily Loss — use trade history with commission for accuracy
+  // Daily Loss — start-of-day balance for correct forex % limit
   const dailyLossPctLimit = acc.daily_loss_limit ?? 0;
-  const dailyLossLimitAmt = accountSize * (dailyLossPctLimit / 100);
   const todayCutoff = new Date(); todayCutoff.setHours(0, 0, 0, 0);
   const todayTrades = thisAccTrades.filter((tr: any) => tr.close_time && new Date(tr.close_time) >= todayCutoff);
   const todayNetPnl = todayTrades.reduce((s: number, tr: any) => s + (tr.profit ?? 0) - (tr.commission ?? 0), 0);
+  const startOfDayBal = effectiveCurrentBal - todayNetPnl;
+  const dailyLossLimitAmt = startOfDayBal * (dailyLossPctLimit / 100);
   const todayLossAmt = todayNetPnl < 0 ? Math.abs(todayNetPnl) : 0;
   const dailyLossPct = dailyLossLimitAmt > 0 ? Math.min((todayLossAmt / dailyLossLimitAmt) * 100, 100) : 0;
 
