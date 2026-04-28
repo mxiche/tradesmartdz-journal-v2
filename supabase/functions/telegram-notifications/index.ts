@@ -756,8 +756,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const job = body.job || 'daily_report';
+    const job = body.job;
     console.log('Running job:', job);
+
+    if (!job) {
+      console.log('No job specified — ignoring request');
+      return new Response(
+        JSON.stringify({ error: 'No job specified' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
 
     // Get all users with telegram connected
     const { data: userPrefs } = await supabase
