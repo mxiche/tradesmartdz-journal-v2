@@ -1312,8 +1312,10 @@ const TradesPage = () => {
 
   // Share card computed values — net P&L and result from selectedTrade (not edit state)
   const cardNetPnl = (selectedTrade?.profit ?? 0) - ((selectedTrade as any)?.commission ?? 0);
-  const _rawCardResult = ((selectedTrade as any)?.result ?? editResult ?? '').toLowerCase();
-  const cardResult: 'win' | 'loss' | 'be' = _rawCardResult === 'win' ? 'win' : _rawCardResult === 'loss' ? 'loss' : 'be';
+  const cardResult: 'win' | 'loss' | 'be' = (() => {
+    const r = ((selectedTrade as any)?.result ?? 'be').toLowerCase();
+    return r === 'win' ? 'win' : r === 'loss' ? 'loss' : 'be';
+  })();
   const cardResultConfig = {
     win:  { text: '✅ WIN',  bg: '#f0fdf4', border: '#86efac', color: '#16a34a' },
     loss: { text: '❌ LOSS', bg: '#fef2f2', border: '#fca5a5', color: '#dc2626' },
@@ -1321,6 +1323,8 @@ const TradesPage = () => {
   };
   const resultConfig = cardResultConfig[cardResult] ?? cardResultConfig.be;
   const cardPnlColor = cardNetPnl >= 0 ? '#14b8a6' : '#ef4444';
+  const pnlSign = cardNetPnl >= 0 ? '+$' : '-$';
+  const pnlDisplay = `${pnlSign}${Math.abs(cardNetPnl).toFixed(2)}`;
 
   // Safe trade object — guarantees all optional fields have fallback values
   // so the detail panel never crashes on old trades missing new columns
@@ -3748,7 +3752,11 @@ const TradesPage = () => {
           {/* Header */}
           <div style={{ background: '#ffffff', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '3px solid #14b8a6' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <img src="/logo-icon.png" alt="Logo" width={32} height={32} style={{ objectFit: 'contain' }} />
+              <img
+                src="/logo-icon.png"
+                crossOrigin="anonymous"
+                style={{ width: '32px', height: '32px', objectFit: 'contain', display: 'block' }}
+              />
               <span style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', fontFamily: 'Arial, sans-serif' }}>
                 TradeSmart<span style={{ color: '#14b8a6' }}>Dz</span>
               </span>
@@ -3761,24 +3769,27 @@ const TradesPage = () => {
             </div>
           </div>
           {/* Hero */}
-          <div style={{ background: '#ffffff', padding: '28px 24px 20px 24px', textAlign: 'center' }}>
+          <div style={{ background: '#ffffff', padding: '16px 24px 16px 24px', textAlign: 'center' }}>
             <div style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', marginBottom: 12, fontFamily: 'Arial, sans-serif' }}>
               {editSymbol || safeTrade?.symbol || '—'}
             </div>
-            <div style={{ marginBottom: 16, display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
-              <div style={{ padding: '5px 14px', borderRadius: '20px', background: editDirection === 'BUY' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${editDirection === 'BUY' ? '#86efac' : '#fca5a5'}`, display: 'inline-block', textAlign: 'center' }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: editDirection === 'BUY' ? '#16a34a' : '#dc2626', margin: 0, lineHeight: '1', textAlign: 'center', fontFamily: 'Arial, sans-serif' }}>
+            {/* Badges row — inline-block only, no flexbox */}
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'inline-block', borderRadius: '20px', background: editDirection === 'BUY' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${editDirection === 'BUY' ? '#86efac' : '#fca5a5'}`, minWidth: '70px' }}>
+                <p style={{ margin: 0, padding: '6px 14px', fontSize: '12px', fontWeight: 700, color: editDirection === 'BUY' ? '#16a34a' : '#dc2626', textAlign: 'center', lineHeight: '1.2', display: 'block', fontFamily: 'Arial, sans-serif' }}>
                   {editDirection === 'BUY' ? '▲ BUY' : '▼ SELL'}
                 </p>
               </div>
-              <div style={{ padding: '5px 14px', borderRadius: '20px', background: resultConfig.bg, border: `1px solid ${resultConfig.border}`, display: 'inline-block', textAlign: 'center' }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: resultConfig.color, margin: 0, lineHeight: '1', textAlign: 'center', fontFamily: 'Arial, sans-serif' }}>
-                  {resultConfig.text}
+              <span style={{ display: 'inline-block', width: '8px' }} />
+              <div style={{ display: 'inline-block', borderRadius: '20px', background: cardResult === 'win' ? '#f0fdf4' : cardResult === 'loss' ? '#fef2f2' : '#f8fafc', border: `1px solid ${cardResult === 'win' ? '#86efac' : cardResult === 'loss' ? '#fca5a5' : '#e2e8f0'}`, minWidth: '70px' }}>
+                <p style={{ margin: 0, padding: '6px 14px', fontSize: '12px', fontWeight: 700, color: cardResult === 'win' ? '#16a34a' : cardResult === 'loss' ? '#dc2626' : '#64748b', textAlign: 'center', lineHeight: '1.2', display: 'block', fontFamily: 'Arial, sans-serif' }}>
+                  {cardResult === 'win' ? '✅ WIN' : cardResult === 'loss' ? '❌ LOSS' : '⚡ BE'}
                 </p>
               </div>
             </div>
+            {/* P&L — always shows sign */}
             <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: '-2px', lineHeight: 1, color: cardPnlColor, fontFamily: 'Arial, sans-serif' }}>
-              {cardNetPnl >= 0 ? '+' : ''}${Math.abs(cardNetPnl).toFixed(2)}
+              {pnlDisplay}
             </div>
           </div>
           {/* Stats grid */}
@@ -3797,18 +3808,18 @@ const TradesPage = () => {
           </div>
           {/* Tags + Rating */}
           {(editTags.length > 0 || editRating > 0) && (
-            <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 52, borderBottom: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ padding: '14px 24px', borderBottom: '1px solid #e2e8f0' }}>
+              <div style={{ marginBottom: editRating > 0 ? 8 : 0 }}>
                 {editTags.map((tag, i) => (
-                  <div key={i} style={{ padding: '4px 10px', borderRadius: '10px', background: '#f0fdfa', border: '1px solid #99f6e4', display: 'inline-block', textAlign: 'center' }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: '#0d9488', margin: 0, lineHeight: '1', textAlign: 'center', whiteSpace: 'nowrap', fontFamily: 'Arial, sans-serif' }}>
+                  <div key={i} style={{ display: 'inline-block', borderRadius: '10px', background: '#f0fdfa', border: '1px solid #99f6e4', marginRight: 6, marginBottom: 4 }}>
+                    <p style={{ margin: 0, padding: '4px 10px', fontSize: '12px', fontWeight: 600, color: '#0d9488', textAlign: 'center', lineHeight: '1.2', display: 'block', whiteSpace: 'nowrap', fontFamily: 'Arial, sans-serif' }}>
                       #{tag}
                     </p>
                   </div>
                 ))}
               </div>
               {editRating > 0 && (
-                <div>
+                <div style={{ textAlign: 'right' }}>
                   {[...Array(5)].map((_, i) => (
                     <span key={i} style={{ fontSize: 20, color: i < editRating ? '#f59e0b' : '#e2e8f0', fontFamily: 'Arial, sans-serif' }}>★</span>
                   ))}
