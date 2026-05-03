@@ -7,35 +7,18 @@ export function LogoIcon({ className }: { className?: string }) {
       className={className}
       aria-hidden="true"
     >
-      {/* ── Red candle (left) — bearish, going down ── */}
-      {/* Wick top */}
-      <line x1="7" y1="4" x2="7" y2="7" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
-      {/* Body */}
-      <rect x="4.5" y="7" width="5" height="9" rx="0.75" fill="#ef4444" />
-      {/* Wick bottom */}
-      <line x1="7" y1="16" x2="7" y2="20" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
-      {/* Down arrow */}
-      <polyline points="5,22 7,26 9,22" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <line x1="7" y1="22" x2="7" y2="26" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
+      {/* Top ribbon — diagonal parallelogram */}
+      <polygon points="6,4 26,4 22,14 2,14" fill="#22c55e" />
+      {/* Top ribbon depth/shadow */}
+      <polygon points="26,4 28,6 24,16 22,14" fill="#15803d" />
 
-      {/* ── Green candle (right) — bullish, going up ── */}
-      {/* Wick top */}
-      <line x1="25" y1="4" x2="25" y2="8" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" />
-      {/* Body */}
-      <rect x="22.5" y="8" width="5" height="9" rx="0.75" fill="#22c55e" />
-      {/* Wick bottom */}
-      <line x1="25" y1="17" x2="25" y2="20" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" />
-      {/* Up arrow */}
-      <polyline points="23,24 25,20 27,24" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <line x1="25" y1="20" x2="25" y2="26" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" />
+      {/* Bottom ribbon — diagonal parallelogram, opposite direction */}
+      <polygon points="10,18 30,18 26,28 6,28" fill="#22c55e" />
+      {/* Bottom ribbon depth/shadow */}
+      <polygon points="30,18 32,20 28,30 26,28" fill="#15803d" />
 
-      {/* ── Middle candle (center) — neutral/reference ── */}
-      {/* Wick top */}
-      <line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.5" />
-      {/* Body outline only */}
-      <rect x="13.5" y="6" width="5" height="11" rx="0.75" stroke="currentColor" strokeWidth="1.25" strokeOpacity="0.4" fill="none" />
-      {/* Wick bottom */}
-      <line x1="16" y1="17" x2="16" y2="22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.5" />
+      {/* Center connector — joins the two ribbons into S */}
+      <polygon points="2,14 22,14 10,18 2,18" fill="#16a34a" />
     </svg>
   );
 }
