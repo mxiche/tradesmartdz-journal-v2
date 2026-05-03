@@ -1429,6 +1429,35 @@ const TradesPage = () => {
     toast.success(lang === 'ar' ? 'تم حذف الصورة' : lang === 'fr' ? 'Image supprimée' : 'Screenshot removed');
   };
 
+  const handleDownloadCard = async () => {
+    if (!isPro) {
+      toast.error(
+        lang === 'ar' ? 'مشاركة الصورة متاحة لمستخدمي Pro فقط' :
+        lang === 'fr' ? 'Le partage en image est réservé aux abonnés Pro' :
+        'Image sharing is available for Pro users only'
+      );
+      return;
+    }
+    if (!shareCardRef.current) return;
+    await new Promise<void>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve();
+      img.onerror = () => resolve();
+      img.src = '/logo-icon.png';
+    });
+    const canvas = await html2canvas(shareCardRef.current, {
+      scale: 3,
+      backgroundColor: null,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+    });
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `trade-${editSymbol || safeTrade?.symbol || 'unknown'}-${new Date().toISOString().slice(0, 10)}.png`;
+    a.click();
+  };
+
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(true);
@@ -2478,80 +2507,86 @@ const TradesPage = () => {
           {/* ── Share card ── */}
           {shareOpen && (
             <div className="rounded-xl border border-primary/20 bg-secondary/30 p-4 space-y-3">
-              <div ref={shareCardRef} style={{ width: 480, background: 'linear-gradient(135deg,#f0fdf9 0%,#ffffff 50%,#f0f9ff 100%)', borderRadius: 20, padding: 32, fontFamily: 'Arial,sans-serif', border: '2px solid #99f6e4', position: 'relative', overflow: 'hidden', ...(lang === 'ar' && { direction: 'rtl' }) }}>
-                <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, background: 'rgba(20,184,166,0.06)', borderRadius: '50%' }} />
-                <div style={{ display: 'flex', flexDirection: lang === 'ar' ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 18, fontWeight: 900, color: '#0f172a' }}>TRADESMARTDZ</p>
-                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#94a3b8' }}>
-                      {safeTrade.close_time ? new Date(safeTrade.close_time).toLocaleDateString() : ''}
-                    </p>
+              {/* Visible preview (display only — html2canvas uses the hidden ref card) */}
+              <div className="overflow-hidden rounded-2xl" style={{ background: '#0f172a' }}>
+                {/* Top accent bar */}
+                <div style={{ height: 4, background: '#14b8a6' }} />
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <img src="/logo-icon.png" alt="Logo" className="h-7 w-7 object-contain" />
+                    <span className="text-base font-black text-slate-100 tracking-tight">
+                      TradeSmart<span className="text-teal-400">Dz</span>
+                    </span>
                   </div>
-                  <div style={{ textAlign: lang === 'ar' ? 'left' : 'right' }}>
-                    <p style={{ margin: '0 0 2px', fontSize: 13, color: '#0f172a', fontWeight: 700 }}>{shareUserName}</p>
-                    <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 600 }}>TradeSmartDz • tradesmartdz.com</p>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-slate-100">{shareUserName}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {safeTrade?.close_time ? new Date(safeTrade.close_time).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
+                    </div>
                   </div>
                 </div>
-                <div style={{ marginBottom: 20 }}>
-                  <p style={{ margin: '0 0 8px', fontSize: 40, fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{editSymbol || safeTrade.symbol}</p>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ background: editDirection === 'BUY' ? '#dcfce7' : '#fee2e2', color: editDirection === 'BUY' ? '#16a34a' : '#dc2626', padding: '4px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
-                      {editDirection === 'BUY' ? t('share_buy', lang) : t('share_sell', lang)}
+                {/* Hero */}
+                <div className="px-6 py-6 text-center">
+                  <div className="text-3xl font-black text-slate-100 tracking-tight mb-3">
+                    {editSymbol || safeTrade?.symbol || '—'}
+                  </div>
+                  <div className="flex gap-2 justify-center mb-4">
+                    <span className={`px-4 py-1 rounded-full text-xs font-black tracking-wide border ${editDirection === 'BUY' ? 'bg-green-950 text-green-400 border-green-800' : 'bg-red-950 text-red-400 border-red-800'}`}>
+                      {editDirection === 'BUY' ? (lang === 'ar' ? 'شراء' : lang === 'fr' ? 'ACHAT' : 'BUY') : (lang === 'ar' ? 'بيع' : lang === 'fr' ? 'VENTE' : 'SELL')}
                     </span>
                     {editResult && (
-                      <span style={{ background: '#f8fafc', color: '#64748b', padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600, border: '1px solid #e2e8f0' }}>
-                        {editResult === 'Win' ? t('share_win', lang) : editResult === 'Loss' ? t('share_loss', lang) : editResult === 'Breakeven' ? t('share_be', lang) : editResult}
+                      <span className={`px-4 py-1 rounded-full text-xs font-black border ${editResult === 'Win' ? 'bg-green-950 text-green-400 border-green-800' : editResult === 'Loss' ? 'bg-red-950 text-red-400 border-red-800' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                        {editResult === 'Win' ? (lang === 'ar' ? 'ربح' : lang === 'fr' ? 'GAIN' : 'WIN') : editResult === 'Loss' ? (lang === 'ar' ? 'خسارة' : lang === 'fr' ? 'PERTE' : 'LOSS') : 'B/E'}
                       </span>
                     )}
                   </div>
+                  <div className={`text-4xl font-black tracking-tighter ${pnlNum >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {pnlNum >= 0 ? '+' : ''}${pnlNum.toFixed(2)}
+                  </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
+                {/* Stats */}
+                <div className="grid grid-cols-4 border-t border-b border-slate-800" style={{ gap: 1, background: '#1e293b' }}>
                   {[
-                    { label: t('share_pnl', lang), val: `${pnlNum >= 0 ? '+' : ''}$${pnlNum.toFixed(2)}`, color: pnlNum >= 0 ? '#0d9488' : '#dc2626' },
-                    { label: t('share_rr', lang), val: rrCalc || '—', color: '#0f172a' },
-                    { label: t('share_duration', lang), val: durCalc || '—', color: '#0f172a' },
-                  ].map((s, i) => (
-                    <div key={i} style={{ background: '#f8fafc', borderRadius: 14, padding: '12px', border: '1px solid #e2e8f0' }}>
-                      <p style={{ margin: '0 0 4px', fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>{s.label}</p>
-                      <p style={{ margin: 0, fontSize: 20, fontWeight: 900, color: s.color }}>{s.val}</p>
+                    { label: 'R:R', value: rrCalc !== '—' ? `${rrCalc}R` : '—' },
+                    { label: lang === 'ar' ? 'المدة' : lang === 'fr' ? 'Durée' : 'Duration', value: durCalc || '—' },
+                    { label: lang === 'ar' ? 'العمولة' : lang === 'fr' ? 'Comm.' : 'Commission', value: `$${(parseFloat(editCommission) || 0).toFixed(2)}` },
+                    { label: lang === 'ar' ? 'الجلسة' : lang === 'fr' ? 'Session' : 'Session', value: editSession || '—' },
+                  ].map((stat, i) => (
+                    <div key={i} className="py-3 text-center" style={{ background: '#0f172a' }}>
+                      <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">{stat.label}</div>
+                      <div className="text-sm font-black text-slate-100">{stat.value}</div>
                     </div>
                   ))}
                 </div>
-                {editTags.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <span style={{ background: '#f0fdf9', border: '1px solid #99f6e4', color: '#0d9488', padding: '5px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
-                      {editTags.join(', ')}
-                    </span>
+                {/* Tags + Rating */}
+                {(editTags.length > 0 || editRating > 0) && (
+                  <div className="flex items-center justify-between px-6 py-3 border-b border-slate-800">
+                    <div className="flex flex-wrap gap-1.5">
+                      {editTags.map((tag, i) => (
+                        <span key={i} className="px-3 py-0.5 rounded-full text-xs font-bold text-teal-400 border border-teal-800" style={{ background: '#0d2d2a' }}>
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                    {editRating > 0 && (
+                      <div>
+                        {[...Array(5)].map((_, i) => (
+                          <span key={i} className={`text-base ${i < editRating ? 'text-amber-400' : 'text-slate-800'}`}>★</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
-                {editRating > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    {[...Array(5)].map((_, i) => (
-                      <span key={i} style={{ fontSize: 18, color: i < editRating ? '#f59e0b' : '#e2e8f0' }}>★</span>
-                    ))}
-                  </div>
-                )}
-                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{t('share_analyzed_with', lang)}</p>
-                  <p style={{ margin: 0, fontSize: 11, color: '#14b8a6', fontWeight: 700 }}>tradesmartdz.com</p>
+                {/* Footer */}
+                <div className="flex items-center justify-between px-6 py-3" style={{ background: '#050d1a' }}>
+                  <span className="text-xs text-slate-600">
+                    {lang === 'ar' ? 'تحليل باستخدام TradeSmartDz' : lang === 'fr' ? 'Analysé avec TradeSmartDz' : 'Analyzed with TradeSmartDz'}
+                  </span>
+                  <span className="text-xs font-bold text-teal-500">tradesmartdz.com</span>
                 </div>
               </div>
-              <Button className="w-full gradient-primary text-primary-foreground" onClick={async () => {
-                if (!isPro) {
-                  toast.error(
-                    lang === 'ar' ? 'مشاركة الصورة متاحة لمستخدمي Pro فقط' :
-                    lang === 'fr' ? 'Le partage en image est réservé aux abonnés Pro' :
-                    'Image sharing is available for Pro users only'
-                  );
-                  return;
-                }
-                if (!shareCardRef.current) return;
-                const canvas = await html2canvas(shareCardRef.current, { scale: 2, backgroundColor: null, useCORS: true });
-                const a = document.createElement('a');
-                a.href = canvas.toDataURL('image/png');
-                a.download = `trade-${editSymbol || safeTrade.symbol}-${new Date().toISOString().slice(0,10)}.png`;
-                a.click();
-              }}>
+              <Button className="w-full gradient-primary text-primary-foreground" onClick={handleDownloadCard}>
                 <Download className="me-2 h-4 w-4" />{t('shareDownload')}
               </Button>
             </div>
@@ -3686,6 +3721,108 @@ const TradesPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Hidden share card — always in DOM for html2canvas capture */}
+      <div style={{ position: 'absolute', top: -9999, left: -9999, pointerEvents: 'none' }}>
+        <div
+          ref={shareCardRef}
+          data-share-card="true"
+          style={{
+            width: 600,
+            background: '#0f172a',
+            borderRadius: 20,
+            fontFamily: 'Arial, sans-serif',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Top accent bar */}
+          <div style={{ height: 4, background: '#14b8a6' }} />
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 28px 16px', borderBottom: '1px solid #1e293b' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <img src="/logo-icon.png" alt="Logo" width={32} height={32} style={{ objectFit: 'contain' }} />
+              <span style={{ fontSize: 18, fontWeight: 900, color: '#f8fafc', letterSpacing: '-0.5px', fontFamily: 'Arial, sans-serif' }}>
+                TradeSmart<span style={{ color: '#14b8a6' }}>Dz</span>
+              </span>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc', fontFamily: 'Arial, sans-serif' }}>{shareUserName}</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, fontFamily: 'Arial, sans-serif' }}>
+                {safeTrade?.close_time ? new Date(safeTrade.close_time).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
+              </div>
+            </div>
+          </div>
+          {/* Hero */}
+          <div style={{ padding: '28px 28px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 36, fontWeight: 900, color: '#f8fafc', letterSpacing: '-1px', marginBottom: 12, fontFamily: 'Arial, sans-serif' }}>
+              {editSymbol || safeTrade?.symbol || '—'}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 24 }}>
+              <span style={{
+                background: editDirection === 'BUY' ? '#052e16' : '#450a0a',
+                color: editDirection === 'BUY' ? '#4ade80' : '#f87171',
+                border: `1px solid ${editDirection === 'BUY' ? '#166534' : '#991b1b'}`,
+                padding: '5px 16px', borderRadius: 999, fontSize: 12, fontWeight: 800, letterSpacing: '1px', fontFamily: 'Arial, sans-serif',
+              }}>
+                {editDirection === 'BUY' ? (lang === 'ar' ? 'شراء' : lang === 'fr' ? 'ACHAT' : 'BUY') : (lang === 'ar' ? 'بيع' : lang === 'fr' ? 'VENTE' : 'SELL')}
+              </span>
+              {editResult && (
+                <span style={{
+                  background: editResult === 'Win' ? '#052e16' : editResult === 'Loss' ? '#450a0a' : '#1e293b',
+                  color: editResult === 'Win' ? '#4ade80' : editResult === 'Loss' ? '#f87171' : '#94a3b8',
+                  border: `1px solid ${editResult === 'Win' ? '#166534' : editResult === 'Loss' ? '#991b1b' : '#334155'}`,
+                  padding: '5px 16px', borderRadius: 999, fontSize: 12, fontWeight: 800, fontFamily: 'Arial, sans-serif',
+                }}>
+                  {editResult === 'Win' ? (lang === 'ar' ? 'ربح' : lang === 'fr' ? 'GAIN' : 'WIN') : editResult === 'Loss' ? (lang === 'ar' ? 'خسارة' : lang === 'fr' ? 'PERTE' : 'LOSS') : 'B/E'}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: '-2px', lineHeight: 1, color: pnlNum >= 0 ? '#4ade80' : '#f87171', fontFamily: 'Arial, sans-serif' }}>
+              {pnlNum >= 0 ? '+' : ''}${pnlNum.toFixed(2)}
+            </div>
+          </div>
+          {/* Stats grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, background: '#1e293b', borderTop: '1px solid #1e293b', borderBottom: '1px solid #1e293b' }}>
+            {[
+              { label: 'R:R', value: rrCalc !== '—' ? `${rrCalc}R` : '—' },
+              { label: lang === 'ar' ? 'المدة' : lang === 'fr' ? 'Durée' : 'Duration', value: durCalc || '—' },
+              { label: lang === 'ar' ? 'العمولة' : lang === 'fr' ? 'Comm.' : 'Commission', value: `$${(parseFloat(editCommission) || 0).toFixed(2)}` },
+              { label: lang === 'ar' ? 'الجلسة' : lang === 'fr' ? 'Session' : 'Session', value: editSession || '—' },
+            ].map((stat, i) => (
+              <div key={i} style={{ background: '#0f172a', padding: '16px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6, fontFamily: 'Arial, sans-serif' }}>{stat.label}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc', fontFamily: 'Arial, sans-serif' }}>{stat.value}</div>
+              </div>
+            ))}
+          </div>
+          {/* Tags + Rating */}
+          {(editTags.length > 0 || editRating > 0) && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 28px', borderBottom: '1px solid #1e293b' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {editTags.map((tag, i) => (
+                  <span key={i} style={{ background: '#0d2d2a', border: '1px solid #14b8a6', color: '#5eead4', padding: '4px 12px', borderRadius: 999, fontSize: 11, fontWeight: 700, fontFamily: 'Arial, sans-serif' }}>
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+              {editRating > 0 && (
+                <div>
+                  {[...Array(5)].map((_, i) => (
+                    <span key={i} style={{ fontSize: 18, color: i < editRating ? '#f59e0b' : '#1e293b', fontFamily: 'Arial, sans-serif' }}>★</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Footer */}
+          <div style={{ padding: '14px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#050d1a' }}>
+            <div style={{ fontSize: 11, color: '#475569', fontFamily: 'Arial, sans-serif' }}>
+              {lang === 'ar' ? 'تحليل باستخدام TradeSmartDz' : lang === 'fr' ? 'Analysé avec TradeSmartDz' : 'Analyzed with TradeSmartDz'}
+            </div>
+            <div style={{ fontSize: 11, color: '#14b8a6', fontWeight: 700, fontFamily: 'Arial, sans-serif' }}>tradesmartdz.com</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
