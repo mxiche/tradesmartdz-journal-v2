@@ -1191,11 +1191,17 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const todayLossAmt = todayNetPnl < 0 ? Math.abs(todayNetPnl) : 0;
   const dailyLossPct = dailyLossLimitAmt > 0 ? Math.min((todayLossAmt / dailyLossLimitAmt) * 100, 100) : 0;
 
+  // Actual P&L vs original account size — used for profit target bars.
+  // acc.account_size is the fixed challenge size (e.g. 50000); using it as the
+  // baseline means the bar correctly reflects broker-reported profit after a
+  // manual balance correction, not just the sum of locally-logged trades.
+  const balancePnl = curr - accountSize;
+
   // Forex Profit
   const profitTarget = acc.profit_target ?? 10;
   const profitLimitAmt = accountSize * profitTarget / 100;
-  const profitBarPct = Math.min(effectivePnl > 0 && profitLimitAmt > 0 ? (effectivePnl / profitLimitAmt) * 100 : 0, 100);
-  const profitPct = accountSize > 0 ? (effectivePnl / accountSize) * 100 : 0;
+  const profitBarPct = Math.min(balancePnl > 0 && profitLimitAmt > 0 ? (balancePnl / profitLimitAmt) * 100 : 0, 100);
+  const profitPct = accountSize > 0 ? (balancePnl / accountSize) * 100 : 0;
 
   // Futures
   const futuresDDLimit = a.max_loss_limit_dollars ?? 0;
@@ -1204,7 +1210,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const futuresDailyLimit = a.daily_loss_limit_dollars ?? 0;
   const futuresDailyPct = futuresDailyLimit > 0 ? Math.min((todayLossAmt / futuresDailyLimit) * 100, 100) : 0;
   const futuresProfitTarget = a.profit_target_dollars ?? 0;
-  const futuresProfitPct = futuresProfitTarget > 0 ? Math.min((effectivePnl / futuresProfitTarget) * 100, 100) : 0;
+  const futuresProfitPct = futuresProfitTarget > 0 ? Math.min((balancePnl / futuresProfitTarget) * 100, 100) : 0;
 
   // Monthly consistency + winning days
   const byDay: Record<string, number> = {};
@@ -1410,8 +1416,8 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                     <TrendingUp className="h-3 w-3" />
                     {lang === 'ar' ? 'هدف الربح' : 'Profit Target'} {profitTarget}%
                   </span>
-                  <span className={`font-bold ${effectivePnl >= 0 ? 'text-teal-600' : 'text-gray-400'}`}>
-                    {effectivePnl >= 0 ? '+' : ''}{profitPct.toFixed(2)}%
+                  <span className={`font-bold ${balancePnl >= 0 ? 'text-teal-600' : 'text-gray-400'}`}>
+                    {balancePnl >= 0 ? '+' : ''}{profitPct.toFixed(2)}%
                   </span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
@@ -1470,8 +1476,8 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                     <TrendingUp className="h-3 w-3" />
                     {lang === 'ar' ? 'هدف الربح' : 'Profit Target'}
                   </span>
-                  <span className={`font-bold ${effectivePnl >= 0 ? 'text-teal-600' : 'text-gray-400'}`}>
-                    ${effectivePnl.toFixed(0)} / ${futuresProfitTarget.toLocaleString()}
+                  <span className={`font-bold ${balancePnl >= 0 ? 'text-teal-600' : 'text-gray-400'}`}>
+                    ${balancePnl.toFixed(0)} / ${futuresProfitTarget.toLocaleString()}
                   </span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
