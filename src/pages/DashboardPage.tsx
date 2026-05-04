@@ -1775,8 +1775,19 @@ const DashboardPage = () => {
     if (isNaN(val) || val <= 0) return;
     setUpdatingBalance(true);
     try {
-      await supabase.from('mt5_accounts').update({ balance: val }).eq('id', updateBalanceAccount.id);
-      setAccounts(prev => prev.map(a => a.id === updateBalanceAccount.id ? { ...a, balance: val } : a));
+      // Compute accumulated trade P&L for this account so we can back-derive starting_balance.
+      // The equity curve uses: currentBalance = starting_balance + sum(trade net P&L)
+      // So: starting_balance = newBalance - accPnl  →  curve endpoint becomes newBalance.
+      const accPnl = trades
+        .filter(tr => tr.account_id === updateBalanceAccount.id && tr.profit !== null)
+        .reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
+      const newStartBal = +(val - accPnl).toFixed(2);
+      await supabase.from('mt5_accounts')
+        .update({ balance: val, starting_balance: newStartBal })
+        .eq('id', updateBalanceAccount.id);
+      setAccounts(prev => prev.map(a =>
+        a.id === updateBalanceAccount.id ? { ...a, balance: val, starting_balance: newStartBal } : a
+      ));
       setUpdateBalanceAccount(null);
       setNewBalanceInput('');
       toast.success(lang === 'ar' ? 'تم تحديث الرصيد' : lang === 'fr' ? 'Solde mis à jour' : 'Balance updated');
@@ -1785,15 +1796,22 @@ const DashboardPage = () => {
     }
   };
 
-  // Listen for balance updates dispatched from ConnectPage
+  // Listen for balance updates dispatched from ConnectPage — also update starting_balance
+  // so the equity curve (which uses starting_balance + accPnl) reflects the new value.
   useEffect(() => {
     const handler = (e: any) => {
       const { accountId, balance } = e.detail;
-      setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, balance } : a));
+      const accPnl = trades
+        .filter(tr => tr.account_id === accountId && tr.profit !== null)
+        .reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
+      const newStartBal = +(balance - accPnl).toFixed(2);
+      setAccounts(prev => prev.map(a =>
+        a.id === accountId ? { ...a, balance, starting_balance: newStartBal } : a
+      ));
     };
     window.addEventListener('balance-updated', handler);
     return () => window.removeEventListener('balance-updated', handler);
-  }, []);
+  }, [trades]);
 
   const thisWeekPnl = useMemo(() => {
     const now = new Date();
