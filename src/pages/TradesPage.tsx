@@ -1314,7 +1314,7 @@ const TradesPage = () => {
   const cardNetPnl = (selectedTrade?.profit ?? 0) - ((selectedTrade as any)?.commission ?? 0);
   const cardResult: 'win' | 'loss' | 'be' = (() => {
     const r = ((selectedTrade as any)?.result ?? 'be').toLowerCase();
-    return r === 'win' ? 'win' : r === 'loss' ? 'loss' : 'be';
+    return r === 'win' ? 'win' : r === 'loss' ? 'loss' : r.includes('win') ? 'win' : r.includes('loss') ? 'loss' : 'be';
   })();
   const cardResultConfig = {
     win:  { text: '✅ WIN',  bg: '#f0fdf4', border: '#86efac', color: '#16a34a' },
@@ -1462,11 +1462,18 @@ const TradesPage = () => {
         : new Promise<void>(res => { img.onload = () => res(); img.onerror = () => res(); })
     ));
     const canvas = await html2canvas(shareCardRef.current, {
-      scale: 3,
+      scale: 2,
       backgroundColor: '#ffffff',
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       logging: false,
+      imageTimeout: 15000,
+      onclone: (clonedDoc) => {
+        const allElements = clonedDoc.querySelectorAll('*');
+        allElements.forEach((el: any) => {
+          if (el.style) el.style.fontFamily = 'Arial, sans-serif';
+        });
+      },
     });
     const a = document.createElement('a');
     a.href = canvas.toDataURL('image/png');
@@ -2554,7 +2561,7 @@ const TradesPage = () => {
                     </span>
                   </div>
                   <div className="text-4xl font-black tracking-tighter" style={{ color: cardPnlColor }}>
-                    {cardNetPnl >= 0 ? '+' : ''}${Math.abs(cardNetPnl).toFixed(2)}
+                    {cardNetPnl >= 0 ? '+' : '-'}${Math.abs(cardNetPnl).toFixed(2)}
                   </div>
                 </div>
                 {/* Stats */}
@@ -3740,7 +3747,8 @@ const TradesPage = () => {
           {(() => {
             const _trade = selectedTrade as any;
             const _direction = (_trade?.direction ?? 'buy').toLowerCase();
-            const _result = (_trade?.result ?? 'be').toLowerCase();
+            const rawResult = (_trade?.result ?? 'be').toLowerCase();
+            const _result = rawResult === 'win' ? 'win' : rawResult === 'loss' ? 'loss' : rawResult.includes('win') ? 'win' : rawResult.includes('loss') ? 'loss' : 'be';
             const _profit = _trade?.profit ?? 0;
             const _commission = _trade?.commission ?? 0;
             const _netPnl = _profit - _commission;
@@ -3748,7 +3756,7 @@ const TradesPage = () => {
             const _rating = editRating ?? 0;
             const _symbol = editSymbol ?? _trade?.symbol ?? '—';
             const _session = _trade?.session ?? editSession ?? '';
-            const _username = user?.email?.split('@')[0] ?? 'Trader';
+            const _username = ((user?.user_metadata?.full_name as string | undefined)?.trim() || user?.email?.split('@')[0] || 'Trader');
             const _date = _trade?.close_time
               ? new Date(_trade.close_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
               : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -3765,6 +3773,7 @@ const TradesPage = () => {
             const _rrValue = _profit > 0 && (_trade?.risk ?? 0) > 0
               ? `${(_profit / _trade.risk).toFixed(2)}R`
               : (_trade?.rr_ratio ? `${_trade.rr_ratio}R` : '—');
+            console.log('Share card result debug:', { rawResult: _trade?.result, mappedResult: _result, username: _username, netPnl: _netPnl });
             return (
               <div style={{ width: '600px', background: '#ffffff', borderRadius: '24px', border: '1px solid #e2e8f0', fontFamily: 'Arial, sans-serif', overflow: 'hidden' }}>
 
@@ -3772,12 +3781,12 @@ const TradesPage = () => {
                 <div style={{ padding: '18px 24px', borderBottom: '3px solid #14b8a6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <img src="/logo-icon.png" crossOrigin="anonymous" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-                    <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>
+                    <span style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>
                       TradeSmart<span style={{ color: '#14b8a6' }}>Dz</span>
                     </span>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>
                       {_username.toUpperCase()}
                     </div>
                     <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', fontFamily: 'Arial, sans-serif' }}>
@@ -3788,24 +3797,24 @@ const TradesPage = () => {
 
                 {/* HERO */}
                 <div style={{ padding: '24px 24px 16px 24px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '48px', fontWeight: '900', color: '#0f172a', marginBottom: '12px', letterSpacing: '-1px', lineHeight: '1', fontFamily: 'Arial, sans-serif' }}>
+                  <div style={{ fontSize: '48px', fontWeight: '800', color: '#0f172a', marginBottom: '12px', letterSpacing: '-1px', lineHeight: '1', fontFamily: 'Arial, sans-serif' }}>
                     {_symbol}
                   </div>
                   {/* Badges — inline-block span, no flexbox inside */}
                   <div style={{ marginBottom: '16px' }}>
                     <span style={{ display: 'inline-block', padding: '5px 16px', borderRadius: '20px', background: _dirBg, border: `1.5px solid ${_dirBorder}`, marginRight: '8px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '800', color: _dirColor, fontFamily: 'Arial, sans-serif' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: _dirColor, fontFamily: 'Arial, sans-serif' }}>
                         {_dirText}
                       </span>
                     </span>
                     <span style={{ display: 'inline-block', padding: '5px 16px', borderRadius: '20px', background: _resBg, border: `1.5px solid ${_resBorder}` }}>
-                      <span style={{ fontSize: '13px', fontWeight: '800', color: _resColor, fontFamily: 'Arial, sans-serif' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: _resColor, fontFamily: 'Arial, sans-serif' }}>
                         {_resText}
                       </span>
                     </span>
                   </div>
                   {/* P&L */}
-                  <div style={{ fontSize: '54px', fontWeight: '900', color: _pnlColor, letterSpacing: '-2px', lineHeight: '1', fontFamily: 'Arial, sans-serif' }}>
+                  <div style={{ fontSize: '54px', fontWeight: '800', color: _pnlColor, letterSpacing: '-2px', lineHeight: '1', fontFamily: 'Arial, sans-serif' }}>
                     {_pnlText}
                   </div>
                 </div>
@@ -3822,7 +3831,7 @@ const TradesPage = () => {
                       <div style={{ fontSize: '10px', fontWeight: '600', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', fontFamily: 'Arial, sans-serif' }}>
                         {stat.label}
                       </div>
-                      <div style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>
+                      <div style={{ fontSize: '17px', fontWeight: '700', color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>
                         {stat.value}
                       </div>
                     </div>
