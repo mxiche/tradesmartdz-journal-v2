@@ -1908,13 +1908,13 @@ const DashboardPage = () => {
 
     const profitTargetLevel = (() => {
       if (!selectedEquityAccount || isAll) return null;
+      const sz = selectedEquityAccount.account_size ?? 0;
       if (isFutures) {
         const target = (selectedEquityAccount as any).profit_target_dollars ?? 0;
-        return target > 0 ? +(startBalance + target).toFixed(2) : null;
+        return target > 0 && sz > 0 ? +(sz + target).toFixed(2) : null;
       }
       const pct = selectedEquityAccount.profit_target ?? 0;
-      const sz = selectedEquityAccount.account_size ?? 0;
-      return pct > 0 && sz > 0 ? +(startBalance + (sz * pct / 100)).toFixed(2) : null;
+      return pct > 0 && sz > 0 ? +(sz * (1 + pct / 100)).toFixed(2) : null;
     })();
 
     // Build equity points
