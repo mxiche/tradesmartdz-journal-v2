@@ -1647,6 +1647,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                     updateData.trailing_floor = parseFloat(newFloor);
                   }
                   await supabase.from('mt5_accounts').update(updateData).eq('id', acc.id);
+                  window.dispatchEvent(new CustomEvent('balance-updated', { detail: { accountId: acc.id, balance: parseFloat(newBalance) } }));
                   setShowUpdateModal(false);
                   if (onRefresh) onRefresh(); else window.location.reload();
                 }}
