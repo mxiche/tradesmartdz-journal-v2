@@ -1144,7 +1144,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const accountSize = acc.account_size ?? start;
   const symbol = (acc.currency ?? 'USD') === 'EUR' ? '€' : '$';
 
-  const effectivePnl = tradePnl !== null ? tradePnl : curr - start;
+  const effectivePnl = curr - start;
   const effectiveTodayPnl = todayPnl ?? 0;
 
   // Filter to this account's trades, sorted ascending
@@ -1642,12 +1642,23 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
               <button
                 onClick={async () => {
                   if (!newBalance || isNaN(parseFloat(newBalance))) return;
-                  const updateData: any = { balance: parseFloat(newBalance) };
+                  const val = parseFloat(newBalance);
+                  // Fetch trades to compute starting_balance so equity curve stays correct
+                  const { data: acctTrades } = await supabase
+                    .from('trades')
+                    .select('profit, commission')
+                    .eq('account_id', acc.id)
+                    .not('profit', 'is', null);
+                  const accPnl = (acctTrades ?? []).reduce(
+                    (s: number, tr: any) => s + ((tr.profit ?? 0) - (tr.commission ?? 0)), 0
+                  );
+                  const newStartBal = +(val - accPnl).toFixed(2);
+                  const updateData: any = { balance: val, starting_balance: newStartBal };
                   if (newFloor && !isNaN(parseFloat(newFloor))) {
                     updateData.trailing_floor = parseFloat(newFloor);
                   }
                   await supabase.from('mt5_accounts').update(updateData).eq('id', acc.id);
-                  window.dispatchEvent(new CustomEvent('balance-updated', { detail: { accountId: acc.id, balance: parseFloat(newBalance) } }));
+                  window.dispatchEvent(new CustomEvent('balance-updated', { detail: { accountId: acc.id, balance: val } }));
                   setShowUpdateModal(false);
                   if (onRefresh) onRefresh(); else window.location.reload();
                 }}
