@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import {
   TrendingUp, TrendingDown, Loader2, Plus, ChevronLeft, ChevronRight, Camera, X, Download,
   Lightbulb, Target, Shield, AlertTriangle, CalendarDays, BarChart2,
-  Send, CheckCircle2, Bell, BellOff, Wallet,
+  Send, CheckCircle2, Bell, BellOff,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { t } from '@/lib/i18n';
@@ -1451,10 +1451,6 @@ const DashboardPage = () => {
   const [weeklyGoal, setWeeklyGoal] = useState(0);
   const [weeklyGoalActive, setWeeklyGoalActive] = useState(false);
   const [showDeleteGoalConfirm, setShowDeleteGoalConfirm] = useState(false);
-  const [updateBalanceAccount, setUpdateBalanceAccount] = useState<any>(null);
-  const [newBalanceInput, setNewBalanceInput] = useState('');
-  const [updatingBalance, setUpdatingBalance] = useState(false);
-
   // Filters
   const [dateRange, setDateRange] = useState<DateRange>('all');
   const [filterAccountId, setFilterAccountId] = useState<string>('all');
@@ -1767,34 +1763,6 @@ const DashboardPage = () => {
   }, [closedTrades]);
 
   // ---- weekly goal — stored in Supabase, loaded via loadWeeklyGoal() ----
-
-  // ---- update balance (dashboard) ----
-  const handleUpdateBalance = async () => {
-    if (!updateBalanceAccount || !newBalanceInput) return;
-    const val = parseFloat(newBalanceInput);
-    if (isNaN(val) || val <= 0) return;
-    setUpdatingBalance(true);
-    try {
-      // Compute accumulated trade P&L for this account so we can back-derive starting_balance.
-      // The equity curve uses: currentBalance = starting_balance + sum(trade net P&L)
-      // So: starting_balance = newBalance - accPnl  →  curve endpoint becomes newBalance.
-      const accPnl = trades
-        .filter(tr => tr.account_id === updateBalanceAccount.id && tr.profit !== null)
-        .reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
-      const newStartBal = +(val - accPnl).toFixed(2);
-      await supabase.from('mt5_accounts')
-        .update({ balance: val, starting_balance: newStartBal })
-        .eq('id', updateBalanceAccount.id);
-      setAccounts(prev => prev.map(a =>
-        a.id === updateBalanceAccount.id ? { ...a, balance: val, starting_balance: newStartBal } : a
-      ));
-      setUpdateBalanceAccount(null);
-      setNewBalanceInput('');
-      toast.success(lang === 'ar' ? 'تم تحديث الرصيد' : lang === 'fr' ? 'Solde mis à jour' : 'Balance updated');
-    } finally {
-      setUpdatingBalance(false);
-    }
-  };
 
   // Listen for balance updates dispatched from ConnectPage — also update starting_balance
   // so the equity curve (which uses starting_balance + accPnl) reflects the new value.
@@ -2855,14 +2823,7 @@ const DashboardPage = () => {
                   : 'safe';
                 return (
                   <div key={acc.id} className="space-y-3">
-                    <AccountCard acc={acc} lang={lang} compact userId={user?.id} />
-                    <button
-                      onClick={() => { setUpdateBalanceAccount(acc); setNewBalanceInput(''); }}
-                      className="w-full py-2 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-xs font-semibold hover:bg-teal-100 transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <Wallet className="h-3.5 w-3.5" />
-                      {lang === 'ar' ? 'تحديث الرصيد' : lang === 'fr' ? 'Mettre à jour le solde' : 'Update Balance'}
-                    </button>
+                    <AccountCard acc={acc} lang={lang} compact userId={user?.id} onRefresh={fetchData} />
                     {hasPropRules && (
                       <div className={`rounded-xl border p-3 space-y-2.5 ${status === 'danger' ? 'border-loss/40 bg-loss/5' : status === 'warning' ? 'border-amber-400/40 bg-amber-50/30 dark:bg-amber-900/10' : 'border-border bg-card'}`}>
                         <div className="flex items-center gap-1.5 text-xs font-semibold">
@@ -3113,77 +3074,6 @@ const DashboardPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* ── Update Balance Modal ── */}
-      <Dialog open={!!updateBalanceAccount} onOpenChange={o => !o && setUpdateBalanceAccount(null)}>
-        <DialogContent className="bg-white rounded-3xl p-0 overflow-hidden max-w-sm border-0">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-teal-500 to-teal-600 px-6 py-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
-                <Wallet className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="font-black text-white text-base">
-                  {lang === 'ar' ? 'تحديث الرصيد' : lang === 'fr' ? 'Mettre à jour le solde' : 'Update Balance'}
-                </p>
-                <p className="text-white/70 text-xs mt-0.5">{updateBalanceAccount?.account_name}</p>
-              </div>
-            </div>
-          </div>
-          {/* Current balance */}
-          <div className="mx-6 mt-5 mb-4 rounded-2xl bg-gray-50 border border-gray-100 p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400">
-                {lang === 'ar' ? 'الرصيد الحالي' : lang === 'fr' ? 'Solde actuel' : 'Current Balance'}
-              </p>
-              <p className="text-lg font-black text-gray-900 mt-0.5">
-                ${(updateBalanceAccount?.balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-teal-500" />
-            </div>
-          </div>
-          {/* Input */}
-          <div className="px-6 pb-2">
-            <label className="text-xs font-bold text-gray-700 mb-2 block">
-              {lang === 'ar' ? 'الرصيد الجديد' : lang === 'fr' ? 'Nouveau solde' : 'New Balance'}
-            </label>
-            <div className="relative">
-              <span className="absolute start-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">$</span>
-              <input
-                type="number"
-                value={newBalanceInput}
-                onChange={e => setNewBalanceInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleUpdateBalance()}
-                className="w-full rounded-2xl border border-gray-200 bg-gray-50 ps-8 pe-4 py-3.5 text-gray-900 font-bold text-sm focus:outline-none focus:border-teal-400 focus:bg-white transition-colors"
-                placeholder="e.g. 51500"
-                autoFocus
-              />
-            </div>
-          </div>
-          {/* Buttons */}
-          <div className="px-6 pb-6 pt-4 flex flex-col gap-3">
-            <button
-              onClick={handleUpdateBalance}
-              disabled={updatingBalance || !newBalanceInput}
-              className="w-full py-3.5 rounded-2xl bg-teal-500 hover:bg-teal-600 text-white font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {updatingBalance ? (
-                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{lang === 'ar' ? 'جاري الحفظ...' : 'Saving...'}</>
-              ) : (
-                lang === 'ar' ? 'حفظ الرصيد' : lang === 'fr' ? 'Enregistrer' : 'Save Balance'
-              )}
-            </button>
-            <button
-              onClick={() => setUpdateBalanceAccount(null)}
-              className="w-full py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold text-sm transition-colors"
-            >
-              {lang === 'ar' ? 'إلغاء' : lang === 'fr' ? 'Annuler' : 'Cancel'}
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
