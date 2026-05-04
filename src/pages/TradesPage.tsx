@@ -3736,104 +3736,134 @@ const TradesPage = () => {
 
       {/* Hidden share card — always in DOM for html2canvas capture */}
       <div style={{ position: 'absolute', top: -9999, left: -9999, pointerEvents: 'none' }}>
-        <div
-          ref={shareCardRef}
-          data-share-card="true"
-          style={{
-            width: '600px',
-            background: '#ffffff',
-            borderRadius: '24px',
-            border: '1px solid #e2e8f0',
-            fontFamily: 'Arial, sans-serif',
-            overflow: 'hidden',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-          }}
-        >
-          {/* Header */}
-          <div style={{ background: '#ffffff', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '3px solid #14b8a6' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <img
-                src="/logo-icon.png"
-                crossOrigin="anonymous"
-                style={{ width: '32px', height: '32px', objectFit: 'contain', display: 'block' }}
-              />
-              <span style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.5px', fontFamily: 'Arial, sans-serif' }}>
-                TradeSmart<span style={{ color: '#14b8a6' }}>Dz</span>
-              </span>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>{shareUserName}</div>
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, fontFamily: 'Arial, sans-serif' }}>
-                {safeTrade?.close_time ? new Date(safeTrade.close_time).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
-              </div>
-            </div>
-          </div>
-          {/* Hero */}
-          <div style={{ background: '#ffffff', padding: '16px 24px 16px 24px', textAlign: 'center' }}>
-            <div style={{ fontSize: 48, fontWeight: 900, color: '#0f172a', marginBottom: 12, fontFamily: 'Arial, sans-serif' }}>
-              {editSymbol || safeTrade?.symbol || '—'}
-            </div>
-            {/* Badges row — inline-block only, no flexbox */}
-            <div style={{ textAlign: 'center', marginBottom: 12 }}>
-              <div style={{ display: 'inline-block', borderRadius: '20px', background: editDirection === 'BUY' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${editDirection === 'BUY' ? '#86efac' : '#fca5a5'}`, minWidth: '70px' }}>
-                <p style={{ margin: 0, padding: '6px 14px', fontSize: '12px', fontWeight: 700, color: editDirection === 'BUY' ? '#16a34a' : '#dc2626', textAlign: 'center', lineHeight: '1.2', display: 'block', fontFamily: 'Arial, sans-serif' }}>
-                  {editDirection === 'BUY' ? '▲ BUY' : '▼ SELL'}
-                </p>
-              </div>
-              <span style={{ display: 'inline-block', width: '8px' }} />
-              <div style={{ display: 'inline-block', borderRadius: '20px', background: cardResult === 'win' ? '#f0fdf4' : cardResult === 'loss' ? '#fef2f2' : '#f8fafc', border: `1px solid ${cardResult === 'win' ? '#86efac' : cardResult === 'loss' ? '#fca5a5' : '#e2e8f0'}`, minWidth: '70px' }}>
-                <p style={{ margin: 0, padding: '6px 14px', fontSize: '12px', fontWeight: 700, color: cardResult === 'win' ? '#16a34a' : cardResult === 'loss' ? '#dc2626' : '#64748b', textAlign: 'center', lineHeight: '1.2', display: 'block', fontFamily: 'Arial, sans-serif' }}>
-                  {cardResult === 'win' ? '✅ WIN' : cardResult === 'loss' ? '❌ LOSS' : '⚡ BE'}
-                </p>
-              </div>
-            </div>
-            {/* P&L — always shows sign */}
-            <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: '-2px', lineHeight: 1, color: cardPnlColor, fontFamily: 'Arial, sans-serif' }}>
-              {pnlDisplay}
-            </div>
-          </div>
-          {/* Stats grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
-            {[
-              { label: 'R:R', value: rrCalc !== '—' ? `${rrCalc}R` : '—' },
-              { label: lang === 'ar' ? 'المدة' : lang === 'fr' ? 'Durée' : 'Duration', value: durCalc || '—' },
-              { label: lang === 'ar' ? 'العمولة' : lang === 'fr' ? 'Comm.' : 'Commission', value: `$${(parseFloat(editCommission) || 0).toFixed(2)}` },
-              { label: lang === 'ar' ? 'الجلسة' : lang === 'fr' ? 'Session' : 'Session', value: editSession || '—' },
-            ].map((stat, i) => (
-              <div key={i} style={{ padding: '16px 12px', textAlign: 'center', borderRight: i < 3 ? '1px solid #e2e8f0' : 'none' }}>
-                <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6, fontFamily: 'Arial, sans-serif' }}>{stat.label}</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>{stat.value}</div>
-              </div>
-            ))}
-          </div>
-          {/* Tags + Rating */}
-          {(editTags.length > 0 || editRating > 0) && (
-            <div style={{ padding: '14px 24px', borderBottom: '1px solid #e2e8f0' }}>
-              <div style={{ marginBottom: editRating > 0 ? 8 : 0 }}>
-                {editTags.map((tag, i) => (
-                  <div key={i} style={{ display: 'inline-block', borderRadius: '10px', background: '#f0fdfa', border: '1px solid #99f6e4', marginRight: 6, marginBottom: 4 }}>
-                    <p style={{ margin: 0, padding: '4px 10px', fontSize: '12px', fontWeight: 600, color: '#0d9488', textAlign: 'center', lineHeight: '1.2', display: 'block', whiteSpace: 'nowrap', fontFamily: 'Arial, sans-serif' }}>
-                      #{tag}
-                    </p>
+        <div ref={shareCardRef} data-share-card="true">
+          {(() => {
+            const _trade = selectedTrade as any;
+            const _direction = (_trade?.direction ?? 'buy').toLowerCase();
+            const _result = (_trade?.result ?? 'be').toLowerCase();
+            const _profit = _trade?.profit ?? 0;
+            const _commission = _trade?.commission ?? 0;
+            const _netPnl = _profit - _commission;
+            const _tags = Array.isArray(editTags) ? editTags : [];
+            const _rating = editRating ?? 0;
+            const _symbol = editSymbol ?? _trade?.symbol ?? '—';
+            const _session = _trade?.session ?? editSession ?? '';
+            const _username = user?.email?.split('@')[0] ?? 'Trader';
+            const _date = _trade?.close_time
+              ? new Date(_trade.close_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            const _pnlColor = _netPnl >= 0 ? '#14b8a6' : '#ef4444';
+            const _pnlText = `${_netPnl >= 0 ? '+' : '-'}$${Math.abs(_netPnl).toFixed(2)}`;
+            const _dirColor = _direction === 'buy' ? '#16a34a' : '#dc2626';
+            const _dirBg = _direction === 'buy' ? '#f0fdf4' : '#fef2f2';
+            const _dirBorder = _direction === 'buy' ? '#86efac' : '#fca5a5';
+            const _dirText = _direction === 'buy' ? 'BUY' : 'SELL';
+            const _resColor = _result === 'win' ? '#16a34a' : _result === 'loss' ? '#dc2626' : '#64748b';
+            const _resBg = _result === 'win' ? '#f0fdf4' : _result === 'loss' ? '#fef2f2' : '#f8fafc';
+            const _resBorder = _result === 'win' ? '#86efac' : _result === 'loss' ? '#fca5a5' : '#e2e8f0';
+            const _resText = _result === 'win' ? 'WIN' : _result === 'loss' ? 'LOSS' : 'BE';
+            const _rrValue = _profit > 0 && (_trade?.risk ?? 0) > 0
+              ? `${(_profit / _trade.risk).toFixed(2)}R`
+              : (_trade?.rr_ratio ? `${_trade.rr_ratio}R` : '—');
+            return (
+              <div style={{ width: '600px', background: '#ffffff', borderRadius: '24px', border: '1px solid #e2e8f0', fontFamily: 'Arial, sans-serif', overflow: 'hidden' }}>
+
+                {/* HEADER */}
+                <div style={{ padding: '18px 24px', borderBottom: '3px solid #14b8a6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <img src="/logo-icon.png" crossOrigin="anonymous" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                    <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>
+                      TradeSmart<span style={{ color: '#14b8a6' }}>Dz</span>
+                    </span>
                   </div>
-                ))}
-              </div>
-              {editRating > 0 && (
-                <div style={{ textAlign: 'right' }}>
-                  {[...Array(5)].map((_, i) => (
-                    <span key={i} style={{ fontSize: 20, color: i < editRating ? '#f59e0b' : '#e2e8f0', fontFamily: 'Arial, sans-serif' }}>★</span>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>
+                      {_username.toUpperCase()}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px', fontFamily: 'Arial, sans-serif' }}>
+                      {_date}
+                    </div>
+                  </div>
+                </div>
+
+                {/* HERO */}
+                <div style={{ padding: '24px 24px 16px 24px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '48px', fontWeight: '900', color: '#0f172a', marginBottom: '12px', letterSpacing: '-1px', lineHeight: '1', fontFamily: 'Arial, sans-serif' }}>
+                    {_symbol}
+                  </div>
+                  {/* Badges — inline-block span, no flexbox inside */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <span style={{ display: 'inline-block', padding: '5px 16px', borderRadius: '20px', background: _dirBg, border: `1.5px solid ${_dirBorder}`, marginRight: '8px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: _dirColor, fontFamily: 'Arial, sans-serif' }}>
+                        {_dirText}
+                      </span>
+                    </span>
+                    <span style={{ display: 'inline-block', padding: '5px 16px', borderRadius: '20px', background: _resBg, border: `1.5px solid ${_resBorder}` }}>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: _resColor, fontFamily: 'Arial, sans-serif' }}>
+                        {_resText}
+                      </span>
+                    </span>
+                  </div>
+                  {/* P&L */}
+                  <div style={{ fontSize: '54px', fontWeight: '900', color: _pnlColor, letterSpacing: '-2px', lineHeight: '1', fontFamily: 'Arial, sans-serif' }}>
+                    {_pnlText}
+                  </div>
+                </div>
+
+                {/* STATS GRID */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
+                  {[
+                    { label: 'R:R', value: _rrValue },
+                    { label: 'DURATION', value: _trade?.duration ?? '—' },
+                    { label: 'COMMISSION', value: `$${_commission.toFixed(2)}` },
+                    { label: 'SESSION', value: _session || '—' },
+                  ].map((stat, i) => (
+                    <div key={i} style={{ padding: '14px 8px', textAlign: 'center', borderRight: i < 3 ? '1px solid #e2e8f0' : 'none' }}>
+                      <div style={{ fontSize: '10px', fontWeight: '600', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', fontFamily: 'Arial, sans-serif' }}>
+                        {stat.label}
+                      </div>
+                      <div style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>
+                        {stat.value}
+                      </div>
+                    </div>
                   ))}
                 </div>
-              )}
-            </div>
-          )}
-          {/* Footer */}
-          <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>
-              {lang === 'ar' ? 'تحليل باستخدام TradeSmartDz' : lang === 'fr' ? 'Analysé avec TradeSmartDz' : 'Analyzed with TradeSmartDz'}
-            </div>
-            <div style={{ fontSize: 12, color: '#14b8a6', fontWeight: 700, fontFamily: 'Arial, sans-serif' }}>tradesmartdz.com</div>
-          </div>
+
+                {/* TAGS + RATING */}
+                {(_tags.length > 0 || _rating > 0) && (
+                  <div style={{ padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '52px' }}>
+                    <div>
+                      {_tags.map((tag: string, i: number) => (
+                        <span key={i} style={{ display: 'inline-block', padding: '4px 12px', borderRadius: '10px', background: '#f0fdfa', border: '1px solid #99f6e4', marginRight: '6px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: '600', color: '#0d9488', fontFamily: 'Arial, sans-serif' }}>
+                            #{tag}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                    {_rating > 0 && (
+                      <div>
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <span key={star} style={{ fontSize: '20px', color: star <= _rating ? '#f59e0b' : '#e2e8f0', fontFamily: 'Arial, sans-serif' }}>★</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* FOOTER */}
+                <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'Arial, sans-serif' }}>
+                    Analyzed with TradeSmartDz
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#14b8a6', fontWeight: '700', fontFamily: 'Arial, sans-serif' }}>
+                    tradesmartdz.com
+                  </span>
+                </div>
+
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
