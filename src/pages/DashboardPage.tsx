@@ -2773,7 +2773,6 @@ const DashboardPage = () => {
                 const accTrades = trades
                   .filter(tr => tr.account_id === acc.id && tr.profit !== null)
                   .sort((a, b) => new Date(a.close_time!).getTime() - new Date(b.close_time!).getTime());
-                const currentBal = acc.balance ?? startBal;
                 const accPnl = accTrades.reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
                 const effectiveCurrentBal = startBal + accPnl;
 

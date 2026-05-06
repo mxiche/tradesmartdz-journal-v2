@@ -1091,11 +1091,8 @@ interface AccountCardProps {
 }
 
 export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRefresh }: AccountCardProps) {
-  const [tradePnl, setTradePnl] = useState<number | null>(null);
-  const [todayPnl, setTodayPnl] = useState<number | null>(null);
   const [monthlyTrades, setMonthlyTrades] = useState<any[]>([]);
   const [allTradesSorted, setAllTradesSorted] = useState<any[]>([]);
-  // FIX 1: modal state
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [newBalance, setNewBalance] = useState('');
   const [newFloor, setNewFloor] = useState('');
@@ -1109,13 +1106,6 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
       .eq('user_id', userId)
       .then(({ data }) => {
         if (!data) return;
-        const total = data.reduce((s, tr) => s + (tr.profit ?? 0), 0);
-        const todayStr = new Date().toLocaleDateString('en-CA');
-        const todaySum = data
-          .filter(tr => tr.close_time && new Date(tr.close_time).toLocaleDateString('en-CA') === todayStr)
-          .reduce((s, tr) => s + (tr.profit ?? 0), 0);
-        setTradePnl(total);
-        setTodayPnl(todaySum);
         const sorted = [...data]
           .filter(tr => tr.close_time)
           .sort((a, b) => new Date(a.close_time!).getTime() - new Date(b.close_time!).getTime());
@@ -1140,21 +1130,20 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const a = acc as any;
   const isFuturesCard = a.account_category === 'futures';
   const start = acc.starting_balance ?? acc.account_size ?? 0;
-  const curr = acc.balance ?? 0;
   const accountSize = acc.account_size ?? start;
   const symbol = (acc.currency ?? 'USD') === 'EUR' ? '€' : '$';
 
-  const effectivePnl = curr - start;
-  const effectiveTodayPnl = todayPnl ?? 0;
-
-  // Filter to this account's trades, sorted ascending
+  // Trades sorted ascending — single source of truth for all balance calculations
   const thisAccTrades = allTradesSorted
     .filter((tr: any) => tr.account_id === acc.id)
     .sort((a: any, b: any) => new Date(a.close_time).getTime() - new Date(b.close_time).getTime());
 
-  // Derive current balance from trade history (avoids stale acc.balance from DB)
-  const totalNetPnl = thisAccTrades.reduce((s: number, tr: any) => s + (tr.profit ?? 0) - (tr.commission ?? 0), 0);
-  const effectiveCurrentBal = start + totalNetPnl;
+  const totalNetPnl = thisAccTrades.reduce(
+    (s: number, tr: any) => s + ((tr.profit ?? 0) - (tr.commission ?? 0)), 0
+  );
+  const curr = start + totalNetPnl;
+  const effectivePnl = totalNetPnl;
+  const effectiveCurrentBal = curr;
 
   // Unified drawdown floors (for DD floor row display)
   const floors = getDrawdownFloors(acc, effectiveCurrentBal, thisAccTrades);
@@ -1162,8 +1151,7 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
 
   // Inline HWM: static uses start as reference, trailing uses running peak
   const accDrawdownType = (acc as any).drawdown_type ?? 'static';
-  const effectiveStart = acc.starting_balance ?? acc.account_size ?? 0;
-  let accHwm = effectiveStart; let accRunBal = effectiveStart;
+  let accHwm = start; let accRunBal = start;
   for (const tr of thisAccTrades) {
     accRunBal += (tr.profit ?? 0) - (tr.commission ?? 0);
     if (accRunBal > accHwm) accHwm = accRunBal;
@@ -1186,16 +1174,14 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
   const todayCutoff = new Date(); todayCutoff.setHours(0, 0, 0, 0);
   const todayTrades = thisAccTrades.filter((tr: any) => tr.close_time && new Date(tr.close_time) >= todayCutoff);
   const todayNetPnl = todayTrades.reduce((s: number, tr: any) => s + (tr.profit ?? 0) - (tr.commission ?? 0), 0);
+  const effectiveTodayPnl = todayNetPnl;
   const startOfDayBal = effectiveCurrentBal - todayNetPnl;
   const dailyLossLimitAmt = startOfDayBal * (dailyLossPctLimit / 100);
   const todayLossAmt = todayNetPnl < 0 ? Math.abs(todayNetPnl) : 0;
   const dailyLossPct = dailyLossLimitAmt > 0 ? Math.min((todayLossAmt / dailyLossLimitAmt) * 100, 100) : 0;
 
-  // Actual P&L vs original account size — used for profit target bars.
-  // acc.account_size is the fixed challenge size (e.g. 50000); using it as the
-  // baseline means the bar correctly reflects broker-reported profit after a
-  // manual balance correction, not just the sum of locally-logged trades.
-  const balancePnl = curr - accountSize;
+  // Profit toward target = sum of all logged trade net P&L (same source as curr).
+  const balancePnl = totalNetPnl;
 
   // Forex Profit
   const profitTarget = acc.profit_target ?? 10;
