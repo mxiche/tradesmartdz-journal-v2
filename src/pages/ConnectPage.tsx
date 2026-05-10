@@ -1507,6 +1507,20 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
           </>
         )}
 
+        {/* Your Profit Cut — funded accounts only */}
+        {!isChallengeAccount && (a.profit_split ?? 0) > 0 && (
+          <div className="flex items-center justify-between py-2 border-t border-gray-100">
+            <span className="text-sm text-gray-500 flex items-center gap-1">
+              💰
+              {lang === 'ar' ? 'حصتك من الربح' : lang === 'fr' ? 'Votre part' : 'Your Profit Cut'}
+            </span>
+            <span className="text-sm font-bold text-teal-600">
+              ${Math.max(0, totalNetPnl * ((a.profit_split ?? 80) / 100)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              <span className="text-xs text-gray-400 ms-1">({a.profit_split ?? 80}%)</span>
+            </span>
+          </div>
+        )}
+
         {/* FIX 1: Update Balance button */}
         <button
           onClick={() => {

@@ -1458,6 +1458,14 @@ const DashboardPage = () => {
   // Equity chart account selector
   const [equityAccountId, setEquityAccountId] = useState<string>('all');
 
+  useEffect(() => {
+    if (accounts.length === 1) {
+      setEquityAccountId(accounts[0].id);
+    } else if (accounts.length === 0) {
+      setEquityAccountId('all');
+    }
+  }, [accounts]);
+
   // Telegram onboarding
   const [telegramChatId, setTelegramChatId] = useState<string | null>(null);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
@@ -2008,6 +2016,8 @@ const DashboardPage = () => {
   const equityCurrent = equityData.points[equityData.points.length - 1]?.balance ?? 0;
   const equityChange = equityCurrent - equityData.startBalance;
   const equityChangePct = equityData.startBalance > 0 ? ((equityChange / equityData.startBalance) * 100).toFixed(2) : '0.00';
+  const equityAccountType = (selectedEquityAccount?.account_type ?? '').toLowerCase();
+  const isFundedAccount = equityAccountType.includes('fund') && !equityAccountType.includes('challenge') && !equityAccountType.includes('evaluation') && !equityAccountType.includes('instant');
   // Teal when at or above start balance, red when below
   const lineColor = equityCurrent >= equityData.startBalance ? '#00d4aa' : '#ef4444';
 
@@ -2587,6 +2597,22 @@ const DashboardPage = () => {
                   </p>
                 </div>
               )}
+              {/* Your Cut — only for funded accounts with profit split set */}
+              {equityAccountId !== 'all' && isFundedAccount && (selectedEquityAccount as any)?.profit_split && (
+                <div>
+                  <p className="text-xs text-gray-400">
+                    {lang === 'ar' ? 'حصتك' : lang === 'fr' ? 'Votre part' : 'Your Cut'}
+                  </p>
+                  <p className="text-sm font-black text-teal-600">
+                    ${(() => {
+                      const pnl = equityData.currentEquityBalance - equityData.startBalance;
+                      const split = (selectedEquityAccount as any).profit_split ?? 80;
+                      return Math.max(0, pnl * (split / 100)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+                    })()}
+                    <span className="text-xs font-normal text-gray-400 ms-1">({(selectedEquityAccount as any).profit_split ?? 80}%)</span>
+                  </p>
+                </div>
+              )}
             </div>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={equityData.points} margin={{ left: 0, right: 8, bottom: 0 }}>
@@ -2816,7 +2842,8 @@ const DashboardPage = () => {
                 const isTrailingAcc = a.drawdown_type === 'eod_trailing' || a.drawdown_type === 'intraday_trailing';
                 const ddFloor = floors.maxLossFloor;
 
-                const hasPropRules = maxLossDollars > 0 || dailyLossDollars > 0 || profitTargetDollars > 0;
+                const isChallengeAcc = ['Challenge Phase 1', 'Challenge Phase 2', 'Evaluation', 'Instant Funded'].includes(acc.account_type ?? '');
+                const hasPropRules = maxLossDollars > 0 || dailyLossDollars > 0 || profitTargetDollars > 0 || (!isChallengeAcc && (a.profit_split ?? 0) > 0);
                 const status = ddUsedPct >= 90 || dailyPct >= 90 ? 'danger'
                   : ddUsedPct >= 70 || dailyPct >= 70 ? 'warning'
                   : 'safe';
@@ -2879,6 +2906,17 @@ const DashboardPage = () => {
                                   : (lang === 'ar' ? 'الحد الأدنى المتحرك لرصيدك' : lang === 'fr' ? 'Plancher mobile de votre solde' : 'Your trailing balance floor')}
                               </p>
                             </div>
+                          </div>
+                        )}
+                        {!isChallengeAcc && (a.profit_split ?? 0) > 0 && (
+                          <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                            <span className="text-[10px] text-muted-foreground">
+                              {lang === 'ar' ? 'حصتك من الربح' : lang === 'fr' ? 'Votre part des profits' : 'Your Profit Cut'}
+                            </span>
+                            <span className="text-[10px] font-bold text-teal-600">
+                              ${Math.max(0, accPnl * ((a.profit_split ?? 80) / 100)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              <span className="text-[9px] font-normal text-muted-foreground ms-1">({a.profit_split ?? 80}%)</span>
+                            </span>
                           </div>
                         )}
                       </div>
