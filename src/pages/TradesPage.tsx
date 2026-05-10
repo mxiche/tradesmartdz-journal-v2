@@ -3001,6 +3001,7 @@ const TradesPage = () => {
                 placeholder="NQ, XAUUSD, EURUSD..."
                 value={form.symbol}
                 onChange={e => setForm(f => ({ ...f, symbol: e.target.value }))}
+                style={{ fontSize: '16px' }}
               />
             </div>
 
@@ -3063,6 +3064,7 @@ const TradesPage = () => {
                       placeholder="0.00"
                       value={form.tp1Amount}
                       onChange={e => setForm(f => ({ ...f, tp1Amount: e.target.value }))}
+                      style={{ fontSize: '16px' }}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -3075,6 +3077,7 @@ const TradesPage = () => {
                       placeholder="0.00"
                       value={form.tp2Amount}
                       onChange={e => setForm(f => ({ ...f, tp2Amount: e.target.value }))}
+                      style={{ fontSize: '16px' }}
                     />
                   </div>
                 </div>
@@ -3082,7 +3085,7 @@ const TradesPage = () => {
                   <div className="space-y-1.5">
                     <Label>{lang === 'ar' ? 'المخاطرة ($)' : lang === 'fr' ? 'Risque ($)' : 'Risk ($)'}</Label>
                     <Input type="number" step="0.01" placeholder="0.00" value={form.risk}
-                      onChange={e => setForm(f => ({ ...f, risk: e.target.value }))} />
+                      onChange={e => setForm(f => ({ ...f, risk: e.target.value }))} style={{ fontSize: '16px' }} />
                   </div>
                   <div className="space-y-1.5">
                     <Label>R:R</Label>
@@ -3108,6 +3111,7 @@ const TradesPage = () => {
                     placeholder={form.result === 'Loss' ? '100.00' : '0.00'}
                     value={form.profit}
                     onChange={e => setForm(f => ({ ...f, profit: e.target.value }))}
+                    style={{ fontSize: '16px' }}
                   />
                   {form.result === 'Loss' && (
                     <p className="text-xs text-muted-foreground">
@@ -3118,7 +3122,7 @@ const TradesPage = () => {
                 <div className="space-y-1.5">
                   <Label>{lang === 'ar' ? 'المخاطرة ($)' : lang === 'fr' ? 'Risque ($)' : 'Risk ($)'}</Label>
                   <Input type="number" step="0.01" placeholder="0.00" value={form.risk}
-                    onChange={e => setForm(f => ({ ...f, risk: e.target.value }))} />
+                    onChange={e => setForm(f => ({ ...f, risk: e.target.value }))} style={{ fontSize: '16px' }} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>R:R</Label>
@@ -3138,6 +3142,7 @@ const TradesPage = () => {
                 placeholder="0.00"
                 value={form.commission}
                 onChange={e => setForm(f => ({ ...f, commission: e.target.value }))}
+                style={{ fontSize: '16px' }}
               />
               {form.commission && parseFloat(form.commission) > 0 && form.profit && (
                 <p className="text-xs text-gray-400 mt-1">
@@ -3161,6 +3166,7 @@ const TradesPage = () => {
                   type="datetime-local"
                   value={form.open_time}
                   onChange={e => setForm(f => ({ ...f, open_time: e.target.value }))}
+                  style={{ fontSize: '16px' }}
                 />
               </div>
               <div className="space-y-1.5">
@@ -3169,6 +3175,7 @@ const TradesPage = () => {
                   type="datetime-local"
                   value={form.close_time}
                   onChange={e => setForm(f => ({ ...f, close_time: e.target.value }))}
+                  style={{ fontSize: '16px' }}
                 />
               </div>
             </div>
