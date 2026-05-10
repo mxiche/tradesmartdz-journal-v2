@@ -1772,22 +1772,18 @@ const DashboardPage = () => {
 
   // ---- weekly goal — stored in Supabase, loaded via loadWeeklyGoal() ----
 
-  // Listen for balance updates dispatched from ConnectPage — also update starting_balance
-  // so the equity curve (which uses starting_balance + accPnl) reflects the new value.
+  // Listen for balance updates dispatched from ConnectPage.
+  // IMPORTANT: Only sync the balance field — starting_balance is immutable after creation.
   useEffect(() => {
     const handler = (e: any) => {
       const { accountId, balance } = e.detail;
-      const accPnl = trades
-        .filter(tr => tr.account_id === accountId && tr.profit !== null)
-        .reduce((s, tr) => s + ((tr.profit ?? 0) - ((tr as any).commission ?? 0)), 0);
-      const newStartBal = +(balance - accPnl).toFixed(2);
       setAccounts(prev => prev.map(a =>
-        a.id === accountId ? { ...a, balance, starting_balance: newStartBal } : a
+        a.id === accountId ? { ...a, balance } : a
       ));
     };
     window.addEventListener('balance-updated', handler);
     return () => window.removeEventListener('balance-updated', handler);
-  }, [trades]);
+  }, []);
 
   const thisWeekPnl = useMemo(() => {
     const now = new Date();

@@ -1649,17 +1649,12 @@ export function AccountCard({ acc, lang, onEdit, onDelete, compact, userId, onRe
                 onClick={async () => {
                   if (!newBalance || isNaN(parseFloat(newBalance))) return;
                   const val = parseFloat(newBalance);
-                  // Fetch trades to compute starting_balance so equity curve stays correct
-                  const { data: acctTrades } = await supabase
-                    .from('trades')
-                    .select('profit, commission')
-                    .eq('account_id', acc.id)
-                    .not('profit', 'is', null);
-                  const accPnl = (acctTrades ?? []).reduce(
-                    (s: number, tr: any) => s + ((tr.profit ?? 0) - (tr.commission ?? 0)), 0
-                  );
-                  const newStartBal = +(val - accPnl).toFixed(2);
-                  const updateData: any = { balance: val, starting_balance: newStartBal };
+                  // IMPORTANT: Never update starting_balance here.
+                  // starting_balance = original account size at creation.
+                  // balance = manually synced current balance (legacy).
+                  // Current balance is now calculated from
+                  // starting_balance + sum(trades net P&L).
+                  const updateData: any = { balance: val };
                   if (newFloor && !isNaN(parseFloat(newFloor))) {
                     updateData.trailing_floor = parseFloat(newFloor);
                   }
