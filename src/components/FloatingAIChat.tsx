@@ -7,9 +7,6 @@ import { Bot, X, Loader2, SendHorizonal } from 'lucide-react';
 
 type Lang = 'ar' | 'fr' | 'en';
 
-const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string;
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'google/gemini-2.0-flash-lite-001';
 const DAILY_LIMIT = 4;
 
 interface ChatMsg {
@@ -17,20 +14,30 @@ interface ChatMsg {
   content: string;
 }
 
-async function callOpenRouter(messages: { role: string; content: string }[]): Promise<string> {
-  const res = await fetch(OPENROUTER_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENROUTER_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://tradesmartdz.com',
-      'X-Title': 'TradeSmartDz',
-    },
-    body: JSON.stringify({ model: MODEL, messages, max_tokens: 300 }),
-  });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || '';
+async function callAI(messages: { role: string; content: string }[]): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Not authenticated')
+
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({ messages, max_tokens: 300 }),
+    }
+  )
+
+  if (!response.ok) {
+    const err = await response.json()
+    throw new Error(err.error || 'AI request failed')
+  }
+
+  const data = await response.json()
+  return data.choices?.[0]?.message?.content?.trim() ?? ''
 }
 
 export default function FloatingAIChat() {
@@ -141,7 +148,7 @@ ${tradesContext || 'No trades yet'}`;
         ...history.map(m => ({ role: m.role, content: m.content })),
       ];
 
-      const reply = await callOpenRouter(apiMessages);
+      const reply = await callAI(apiMessages);
       setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
 
       const newCount = messagesUsedToday + 1;

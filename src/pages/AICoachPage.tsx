@@ -10,10 +10,6 @@ import { toast } from 'sonner';
 
 type Lang = 'ar' | 'fr' | 'en';
 
-const OPENROUTER_KEY = import.meta.env.VITE_OPENROUTER_API_KEY as string;
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'google/gemini-2.0-flash-lite-001';
-const CHAT_MODEL = 'google/gemini-2.0-flash-lite-001';
 const DAILY_MESSAGE_LIMIT = 4;
 
 /*
@@ -94,25 +90,34 @@ function formatTimeAgo(isoString: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// ─── Call OpenRouter ──────────────────────────────────────────
-async function callOpenRouter(messages: { role: string; content: string }[], model: string = MODEL): Promise<string> {
-  const res = await fetch(OPENROUTER_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENROUTER_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://tradesmartdz.com',
-      'X-Title': 'TradeSmartDz',
-    },
-    body: JSON.stringify({ model, messages, max_tokens: 400 }),
-  });
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error('OpenRouter error:', res.status, errorText);
-    throw new Error(`API error: ${res.status}`);
+// ─── Call AI edge function ────────────────────────────────────
+async function callAI(
+  messages: { role: string; content: string }[],
+  maxTokens: number = 400
+): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Not authenticated')
+
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({ messages, max_tokens: maxTokens }),
+    }
+  )
+
+  if (!response.ok) {
+    const err = await response.json()
+    throw new Error(err.error || 'AI request failed')
   }
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || '';
+
+  const data = await response.json()
+  return data.choices?.[0]?.message?.content?.trim() ?? ''
 }
 
 // ─── Render markdown-like sections ───────────────────────────
@@ -353,7 +358,7 @@ Maximum 200 words total. Never write essays. Be a coach not a reporter.`;
 
       const analysisUserMessage = `My last ${last20Trades.length} trades:\n${tradesContext}\n\nAnalyze my trading.`;
 
-      const result = await callOpenRouter([
+      const result = await callAI([
         { role: 'system', content: analysisSystemPrompt },
         { role: 'user', content: analysisUserMessage },
       ]);
@@ -472,7 +477,7 @@ ${tradesContext}`;
         ...history.map(m => ({ role: m.role, content: m.content })),
       ];
 
-      const reply = await callOpenRouter(messages, CHAT_MODEL);
+      const reply = await callAI(messages);
       const replyTs = new Date().toLocaleTimeString(lang === 'ar' ? 'ar-DZ' : lang === 'fr' ? 'fr-FR' : 'en-US', { hour: '2-digit', minute: '2-digit' });
       setChatMsgs(prev => [...prev, { role: 'assistant', content: reply, ts: replyTs }]);
 
